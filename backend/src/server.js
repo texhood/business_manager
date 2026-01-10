@@ -29,6 +29,8 @@ const financialReportsRouter = require('./routes/financialReports');
 const authRouter = require('./routes/auth');
 const transactionAcceptanceRouter = require('./routes/transactionAcceptance');
 const plaidRoutes = require('./routes/plaid');
+const classesRouter = require('./routes/classes');
+const journalEntriesRouter = require('./routes/journalEntries');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -113,6 +115,8 @@ app.use(`${API_PREFIX}/import`, importRouter);
 app.use(`${API_PREFIX}/financial-reports`, financialReportsRouter);
 app.use(`${API_PREFIX}/transaction-acceptance`, transactionAcceptanceRouter);
 app.use('/api/v1/plaid', plaidRoutes);
+app.use(`${API_PREFIX}/classes`, classesRouter);
+app.use(`${API_PREFIX}/journal-entries`, journalEntriesRouter);
 
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {

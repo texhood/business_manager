@@ -2923,8 +2923,13 @@ const BankFeedView = () => {
   const [summary, setSummary] = useState({ pending: { count: 0 }, accepted: { count: 0 }, excluded: { count: 0 } });
   const [loading, setLoading] = useState(true);
   const [chartOfAccounts, setChartOfAccounts] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
-  const [selectedAccount, setSelectedAccount] = useState('');
+  const [acceptForm, setAcceptForm] = useState({
+    account_id: '',
+    class_id: '',
+    description: ''
+  });
   const [actionLoading, setActionLoading] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualForm, setManualForm] = useState({ date: '', description: '', amount: '', type: 'deposit' });
@@ -2932,6 +2937,7 @@ const BankFeedView = () => {
   useEffect(() => {
     loadData();
     loadChartOfAccounts();
+    loadClasses();
   }, [activeTab]);
 
   const loadData = async () => {
@@ -2943,7 +2949,7 @@ const BankFeedView = () => {
         activeTab === 'accepted' ? transactionAcceptanceService.getAccepted() :
         transactionAcceptanceService.getExcluded()
       ]);
-      setSummary(summaryRes.data);
+      setSummary(summaryRes);
       setTransactions(txnRes.data || []);
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -2954,33 +2960,65 @@ const BankFeedView = () => {
 
   const loadChartOfAccounts = async () => {
     try {
-      const res = await accountingService.getAccounts();
-      // Filter to only revenue and expense accounts
-      const filtered = (res || []).filter(a => 
-        a.account_type === 'revenue' || a.account_type === 'expense'
-      );
-      setChartOfAccounts(filtered);
+      const data = await accountingService.getAccounts();
+      setChartOfAccounts(Array.isArray(data) ? data : data.data || []);
     } catch (err) {
       console.error('Failed to load chart of accounts:', err);
     }
   };
 
+  const loadClasses = async () => {
+    try {
+      const data = await classesService.getAll();
+      setClasses(data);
+    } catch (err) {
+      console.error('Failed to load classes:', err);
+    }
+  };
+
+  // Group accounts by type for the dropdown
+  const groupedAccounts = chartOfAccounts.reduce((groups, account) => {
+    const type = account.account_type;
+    if (!groups[type]) groups[type] = [];
+    groups[type].push(account);
+    return groups;
+  }, {});
+
   const handleAccept = async (txn) => {
-    if (!selectedAccount) {
-      alert('Please select an account to categorize this transaction');
+    if (!acceptForm.account_id) {
+      alert('Please select an account');
       return;
     }
     setActionLoading(true);
     try {
-      await transactionAcceptanceService.accept(txn.id, { account_id: parseInt(selectedAccount) });
+      // Backend derives bank GL account from transaction's plaid_account_id
+      await transactionAcceptanceService.accept(txn.id, {
+        account_id: acceptForm.account_id,
+        class_id: acceptForm.class_id || null,
+        description: acceptForm.description
+      });
       setSelectedTransaction(null);
-      setSelectedAccount('');
+      setAcceptForm({
+        account_id: '',
+        class_id: '',
+        description: ''
+      });
       loadData();
     } catch (err) {
       alert('Failed to accept: ' + (err.response?.data?.message || err.message));
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const openAcceptPanel = (txn) => {
+    const isIncome = parseFloat(txn.total || txn.amount) > 0;
+    setAcceptForm({
+      account_id: '',
+      class_id: '',
+      description: txn.description || ''
+    });
+    setSelectedTransaction({ ...txn, isIncome });
   };
 
   const handleExclude = async (txn) => {
@@ -3133,124 +3171,249 @@ const BankFeedView = () => {
                 <th>Description</th>
                 <th style={{textAlign: 'right'}}>Amount</th>
                 {activeTab === 'accepted' && <th>Category</th>}
+                {activeTab === 'accepted' && <th>Class</th>}
                 {activeTab === 'excluded' && <th>Reason</th>}
                 <th style={{width: 180}}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {transactions.map(txn => (
-                <tr key={txn.id} style={{background: selectedTransaction?.id === txn.id ? '#e3f2fd' : undefined}}>
-                  <td>{formatDate(txn.date)}</td>
-                  <td>
-                    <div>{txn.description}</div>
-                    {txn.reference && <div style={{fontSize: 11, color: '#888'}}>Ref: {txn.reference}</div>}
-                  </td>
-                  <td style={{textAlign: 'right', fontWeight: 500}}>
-                    {formatCurrency(txn.total)}
-                  </td>
-                  {activeTab === 'accepted' && (
+                <React.Fragment key={txn.id}>
+                  <tr style={{background: selectedTransaction?.id === txn.id ? '#e3f2fd' : undefined}}>
+                    <td>{formatDate(txn.date)}</td>
                     <td>
-                      <span style={{background: '#e8f5e9', padding: '2px 8px', borderRadius: 4, fontSize: 12}}>
-                        {txn.accepted_account_name || '-'}
-                      </span>
+                      <div>{txn.description}</div>
+                      {txn.reference && <div style={{fontSize: 11, color: '#888'}}>Ref: {txn.reference}</div>}
                     </td>
-                  )}
-                  {activeTab === 'excluded' && (
-                    <td style={{color: '#888', fontSize: 13}}>{txn.excluded_reason || '-'}</td>
-                  )}
-                  <td>
-                    {activeTab === 'pending' && (
-                      <div style={{display: 'flex', gap: 4}}>
-                        <button 
-                          className="btn btn-primary" 
-                          style={{padding: '4px 8px', fontSize: 12}}
-                          onClick={() => setSelectedTransaction(selectedTransaction?.id === txn.id ? null : txn)}
-                        >
-                          Categorize
-                        </button>
+                    <td style={{textAlign: 'right', fontWeight: 500}}>
+                      {formatCurrency(txn.total)}
+                    </td>
+                    {activeTab === 'accepted' && (
+                      <td>
+                        <span style={{background: '#e8f5e9', padding: '2px 8px', borderRadius: 4, fontSize: 12}}>
+                          {txn.category_name || txn.accepted_account_name || '-'}
+                        </span>
+                      </td>
+                    )}
+                    {activeTab === 'accepted' && (
+                      <td style={{fontSize: 13, color: '#666'}}>
+                        {txn.class_name || '-'}
+                      </td>
+                    )}
+                    {activeTab === 'excluded' && (
+                      <td style={{color: '#888', fontSize: 13}}>{txn.exclusion_reason || '-'}</td>
+                    )}
+                    <td>
+                      {activeTab === 'pending' && (
+                        <div style={{display: 'flex', gap: 4}}>
+                          <button 
+                            className="btn btn-primary" 
+                            style={{padding: '4px 8px', fontSize: 12}}
+                            onClick={() => {
+                              if (selectedTransaction?.id === txn.id) {
+                                setSelectedTransaction(null);
+                              } else {
+                                openAcceptPanel(txn);
+                              }
+                            }}
+                          >
+                            {selectedTransaction?.id === txn.id ? 'Cancel' : 'Categorize'}
+                          </button>
+                          <button 
+                            className="btn btn-secondary" 
+                            style={{padding: '4px 8px', fontSize: 12}}
+                            onClick={() => handleExclude(txn)}
+                          >
+                            Exclude
+                          </button>
+                        </div>
+                      )}
+                      {activeTab === 'accepted' && (
                         <button 
                           className="btn btn-secondary" 
                           style={{padding: '4px 8px', fontSize: 12}}
-                          onClick={() => handleExclude(txn)}
+                          onClick={() => handleUnaccept(txn)}
                         >
-                          Exclude
+                          Unaccept
                         </button>
-                      </div>
-                    )}
-                    {activeTab === 'accepted' && (
-                      <button 
-                        className="btn btn-secondary" 
-                        style={{padding: '4px 8px', fontSize: 12}}
-                        onClick={() => handleUnaccept(txn)}
-                      >
-                        Unaccept
-                      </button>
-                    )}
-                    {activeTab === 'excluded' && (
-                      <button 
-                        className="btn btn-secondary" 
-                        style={{padding: '4px 8px', fontSize: 12}}
-                        onClick={() => handleRestore(txn)}
-                      >
-                        Restore
-                      </button>
-                    )}
-                  </td>
-                </tr>
+                      )}
+                      {activeTab === 'excluded' && (
+                        <button 
+                          className="btn btn-secondary" 
+                          style={{padding: '4px 8px', fontSize: 12}}
+                          onClick={() => handleRestore(txn)}
+                        >
+                          Restore
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                  {/* Inline Categorization Panel - appears directly below selected transaction */}
+                  {selectedTransaction?.id === txn.id && activeTab === 'pending' && (
+                    <tr>
+                      <td colSpan={4} style={{padding: 0, background: '#e3f2fd'}}>
+                        <div style={{
+                          padding: 16, 
+                          borderLeft: '4px solid #1976d2',
+                          background: '#e3f2fd'
+                        }}>
+                          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12}}>
+                            {/* Account Selection (from Chart of Accounts) */}
+                            <div>
+                              <label style={{display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500}}>
+                                Account *
+                              </label>
+                              <select 
+                                className="form-control" 
+                                value={acceptForm.account_id}
+                                onChange={(e) => setAcceptForm({...acceptForm, account_id: e.target.value})}
+                                style={{width: '100%', padding: '8px 12px'}}
+                                autoFocus
+                              >
+                                <option value="">-- Select Account --</option>
+                                {/* Show expense accounts first for withdrawals, income for deposits */}
+                                {selectedTransaction?.isIncome ? (
+                                  <>
+                                    {groupedAccounts.revenue && groupedAccounts.revenue.length > 0 && (
+                                      <optgroup label="Revenue">
+                                        {groupedAccounts.revenue.map(a => (
+                                          <option key={a.id} value={a.id}>{a.account_code} - {a.name}</option>
+                                        ))}
+                                      </optgroup>
+                                    )}
+                                    {groupedAccounts.expense && groupedAccounts.expense.length > 0 && (
+                                      <optgroup label="Expense">
+                                        {groupedAccounts.expense.map(a => (
+                                          <option key={a.id} value={a.id}>{a.account_code} - {a.name}</option>
+                                        ))}
+                                      </optgroup>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    {groupedAccounts.expense && groupedAccounts.expense.length > 0 && (
+                                      <optgroup label="Expense">
+                                        {groupedAccounts.expense.map(a => (
+                                          <option key={a.id} value={a.id}>{a.account_code} - {a.name}</option>
+                                        ))}
+                                      </optgroup>
+                                    )}
+                                    {groupedAccounts.revenue && groupedAccounts.revenue.length > 0 && (
+                                      <optgroup label="Revenue">
+                                        {groupedAccounts.revenue.map(a => (
+                                          <option key={a.id} value={a.id}>{a.account_code} - {a.name}</option>
+                                        ))}
+                                      </optgroup>
+                                    )}
+                                  </>
+                                )}
+                                {/* Also show asset/liability accounts for transfers */}
+                                {groupedAccounts.asset && groupedAccounts.asset.length > 0 && (
+                                  <optgroup label="Asset">
+                                    {groupedAccounts.asset.map(a => (
+                                      <option key={a.id} value={a.id}>{a.account_code} - {a.name}</option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                {groupedAccounts.liability && groupedAccounts.liability.length > 0 && (
+                                  <optgroup label="Liability">
+                                    {groupedAccounts.liability.map(a => (
+                                      <option key={a.id} value={a.id}>{a.account_code} - {a.name}</option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                {groupedAccounts.equity && groupedAccounts.equity.length > 0 && (
+                                  <optgroup label="Equity">
+                                    {groupedAccounts.equity.map(a => (
+                                      <option key={a.id} value={a.id}>{a.account_code} - {a.name}</option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                              </select>
+                            </div>
+
+                            {/* Class Selection (optional) */}
+                            <div>
+                              <label style={{display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500}}>
+                                Class (optional)
+                              </label>
+                              <select 
+                                className="form-control" 
+                                value={acceptForm.class_id}
+                                onChange={(e) => setAcceptForm({...acceptForm, class_id: e.target.value})}
+                                style={{width: '100%', padding: '8px 12px'}}
+                              >
+                                <option value="">-- No Class --</option>
+                                {classes.map(c => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Bank Account Display (read-only) */}
+                            <div>
+                              <label style={{display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500}}>
+                                Source Bank → GL Account
+                              </label>
+                              <div style={{
+                                padding: '8px 12px', 
+                                background: '#fff', 
+                                border: '1px solid #ddd', 
+                                borderRadius: 8,
+                                fontSize: 14,
+                                color: '#333'
+                              }}>
+                                <div>{txn.source_display || txn.plaid_account_name || 'Unknown Source'}</div>
+                                {txn.bank_gl_account_name ? (
+                                  <div style={{fontSize: 12, color: '#16a34a', marginTop: 4}}>→ {txn.bank_gl_account_name}</div>
+                                ) : (
+                                  <div style={{fontSize: 12, color: '#dc2626', marginTop: 4}}>⚠ Not linked to GL account</div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Description Override */}
+                            <div>
+                              <label style={{display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500}}>
+                                Description
+                              </label>
+                              <input 
+                                type="text"
+                                className="form-control"
+                                value={acceptForm.description}
+                                onChange={(e) => setAcceptForm({...acceptForm, description: e.target.value})}
+                                placeholder="Edit description"
+                                style={{width: '100%', padding: '8px 12px'}}
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Action Buttons */}
+                          <div style={{display: 'flex', gap: 8, justifyContent: 'flex-end'}}>
+                            <button 
+                              className="btn btn-secondary"
+                              onClick={() => setSelectedTransaction(null)}
+                              style={{padding: '8px 16px'}}
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              className="btn btn-primary"
+                              onClick={() => handleAccept(selectedTransaction)}
+                              disabled={!acceptForm.account_id || actionLoading}
+                              style={{padding: '8px 16px'}}
+                            >
+                              {actionLoading ? 'Processing...' : 'Accept & Post'}
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
-        )}
-
-        {/* Categorization Panel */}
-        {selectedTransaction && activeTab === 'pending' && (
-          <div style={{
-            marginTop: 16, 
-            padding: 16, 
-            background: '#f5f5f5', 
-            borderRadius: 8,
-            border: '2px solid #1976d2'
-          }}>
-            <h4 style={{margin: '0 0 12px'}}>Categorize Transaction</h4>
-            <div style={{display: 'flex', gap: 12, alignItems: 'center'}}>
-              <div style={{flex: 1}}>
-                <label style={{display: 'block', marginBottom: 4, fontSize: 13}}>
-                  <strong>{formatCurrency(selectedTransaction.total)}</strong> - {selectedTransaction.description}
-                </label>
-                <select 
-                  className="form-control" 
-                  value={selectedAccount}
-                  onChange={(e) => setSelectedAccount(e.target.value)}
-                  style={{width: '100%'}}
-                >
-                  <option value="">Select Account...</option>
-                  <optgroup label="Revenue">
-                    {chartOfAccounts.filter(a => a.account_type === 'revenue').map(acc => (
-                      <option key={acc.id} value={acc.id}>{acc.account_code} - {acc.name}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Expense">
-                    {chartOfAccounts.filter(a => a.account_type === 'expense').map(acc => (
-                      <option key={acc.id} value={acc.id}>{acc.account_code} - {acc.name}</option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-              <button 
-                className="btn btn-primary"
-                onClick={() => handleAccept(selectedTransaction)}
-                disabled={!selectedAccount || actionLoading}
-              >
-                {actionLoading ? 'Processing...' : 'Accept'}
-              </button>
-              <button 
-                className="btn btn-secondary"
-                onClick={() => { setSelectedTransaction(null); setSelectedAccount(''); }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
         )}
       </div>
 

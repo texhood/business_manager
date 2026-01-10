@@ -7,7 +7,7 @@
  *   const token = await plaidService.createLinkToken();
  */
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001/api/v1';
+const API_BASE = '/api/v1';
 
 export const plaidService = {
   /**
@@ -75,7 +75,12 @@ export const plaidService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ linked_account_id: glAccountId }),
     });
-    if (!response.ok) throw new Error('Failed to link account');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const error = new Error(errorData.message || errorData.error || 'Failed to link account');
+      error.details = errorData;
+      throw error;
+    }
     return response.json();
   },
 

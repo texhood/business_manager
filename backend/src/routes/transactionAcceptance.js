@@ -1,7 +1,12 @@
 /**
- * Simplified Transaction Acceptance Routes
- * Uses categories for income/expense classification
- * Auto-generates journal entries on approval
+ * Transaction Acceptance Routes
+ * Handles categorization and acceptance of bank transactions
+ * 
+ * Flow:
+ * 1. Plaid imports transactions with plaid_account_id
+ * 2. User categorizes: selects GL account (expense/revenue) and class
+ * 3. System derives bank GL account from plaid_accounts.linked_account_id
+ * 4. Journal entry is auto-generated on acceptance
  */
 
 const express = require('express');
@@ -14,53 +19,54 @@ const logger = require('../utils/logger');
 router.use(authenticate);
 
 // ============================================================================
-// HELPER: Get or create GL account for a category
+// HELPER: Get bank GL account from transaction's Plaid account
 // ============================================================================
-async function getOrCreateCategoryAccount(category, client = db) {
-  // Check if a GL account already exists for this category
-  const existing = await client.query(`
-    SELECT id FROM accounts_chart 
-    WHERE name = $1 AND account_type = $2 AND is_category_account = true
-    LIMIT 1
-  `, [category.name, category.type === 'income' ? 'revenue' : 'expense']);
-  
-  if (existing.rows.length > 0) {
-    return existing.rows[0].id;
+async function getBankGLAccountId(transaction, client = db) {
+  if (!transaction.plaid_account_id) {
+    throw new Error('Transaction has no linked Plaid account. Cannot determine bank GL account.');
   }
   
-  // Create a new GL account for this category
-  const accountType = category.type === 'income' ? 'revenue' : 'expense';
-  const normalBalance = category.type === 'income' ? 'credit' : 'debit';
-  const codePrefix = category.type === 'income' ? '4' : '5';
-  const accountCode = `${codePrefix}${String(category.id).padStart(4, '0')}`;
-  
   const result = await client.query(`
-    INSERT INTO accounts_chart (account_code, name, account_type, normal_balance, is_category_account, is_active)
-    VALUES ($1, $2, $3, $4, true, true)
-    ON CONFLICT (account_code) DO UPDATE SET name = $2
-    RETURNING id
-  `, [accountCode, category.name, accountType, normalBalance]);
+    SELECT pa.linked_account_id, pa.name as plaid_name, ac.name as gl_name
+    FROM plaid_accounts pa
+    LEFT JOIN accounts_chart ac ON pa.linked_account_id = ac.id
+    WHERE pa.id = $1
+  `, [transaction.plaid_account_id]);
   
-  return result.rows[0].id;
+  if (result.rows.length === 0) {
+    throw new Error('Plaid account not found.');
+  }
+  
+  const plaidAccount = result.rows[0];
+  
+  if (!plaidAccount.linked_account_id) {
+    throw new Error(`Plaid account "${plaidAccount.plaid_name}" is not linked to a GL account. Please configure in Bank Connections.`);
+  }
+  
+  return plaidAccount.linked_account_id;
 }
 
 // ============================================================================
 // HELPER: Generate journal entry for accepted transaction
 // ============================================================================
-async function createJournalEntry(transaction, categoryId, bankAccountId, classId, client = db) {
-  // Get category details
-  const categoryResult = await client.query('SELECT * FROM categories WHERE id = $1', [categoryId]);
-  if (categoryResult.rows.length === 0) {
-    throw new Error('Category not found');
+async function createJournalEntry(transaction, glAccountId, bankGLAccountId, classId, description, client = db) {
+  // Get the selected GL account details
+  const glAccountResult = await client.query(
+    'SELECT * FROM accounts_chart WHERE id = $1',
+    [glAccountId]
+  );
+  
+  if (glAccountResult.rows.length === 0) {
+    throw new Error('Selected GL account not found');
   }
-  const category = categoryResult.rows[0];
   
-  // Get or create the GL account for this category
-  const categoryAccountId = await getOrCreateCategoryAccount(category, client);
-  
-  // Determine debit/credit based on transaction type
-  const isIncome = category.type === 'income';
+  const glAccount = glAccountResult.rows[0];
   const amount = Math.abs(parseFloat(transaction.amount));
+  const txnDescription = description || transaction.description;
+  
+  // Determine if this is income or expense based on transaction amount and GL account type
+  // Positive amount = deposit/income, Negative amount = withdrawal/expense
+  const isDeposit = parseFloat(transaction.amount) > 0;
   
   // Generate entry number
   const entryNumResult = await client.query(`
@@ -78,46 +84,47 @@ async function createJournalEntry(transaction, categoryId, bankAccountId, classI
   `, [
     entryNumber,
     transaction.date,
-    transaction.description || `${category.type === 'income' ? 'Income' : 'Expense'}: ${category.name}`,
+    txnDescription,
     transaction.id,
-    transaction.created_by || 1
+    transaction.created_by || null
   ]);
   
   const entryId = entryResult.rows[0].id;
   
-  // Create journal entry lines
-  if (isIncome) {
-    // Income: Debit Bank, Credit Revenue
+  // Create journal entry lines based on transaction direction
+  if (isDeposit) {
+    // Deposit/Income: Debit Bank, Credit Revenue/Income account
     await client.query(`
-      INSERT INTO journal_entry_lines (journal_entry_id, account_id, debit, credit, description, class_id)
+      INSERT INTO journal_entry_lines (journal_entry_id, line_number, account_id, debit, credit, description, class_id)
       VALUES 
-        ($1, $2, $3, 0, $4, $5),
-        ($1, $6, 0, $3, $4, $5)
-    `, [entryId, bankAccountId, amount, transaction.description, classId, categoryAccountId]);
+        ($1, 1, $2, $3, 0, $4, $5),
+        ($1, 2, $6, 0, $3, $4, $5)
+    `, [entryId, bankGLAccountId, amount, txnDescription, classId, glAccountId]);
+    
+    // Update balances: Bank increases (debit), Revenue increases (credit)
+    await client.query(`
+      UPDATE accounts_chart SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
+    `, [amount, bankGLAccountId]);
+    await client.query(`
+      UPDATE accounts_chart SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
+    `, [amount, glAccountId]);
   } else {
-    // Expense: Debit Expense, Credit Bank
+    // Withdrawal/Expense: Debit Expense account, Credit Bank
     await client.query(`
-      INSERT INTO journal_entry_lines (journal_entry_id, account_id, debit, credit, description, class_id)
+      INSERT INTO journal_entry_lines (journal_entry_id, line_number, account_id, debit, credit, description, class_id)
       VALUES 
-        ($1, $2, $3, 0, $4, $5),
-        ($1, $6, 0, $3, $4, $5)
-    `, [entryId, categoryAccountId, amount, transaction.description, classId, bankAccountId]);
+        ($1, 1, $2, $3, 0, $4, $5),
+        ($1, 2, $6, 0, $3, $4, $5)
+    `, [entryId, glAccountId, amount, txnDescription, classId, bankGLAccountId]);
+    
+    // Update balances: Expense increases (debit), Bank decreases (credit)
+    await client.query(`
+      UPDATE accounts_chart SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
+    `, [amount, glAccountId]);
+    await client.query(`
+      UPDATE accounts_chart SET current_balance = current_balance - $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
+    `, [amount, bankGLAccountId]);
   }
-  
-  // Update account balances
-  await client.query(`
-    UPDATE accounts_chart 
-    SET current_balance = current_balance + $1,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = $2
-  `, [isIncome ? amount : -amount, bankAccountId]);
-  
-  await client.query(`
-    UPDATE accounts_chart 
-    SET current_balance = current_balance + $1,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = $2
-  `, [isIncome ? amount : amount, categoryAccountId]);
   
   return { entryId, entryNumber };
 }
@@ -131,14 +138,21 @@ router.get('/pending', async (req, res) => {
     
     const result = await db.query(`
       SELECT t.*, 
-             a.name as account_name,
-             c.name as category_name,
-             c.type as category_type,
-             cl.name as class_name
+             tc.name as category_name,
+             tc.type as category_type,
+             cl.name as class_name,
+             pa.name as plaid_account_name,
+             pa.mask as plaid_account_mask,
+             pa.linked_account_id as bank_gl_account_id,
+             pi.institution_name,
+             ac_bank.name as bank_gl_account_name,
+             COALESCE(pa.name || ' (...' || pa.mask || ') - ' || pi.institution_name, 'Unknown Source') as source_display
       FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN transaction_categories tc ON t.category_id = tc.id
       LEFT JOIN classes cl ON t.class_id = cl.id
+      LEFT JOIN plaid_accounts pa ON t.plaid_account_id = pa.id
+      LEFT JOIN plaid_items pi ON pa.plaid_item_id = pi.id
+      LEFT JOIN accounts_chart ac_bank ON pa.linked_account_id = ac_bank.id
       WHERE t.acceptance_status = 'pending'
       ORDER BY t.date DESC, t.id DESC
       LIMIT $1 OFFSET $2
@@ -172,16 +186,24 @@ router.get('/accepted', async (req, res) => {
     
     let query = `
       SELECT t.*, 
-             a.name as account_name,
-             c.name as category_name,
-             c.type as category_type,
+             tc.name as category_name,
+             tc.type as category_type,
              cl.name as class_name,
-             je.entry_number as journal_entry_number
+             je.entry_number as journal_entry_number,
+             pa.name as plaid_account_name,
+             pa.mask as plaid_account_mask,
+             pi.institution_name,
+             ac_gl.name as accepted_gl_account_name,
+             ac_bank.name as bank_gl_account_name,
+             COALESCE(pa.name || ' (...' || pa.mask || ') - ' || pi.institution_name, 'Unknown Source') as source_display
       FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
-      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN transaction_categories tc ON t.category_id = tc.id
       LEFT JOIN classes cl ON t.class_id = cl.id
       LEFT JOIN journal_entries je ON je.source = 'transaction' AND je.source_id = t.id
+      LEFT JOIN plaid_accounts pa ON t.plaid_account_id = pa.id
+      LEFT JOIN plaid_items pi ON pa.plaid_item_id = pi.id
+      LEFT JOIN accounts_chart ac_gl ON t.accepted_gl_account_id = ac_gl.id
+      LEFT JOIN accounts_chart ac_bank ON pa.linked_account_id = ac_bank.id
       WHERE t.acceptance_status = 'accepted'
     `;
     const params = [];
@@ -220,9 +242,13 @@ router.get('/excluded', async (req, res) => {
     
     const result = await db.query(`
       SELECT t.*, 
-             a.name as account_name
+             pa.name as plaid_account_name,
+             pa.mask as plaid_account_mask,
+             pi.institution_name,
+             COALESCE(pa.name || ' (...' || pa.mask || ') - ' || pi.institution_name, 'Unknown Source') as source_display
       FROM transactions t
-      LEFT JOIN accounts a ON t.account_id = a.id
+      LEFT JOIN plaid_accounts pa ON t.plaid_account_id = pa.id
+      LEFT JOIN plaid_items pi ON pa.plaid_item_id = pi.id
       WHERE t.acceptance_status = 'excluded'
       ORDER BY t.date DESC, t.id DESC
       LIMIT $1 OFFSET $2
@@ -280,44 +306,18 @@ router.get('/summary', async (req, res) => {
 });
 
 // ============================================================================
-// GET /transaction-acceptance/bank-accounts - Get available bank accounts
-// ============================================================================
-router.get('/bank-accounts', async (req, res) => {
-  try {
-    const result = await db.query(`
-      SELECT id, account_code, name, current_balance
-      FROM accounts_chart
-      WHERE account_subtype IN ('cash', 'bank', 'credit_card')
-        AND is_active = true
-      ORDER BY account_code
-    `);
-    
-    res.json({
-      success: true,
-      data: result.rows
-    });
-  } catch (error) {
-    logger.error('Error fetching bank accounts:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch bank accounts' });
-  }
-});
-
-// ============================================================================
 // POST /transaction-acceptance/:id/accept - Accept a transaction
 // ============================================================================
-router.post('/:id/accept', requireRole ('admin', 'manager', 'staff'), async (req, res) => {
+router.post('/:id/accept', requireRole('admin', 'manager', 'staff'), async (req, res) => {
   const client = await db.pool.connect();
   
   try {
     const { id } = req.params;
-    const { category_id, bank_account_id, class_id, description } = req.body;
+    const { account_id, class_id, description } = req.body;
     
-    if (!category_id) {
-      return res.status(400).json({ success: false, message: 'Category is required' });
-    }
-    
-    if (!bank_account_id) {
-      return res.status(400).json({ success: false, message: 'Bank account is required' });
+    // account_id is the GL account (expense/revenue) user selected
+    if (!account_id) {
+      return res.status(400).json({ success: false, message: 'Account is required' });
     }
     
     await client.query('BEGIN');
@@ -343,29 +343,31 @@ router.post('/:id/accept', requireRole ('admin', 'manager', 'staff'), async (req
       });
     }
     
-    // Update transaction with category and class
-    if (description) {
-      transaction.description = description;
-    }
+    // Derive the bank GL account from the transaction's Plaid account
+    const bankGLAccountId = await getBankGLAccountId(transaction, client);
+    
+    // Update transaction
+    const finalDescription = description || transaction.description;
     
     await client.query(`
       UPDATE transactions 
-      SET category_id = $1, 
+      SET accepted_gl_account_id = $1, 
           class_id = $2, 
-          description = COALESCE($3, description),
+          description = $3,
           acceptance_status = 'accepted',
           accepted_at = CURRENT_TIMESTAMP,
           accepted_by = $4,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = $5
-    `, [category_id, class_id || null, description, req.user.id, id]);
+    `, [account_id, class_id || null, finalDescription, req.user.id, id]);
     
     // Create journal entry
     const { entryId, entryNumber } = await createJournalEntry(
       transaction, 
-      category_id, 
-      bank_account_id, 
+      account_id,        // User-selected GL account (expense/revenue)
+      bankGLAccountId,   // Derived bank GL account
       class_id || null,
+      finalDescription,
       client
     );
     
@@ -394,7 +396,7 @@ router.post('/:id/accept', requireRole ('admin', 'manager', 'staff'), async (req
 // ============================================================================
 // POST /transaction-acceptance/:id/exclude - Exclude a transaction
 // ============================================================================
-router.post('/:id/exclude', requireRole ('admin', 'manager'), async (req, res) => {
+router.post('/:id/exclude', requireRole('admin', 'manager'), async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
@@ -428,7 +430,7 @@ router.post('/:id/exclude', requireRole ('admin', 'manager'), async (req, res) =
 // ============================================================================
 // POST /transaction-acceptance/:id/restore - Restore excluded transaction
 // ============================================================================
-router.post('/:id/restore', requireRole ('admin', 'manager'), async (req, res) => {
+router.post('/:id/restore', requireRole('admin', 'manager'), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -461,7 +463,7 @@ router.post('/:id/restore', requireRole ('admin', 'manager'), async (req, res) =
 // ============================================================================
 // POST /transaction-acceptance/:id/unaccept - Unaccept and void journal entry
 // ============================================================================
-router.post('/:id/unaccept', requireRole ('admin', 'manager'), async (req, res) => {
+router.post('/:id/unaccept', requireRole('admin', 'manager'), async (req, res) => {
   const client = await db.pool.connect();
   
   try {
@@ -525,7 +527,7 @@ router.post('/:id/unaccept', requireRole ('admin', 'manager'), async (req, res) 
     await client.query(`
       UPDATE transactions 
       SET acceptance_status = 'pending',
-          category_id = NULL,
+          accepted_gl_account_id = NULL,
           class_id = NULL,
           accepted_at = NULL,
           accepted_by = NULL,
@@ -553,18 +555,18 @@ router.post('/:id/unaccept', requireRole ('admin', 'manager'), async (req, res) 
 // ============================================================================
 // POST /transaction-acceptance/bulk-accept - Bulk accept transactions
 // ============================================================================
-router.post('/bulk-accept', requireRole ('admin', 'manager'), async (req, res) => {
+router.post('/bulk-accept', requireRole('admin', 'manager'), async (req, res) => {
   const client = await db.pool.connect();
   
   try {
-    const { transaction_ids, category_id, bank_account_id, class_id } = req.body;
+    const { transaction_ids, account_id, class_id } = req.body;
     
     if (!Array.isArray(transaction_ids) || transaction_ids.length === 0) {
       return res.status(400).json({ success: false, message: 'Transaction IDs required' });
     }
     
-    if (!category_id || !bank_account_id) {
-      return res.status(400).json({ success: false, message: 'Category and bank account required' });
+    if (!account_id) {
+      return res.status(400).json({ success: false, message: 'Account is required' });
     }
     
     await client.query('BEGIN');
@@ -586,18 +588,28 @@ router.post('/bulk-accept', requireRole ('admin', 'manager'), async (req, res) =
         
         const transaction = txnResult.rows[0];
         
+        // Derive bank GL account for each transaction
+        const bankGLAccountId = await getBankGLAccountId(transaction, client);
+        
         await client.query(`
           UPDATE transactions 
-          SET category_id = $1, 
+          SET accepted_gl_account_id = $1, 
               class_id = $2, 
               acceptance_status = 'accepted',
               accepted_at = CURRENT_TIMESTAMP,
               accepted_by = $3,
               updated_at = CURRENT_TIMESTAMP
           WHERE id = $4
-        `, [category_id, class_id || null, req.user.id, txnId]);
+        `, [account_id, class_id || null, req.user.id, txnId]);
         
-        await createJournalEntry(transaction, category_id, bank_account_id, class_id || null, client);
+        await createJournalEntry(
+          transaction, 
+          account_id, 
+          bankGLAccountId, 
+          class_id || null, 
+          transaction.description,
+          client
+        );
         
         results.accepted++;
       } catch (err) {

@@ -12,6 +12,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
 import { plaidService } from '../services/plaidApi';
+import { accountingService } from '../services/api';
 
 // ============================================================================
 // PLAID LINK BUTTON COMPONENT
@@ -109,9 +110,12 @@ function PlaidLinkButton({ onSuccess, onExit }) {
 export default function BankConnectionsView() {
   const [items, setItems] = useState([]);
   const [accounts, setAccounts] = useState([]);
+  const [glAccounts, setGlAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState(null);
+  const [editingAccount, setEditingAccount] = useState(null);
+  const [selectedGlAccount, setSelectedGlAccount] = useState('');
 
   // Load data on mount
   useEffect(() => {
@@ -121,12 +125,17 @@ export default function BankConnectionsView() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [itemsData, accountsData] = await Promise.all([
+      const [itemsData, accountsData, glAccountsData] = await Promise.all([
         plaidService.getItems(),
         plaidService.getAccounts(),
+        accountingService.getAccounts(),
       ]);
       setItems(itemsData);
       setAccounts(accountsData);
+      // Filter to only bank-type GL accounts
+      const bankGlAccounts = (Array.isArray(glAccountsData) ? glAccountsData : glAccountsData.data || [])
+        .filter(a => a.account_subtype === 'bank' || a.account_type === 'asset');
+      setGlAccounts(bankGlAccounts);
     } catch (err) {
       console.error('Error loading data:', err);
       setMessage({ type: 'error', text: 'Failed to load bank connections' });
@@ -185,8 +194,36 @@ export default function BankConnectionsView() {
       await loadData();
     } catch (err) {
       console.error('Error removing item:', err);
-      setMessage({ type: 'error', text: 'Failed to disconnect bank' });
+      setMessage({ type: 'error', text: `Failed to disconnect bank: ${err.message}` });
     }
+  };
+
+  // Start editing account link
+  const handleEditLink = (account) => {
+    setEditingAccount(account);
+    setSelectedGlAccount(account.linked_account_id || '');
+  };
+
+  // Save account link
+  const handleSaveLink = async () => {
+    if (!editingAccount) return;
+
+    try {
+      await plaidService.linkAccount(editingAccount.id, selectedGlAccount || null);
+      setMessage({ type: 'success', text: `Linked ${editingAccount.name} to GL account` });
+      setEditingAccount(null);
+      setSelectedGlAccount('');
+      await loadData();
+    } catch (err) {
+      console.error('Error linking account:', err);
+      setMessage({ type: 'error', text: err.message || 'Failed to link account' });
+    }
+  };
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setEditingAccount(null);
+    setSelectedGlAccount('');
   };
 
   // Clear message after delay
@@ -333,7 +370,12 @@ export default function BankConnectionsView() {
           </div>
 
           {/* Accounts Table */}
-          <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Accounts</h2>
+          <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
+            Accounts
+            <span style={{ fontSize: '14px', fontWeight: '400', color: '#6b7280', marginLeft: '12px' }}>
+              Link each bank account to a GL account for automatic journal entries
+            </span>
+          </h2>
           <div style={{ backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -342,7 +384,8 @@ export default function BankConnectionsView() {
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '500', fontSize: '14px', borderBottom: '1px solid #e5e7eb' }}>Bank</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '500', fontSize: '14px', borderBottom: '1px solid #e5e7eb' }}>Type</th>
                   <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: '500', fontSize: '14px', borderBottom: '1px solid #e5e7eb' }}>Balance</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '500', fontSize: '14px', borderBottom: '1px solid #e5e7eb' }}>Linked To</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '500', fontSize: '14px', borderBottom: '1px solid #e5e7eb' }}>Linked GL Account</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center', fontWeight: '500', fontSize: '14px', borderBottom: '1px solid #e5e7eb', width: '120px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -368,13 +411,99 @@ export default function BankConnectionsView() {
                     <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace' }}>
                       ${account.current_balance?.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '—'}
                     </td>
-                    <td style={{ padding: '12px 16px', color: account.linked_account_name ? '#16a34a' : '#9ca3af' }}>
-                      {account.linked_account_name || 'Not linked'}
+                    <td style={{ padding: '12px 16px' }}>
+                      {editingAccount?.id === account.id ? (
+                        <select
+                          value={selectedGlAccount}
+                          onChange={(e) => setSelectedGlAccount(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px',
+                            borderRadius: '4px',
+                            border: '1px solid #d1d5db',
+                            fontSize: '14px',
+                          }}
+                        >
+                          <option value="">-- Select GL Account --</option>
+                          {glAccounts.map(gl => (
+                            <option key={gl.id} value={gl.id}>
+                              {gl.account_code} - {gl.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span style={{ color: account.linked_account_name ? '#16a34a' : '#dc2626', fontWeight: account.linked_account_name ? '500' : '400' }}>
+                          {account.linked_account_name || '⚠ Not linked'}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      {editingAccount?.id === account.id ? (
+                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                          <button
+                            onClick={handleSaveLink}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '4px',
+                              border: 'none',
+                              backgroundColor: '#16a34a',
+                              color: 'white',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                            }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '4px',
+                              border: '1px solid #d1d5db',
+                              backgroundColor: 'white',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleEditLink(account)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '4px',
+                            border: '1px solid #d1d5db',
+                            backgroundColor: 'white',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                          }}
+                        >
+                          {account.linked_account_name ? 'Change' : 'Link'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Help Text */}
+          <div style={{ 
+            marginTop: '16px', 
+            padding: '16px', 
+            backgroundColor: '#eff6ff', 
+            borderRadius: '8px',
+            border: '1px solid #bfdbfe',
+          }}>
+            <h4 style={{ margin: '0 0 8px', color: '#1e40af', fontSize: '14px' }}>💡 Why link accounts?</h4>
+            <p style={{ margin: 0, fontSize: '13px', color: '#3b82f6' }}>
+              When you accept a transaction from the bank feed, the system needs to know which GL account 
+              represents this bank account. Link each Plaid account to its corresponding GL account 
+              (e.g., "Chase Checking" → "1000 - Cash Checking") so journal entries are created correctly.
+            </p>
           </div>
         </div>
       )}

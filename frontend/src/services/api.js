@@ -211,37 +211,37 @@ export const tagsService = {
 };
 
 // ============================================================================
-// ACCOUNTING CATEGORIES (for transaction classification - income/expense)
+// TRANSACTION CATEGORIES (for transaction classification - income/expense)
 // ============================================================================
 
-export const accountingCategoriesService = {
+export const transactionCategoriesService = {
   getAll: async (params = {}) => {
-    const response = await api.get('/accounting-categories', { params });
+    const response = await api.get('/transaction-categories', { params });
     return response.data.data;
   },
 
   getGrouped: async () => {
-    const response = await api.get('/accounting-categories/grouped');
+    const response = await api.get('/transaction-categories/grouped');
     return response.data.data;
   },
 
   getById: async (id) => {
-    const response = await api.get(`/accounting-categories/${id}`);
+    const response = await api.get(`/transaction-categories/${id}`);
     return response.data.data;
   },
 
   create: async (data) => {
-    const response = await api.post('/accounting-categories', data);
+    const response = await api.post('/transaction-categories', data);
     return response.data.data;
   },
 
   update: async (id, data) => {
-    const response = await api.put(`/accounting-categories/${id}`, data);
+    const response = await api.put(`/transaction-categories/${id}`, data);
     return response.data.data;
   },
 
   delete: async (id) => {
-    const response = await api.delete(`/accounting-categories/${id}`);
+    const response = await api.delete(`/transaction-categories/${id}`);
     return response.data;
   },
 
@@ -249,10 +249,13 @@ export const accountingCategoriesService = {
     const params = {};
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
-    const response = await api.get('/accounting-categories/report/summary', { params });
+    const response = await api.get('/transaction-categories/report/summary', { params });
     return response.data.data;
   },
 };
+
+// Legacy alias - will be removed in future
+export const accountingCategoriesService = transactionCategoriesService;
 
 // ============================================================================
 // TRANSACTIONS
@@ -536,7 +539,7 @@ export const reportsService = {
     return response.data.data;
   },
 
-  // CSV Export methods - use fetch with auth header and trigger download
+  // CSV Export methods
   exportIncomeStatementCSV: async (startDate, endDate) => {
     try {
       const response = await api.get(`/financial-reports/income-statement/csv?start_date=${startDate}&end_date=${endDate}`, {
@@ -728,7 +731,7 @@ export const importService = {
 };
 
 // ============================================================================
-// TRANSACTION ACCEPTANCE (Bank Feed Workflow - Simplified with Categories)
+// TRANSACTION ACCEPTANCE (Bank Feed Workflow)
 // ============================================================================
 
 export const transactionAcceptanceService = {
@@ -753,13 +756,15 @@ export const transactionAcceptanceService = {
     return response.data.data;
   },
 
-  getBankAccounts: async () => {
-    const response = await api.get('/transaction-acceptance/bank-accounts');
-    return response.data.data;
-  },
-
-  // Accept a transaction (simplified - uses category instead of GL account)
-  // data should contain: category_id, bank_account_id, class_id (optional), description (optional)
+  /**
+   * Accept a transaction
+   * @param {string} id - Transaction ID
+   * @param {object} data - { account_id, class_id, description }
+   *   - account_id: GL account from chart of accounts (expense/revenue)
+   *   - class_id: Optional business segment class
+   *   - description: Optional description override
+   * Note: Bank account is automatically derived from transaction's plaid_account_id
+   */
   accept: async (id, data) => {
     const response = await api.post(`/transaction-acceptance/${id}/accept`, data);
     return response.data;
@@ -789,14 +794,67 @@ export const transactionAcceptanceService = {
     return response.data;
   },
 
-  // Bulk accept transactions (simplified - uses category)
-  bulkAccept: async (transactionIds, categoryId, bankAccountId, classId = null) => {
+  /**
+   * Bulk accept transactions
+   * @param {array} transactionIds - Array of transaction IDs
+   * @param {number} accountId - GL account ID (expense/revenue)
+   * @param {number} classId - Optional class ID
+   * Note: Bank account is automatically derived for each transaction
+   */
+  bulkAccept: async (transactionIds, accountId, classId = null) => {
     const response = await api.post('/transaction-acceptance/bulk-accept', {
       transaction_ids: transactionIds,
-      category_id: categoryId,
-      bank_account_id: bankAccountId,
+      account_id: accountId,
       class_id: classId
     });
+    return response.data;
+  },
+};
+
+// ============================================================================
+// JOURNAL ENTRIES
+// ============================================================================
+
+export const journalEntriesService = {
+  // Get all journal entries with pagination and filters
+  getAll: async (params = {}) => {
+    const response = await api.get('/journal-entries', { params });
+    return response.data;
+  },
+
+  // Get a single journal entry with lines
+  getById: async (id) => {
+    const response = await api.get(`/journal-entries/${id}`);
+    return response.data;
+  },
+
+  // Create a new journal entry
+  create: async (data) => {
+    const response = await api.post('/journal-entries', data);
+    return response.data;
+  },
+
+  // Update a draft journal entry
+  update: async (id, data) => {
+    const response = await api.put(`/journal-entries/${id}`, data);
+    return response.data;
+  },
+
+  // Post a draft entry
+  post: async (id) => {
+    const response = await api.post(`/journal-entries/${id}/post`);
+    return response.data;
+  },
+
+  // Void a posted entry
+  void: async (id, reason) => {
+    const response = await api.post(`/journal-entries/${id}/void`, { reason });
+    return response.data;
+  },
+
+  // Delete a draft entry
+  delete: async (id) => {
+    const response = await api.delete(`/journal-entries/${id}`);
     return response.data;
   },
 };

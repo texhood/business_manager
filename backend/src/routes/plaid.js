@@ -339,6 +339,7 @@ async function upsertTransaction(txn, accountMap, plaidItemId) {
       amount = EXCLUDED.amount,
       category = EXCLUDED.category,
       notes = EXCLUDED.notes,
+      plaid_account_id = COALESCE(EXCLUDED.plaid_account_id, transactions.plaid_account_id),
       updated_at = NOW()`,
     [
       txn.date,
@@ -352,6 +353,113 @@ async function upsertTransaction(txn, accountMap, plaidItemId) {
     ]
   );
 }
+
+// ============================================================================
+// REFRESH ACCOUNTS - Fetch accounts for existing items
+// ============================================================================
+
+/**
+ * POST /api/v1/plaid/refresh-accounts
+ * Fetches accounts from Plaid for all items (or a specific item) and saves them
+ * Use this if plaid_accounts is empty but plaid_items has data
+ */
+router.post('/refresh-accounts', async (req, res) => {
+  const { item_id } = req.body;
+
+  try {
+    // Get Plaid items
+    let query = 'SELECT * FROM plaid_items WHERE status = $1';
+    const params = ['active'];
+    
+    if (item_id) {
+      query += ' AND item_id = $2';
+      params.push(item_id);
+    }
+
+    const itemsResult = await db.query(query, params);
+    const items = itemsResult.rows;
+
+    if (items.length === 0) {
+      return res.status(404).json({ error: 'No active Plaid items found' });
+    }
+
+    const results = {
+      items_processed: 0,
+      accounts_added: 0,
+      accounts_updated: 0,
+      errors: []
+    };
+
+    for (const item of items) {
+      try {
+        console.log(`Fetching accounts for item ${item.item_id} (${item.institution_name})...`);
+        
+        const accountsResponse = await plaidClient.accountsGet({ 
+          access_token: item.access_token 
+        });
+        const accounts = accountsResponse.data.accounts;
+        
+        console.log(`Found ${accounts.length} accounts`);
+
+        for (const account of accounts) {
+          const upsertResult = await db.query(
+            `INSERT INTO plaid_accounts (
+              plaid_item_id, account_id, name, official_name, type, subtype, mask,
+              current_balance, available_balance, iso_currency_code
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            ON CONFLICT (account_id) DO UPDATE SET
+              name = EXCLUDED.name,
+              official_name = EXCLUDED.official_name,
+              current_balance = EXCLUDED.current_balance,
+              available_balance = EXCLUDED.available_balance,
+              updated_at = NOW()
+            RETURNING (xmax = 0) AS inserted`,
+            [
+              item.id,
+              account.account_id,
+              account.name,
+              account.official_name,
+              account.type,
+              account.subtype,
+              account.mask,
+              account.balances.current,
+              account.balances.available,
+              account.balances.iso_currency_code || 'USD',
+            ]
+          );
+          
+          if (upsertResult.rows[0].inserted) {
+            results.accounts_added++;
+          } else {
+            results.accounts_updated++;
+          }
+          
+          console.log(`  - ${account.name} (${account.mask}): ${account.type}/${account.subtype}`);
+        }
+
+        results.items_processed++;
+      } catch (error) {
+        console.error(`Error fetching accounts for item ${item.item_id}:`, error.response?.data || error.message);
+        results.errors.push({
+          item_id: item.item_id,
+          institution: item.institution_name,
+          error: error.response?.data?.error_message || error.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      ...results
+    });
+  } catch (error) {
+    console.error('Error in refresh-accounts:', error);
+    res.status(500).json({
+      error: 'Failed to refresh accounts',
+      details: error.message
+    });
+  }
+});
 
 // ============================================================================
 // GET LINKED ACCOUNTS
@@ -435,6 +543,25 @@ router.put('/accounts/:id/link', async (req, res) => {
   const { linked_account_id } = req.body;
 
   try {
+    // If linking (not unlinking), check if GL account is already linked to another Plaid account
+    if (linked_account_id) {
+      const existingLink = await db.query(
+        `SELECT pa.id, pa.name, pa.mask, pi.institution_name
+         FROM plaid_accounts pa
+         JOIN plaid_items pi ON pa.plaid_item_id = pi.id
+         WHERE pa.linked_account_id = $1 AND pa.id != $2`,
+        [linked_account_id, id]
+      );
+
+      if (existingLink.rows.length > 0) {
+        const existing = existingLink.rows[0];
+        return res.status(400).json({
+          error: 'GL account already linked',
+          message: `This GL account is already linked to "${existing.name} (••••${existing.mask})" at ${existing.institution_name}. Each GL account should only be linked to one bank account for proper reconciliation.`
+        });
+      }
+    }
+
     const result = await db.query(
       `UPDATE plaid_accounts SET linked_account_id = $1, updated_at = NOW()
        WHERE id = $2
@@ -460,6 +587,7 @@ router.put('/accounts/:id/link', async (req, res) => {
 /**
  * DELETE /api/v1/plaid/items/:item_id
  * Removes a Plaid item (bank connection)
+ * Note: Does not delete transactions - just nullifies the plaid_account_id reference
  */
 router.delete('/items/:item_id', async (req, res) => {
   const { item_id } = req.params;
@@ -477,20 +605,47 @@ router.delete('/items/:item_id', async (req, res) => {
 
     const item = itemResult.rows[0];
 
-    // Remove from Plaid
+    // Remove from Plaid API
     try {
       await plaidClient.itemRemove({ access_token: item.access_token });
     } catch (e) {
-      console.warn('Could not remove item from Plaid:', e.message);
+      console.warn('Could not remove item from Plaid API:', e.message);
+      // Continue anyway - we still want to clean up our database
     }
 
-    // Delete from our database (cascades to plaid_accounts)
+    // Get the plaid_accounts for this item
+    const accountsResult = await db.query(
+      'SELECT id FROM plaid_accounts WHERE plaid_item_id = $1',
+      [item.id]
+    );
+    const accountIds = accountsResult.rows.map(r => r.id);
+
+    // Nullify plaid_account_id on transactions (preserve the transactions, just unlink them)
+    if (accountIds.length > 0) {
+      await db.query(
+        `UPDATE transactions SET plaid_account_id = NULL 
+         WHERE plaid_account_id = ANY($1)`,
+        [accountIds]
+      );
+    }
+
+    // Delete plaid_accounts first (FK doesn't have CASCADE)
+    await db.query('DELETE FROM plaid_accounts WHERE plaid_item_id = $1', [item.id]);
+    
+    // Now delete the plaid_item
     await db.query('DELETE FROM plaid_items WHERE item_id = $1', [item_id]);
 
-    res.json({ success: true, message: 'Bank connection removed' });
+    res.json({ 
+      success: true, 
+      message: 'Bank connection removed',
+      transactions_unlinked: accountIds.length > 0
+    });
   } catch (error) {
     console.error('Error removing item:', error);
-    res.status(500).json({ error: 'Failed to remove bank connection' });
+    res.status(500).json({ 
+      error: 'Failed to remove bank connection',
+      details: error.message 
+    });
   }
 });
 
