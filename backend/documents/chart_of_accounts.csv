@@ -1,0 +1,216 @@
+﻿Number,Name,Account type,Detail type,QuickBooks balance,Bank balance
+1.18.1,Roughage,Expenses,Supplies & Materials,0,0
+1.18.2,Complete Feed or Concentrate,Expenses,Supplies & Materials,0,0
+1.18.3,Mineral & Salt,Expenses,Supplies & Materials,0,0
+1.18.4.1,Cattle Protein Supplement,Expenses,Supplies & Materials,0,0
+1.18.4.2,Sheep Protein Supplement,Expenses,Supplies & Materials,0,0
+1.18.4.3,Protein Supplement,Expenses,Supplies & Materials,0,0
+1.39.1,Beef Processing,Expenses,Other Business Expenses,0,0
+1.39.2,Sheep Processing,Expenses,Other Business Expenses,0,0
+1.39.3,Chicken Processinig,Expenses,Other Business Expenses,0,0
+3,Fixed assets,Fixed Assets,Other fixed assets,9176.37,0
+3.1,Livestock Inventory,Fixed Assets,Other fixed assets,0,0
+3.2,Accumulated Depreciation,Fixed Assets,Accumulated Depreciation,0,0
+3.3,Equipment,Fixed Assets,Machinery & Equipment,9176.37,0
+3.3.1,Freezer 54 cu ft,Fixed Assets,Machinery & Equipment,3888,0
+3.3.2,Cooler 48 cu ft,Fixed Assets,Machinery & Equipment,2159,0
+3.3.3,Machinery & Equipment,Fixed Assets,Machinery & Equipment,3129.37,0
+3.3.4,Tractor,Fixed Assets,Machinery & Equipment,0,0
+323003721,Food Trailer Note,Long Term Liabilities,Notes Payable,34306.35,0
+4.1,CapitalOne MC - 3924,Credit Card,Credit Card,7768.88,-7852.6
+4000,Income,Income,Sales of Product Income,0,0
+4010,Online Sales,Income,Sales of Product Income,0,0
+4011,Tyler Farmer's Market,Income,Sales of Product Income,0,0
+4012,Athens Farmer's Market,Income,Sales of Product Income,0,0
+4013,Rose City Farmer's Market,Income,Sales of Product Income,0,0
+4014,Whitehouse Farmer's Market,Income,Service/Fee Income,0,0
+4015,Mosaic Market,Income,Sales of Product Income,0,0
+4016,Tyler Farmers' Market,Income,Sales of Product Income,0,0
+4017,Athens Farmers Market,Income,Sales of Product Income,0,0
+4018,Market - other,Income,Sales of Product Income,0,0
+4019,On-farm Sales,Income,Sales of Product Income,0,0
+4020,Invoices,Income,Sales of Product Income,0,0
+4021,Little Braveheart,Income,Sales of Product Income,0,0
+4022,Sorelle,Income,Sales of Product Income,0,0
+4095,Refunds/Credits,Income,Discounts/Refunds Given,0,0
+4100,Sales of Product Income,Income,Sales of Product Income,0,0
+6000,Ranch Expenses,Expenses,Supplies & Materials,0,0
+6011,Feed Purchase,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+6012,"Animal inputs (mineral, protein, hay etc)",Cost of Goods Sold,Supplies & Materials - COGS,0,0
+6020,Product Creation,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+6021,Animal Processing,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+6022,Seed & Plants,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+6023,"Inputs (fertilizer, compost, etc)",Cost of Goods Sold,Supplies & Materials - COGS,0,0
+6024,Animal Purchases,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+6030,Farm Repairs & Maintenance,Expenses,Repair & Maintenance,0,0
+6032,Machinery & Equipment,Expenses,Repair & Maintenance,0,0
+6033,Building & Improvements,Expenses,Repair & Maintenance,0,0
+6040,Packaging,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+6050,Supplies and Materials,Expenses,Supplies & Materials,0,0
+6051,Items for Resale,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+6060,Rents or Leases,Expenses,Rent or Lease of Buildings,0,0
+6061,Land (Cash Lease),Expenses,Rent or Lease of Buildings,0,0
+6065,"Gasoline, Fuel, & Oil",Expenses,Supplies & Materials,0,0
+6070,"Vehicles, Machinery, & Equipment",Expenses,Rent or Lease of Buildings,0,0
+6200,Car and Truck Expense,Expenses,Auto,0,0
+6320,Vehicles,Expenses,Repair & Maintenance,0,0
+6340,Labor (Contract),Expenses,Cost of Labor,0,0
+6350,"Veterinary, Breeding and Medicine",Expenses,Other Miscellaneous Service Cost,0,0
+6510,Market expenses/fees.,Expenses,Other Business Expenses,0,0
+7000,General Expenses,Expenses,Other Business Expenses,0,0
+7010,Bank Fees & Service Charges,Expenses,Bank Charges,0,0
+7040,"Legal, Accounting and Professional",Expenses,Office/General Administrative Expenses,0,0
+7050,Dues & Subscriptions,Expenses,Dues & subscriptions,0,0
+7060,Commissions & fees,Expenses,Dues & subscriptions,0,0
+7070,Travel,Expenses,Travel,0,0
+7071,Meals & Entertainment,Expenses,Travel Meals,0,0
+7072,Travel Lodging,Expenses,Advertising/Promotional,0,0
+7074,Conference fees,Expenses,Other Business Expenses,0,0
+7080,Postage & Print,Expenses,Other Business Expenses,0,0
+7100,Merchant Fees,Expenses,Bank Charges,0,0
+7150,Advertising and Marketing,Expenses,Advertising/Promotional,0,0
+7160,Insurance,Expenses,Insurance,0,0
+7200,Payroll Expenses,Expenses,Cost of Labor,0,0
+7201,Salary,Expenses,Cost of Labor,0,0
+7202,Payroll Taxes,Expenses,Payroll Expenses,0,0
+7203,Contract Labor,Expenses,Other Business Expenses,0,0
+7300,Office Expenses,Expenses,Office/General Administrative Expenses,0,0
+7310,"IT, Software and Website",Expenses,Other Business Expenses,0,0
+7370,Interest Expense,Expenses,Interest Paid,0,0
+7700,Utilities,Expenses,Utilities,0,0
+7800,Income Tax Expense,Other Expense,Other Miscellaneous Expense,0,0
+7802,State Franchise Tax,Other Expense,Other Miscellaneous Expense,0,0
+7990,Depreciation Expense,Expenses,Other Business Expenses,0,0
+8010,Charitable Contribution,Expenses,Charitable Contributions,0,0
+9001,Unapplied Cash Bill Payment Expense,Expenses,Unapplied Cash Bill Payment Expense,0,0
+9002,Uncategorized Expense,Expenses,Other Miscellaneous Service Cost,0,0
+9003,Reconciliation Discrepancies,Other Expense,Other Miscellaneous Expense,0,0
+9004,Uncategorized Income,Income,Sales of Product Income,0,0
+9100,Interest Earned,Other Income,Interest Earned,0,0
+92880822,Kubota UTV Note,Long Term Liabilities,Notes Payable,0,0
+,COGS Meat Hens,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Feed,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Livestock Purchase,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Processing Costs,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Bakery,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Supplies & Ingredients,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Packaging and Consumables,Cost of Goods Sold,Other Costs of Services - COS,0,0
+,COGS Food Truck,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Packaging and Consumables,Cost of Goods Sold,Other Costs of Services - COS,0,0
+,COGS Supplies & Ingredients,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,"COGS Inputs (Fertilizer, Compost, Etc)",Cost of Goods Sold,Other Costs of Services - COS,0,0
+,"COGS Animal Inputs (Mineral, Protein, Etc)",Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Shipping and Delivery,Cost of Goods Sold,"Shipping, Freight & Delivery - COS",0,0
+,COGS Seeds and Plants,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,Fencing,Fixed Assets,Other fixed assets,13000,0
+,Front Gate,Fixed Assets,Other fixed assets,5350,0
+,Partner Contributions,Equity,Partner Contributions,67463.27,0
+,Temporary Holding Account,Other Current Liabilities,Other Current Liabilities,0,0
+,Cheri (3377),Bank,Cash on hand,-47.41,0
+,Sale of Livestock,Income,Sales of Product Income,0,0
+,Personal Expenses,Equity,Owner's Equity,300,0
+,Members Distribution Accounts,Equity,Partner Distributions,-230,0
+,Robin's Distributions,Equity,Partner Distributions,-230,0
+,Cheri's Distributions,Equity,Partner Distributions,0,0
+,Sara's Distributions,Equity,Partner Distributions,0,0
+,Miles' Distributions,Equity,Partner Distributions,0,0
+,Members Contribution Accounts,Equity,Partner Contributions,0,0
+,Katie's Distributions,Equity,Partner Distributions,0,0
+,Robin's Contributions,Equity,Partner Contributions,0,0
+,Cheri's Contributions,Equity,Partner Contributions,0,0
+,Katie's Contributions,Equity,Partner Contributions,0,0
+,Sara's Contributions,Equity,Partner Contributions,0,0
+,Miles' Contributions,Equity,Partner Contributions,0,0
+,Squarespace Clearing Account,Other Current Assets,Other Current Assets,-16069.29,0
+,VAP Sales,Income,Discounts/Refunds Given,0,0
+,Other Sales,Income,Other Primary Income,0,0
+,Retained Earnings,Equity,Retained Earnings,0,0
+,QuickBooks Tax Holding Account,Other Current Assets,Other Current Assets,0,0
+,Undeposited Funds,Other Current Assets,Undeposited Funds,0,0
+,Uncategorized Asset,Other Current Assets,Other Current Assets,0,0
+,Opening Balance Equity,Equity,Opening Balance Equity,-7187.36,0
+,Texas Office of the Comptroller Payable,Other Current Liabilities,Global Tax Payable,0,0
+,Accounts Payable (A/P),Accounts payable (A/P),Accounts Payable (A/P),0,0
+,Billable Expense Income,Income,Sales of Product Income,0,0
+,Cost of Goods Sold,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,Owner Equity,Equity,Owner's Equity,2500,0
+,N/P Kubota Tractor,Long Term Liabilities,Notes Payable,0,0
+,Z.Accumulated Depreciation,Fixed Assets,Accumulated Depreciation,-98375,0
+,Sales Tax,Other Current Liabilities,Sales Tax Payable,-3982.19,0
+,Supplies and Materials,Expenses,Supplies & Materials,0,0
+,Inventory Asset,Other Current Assets,Inventory,0,0
+,Square Tips,Other Current Liabilities,Other Current Liabilities,0,0
+,Square Gift Card,Other Current Liabilities,Other Current Liabilities,0,0
+,Unassigned Tax Agency for Apps Payable,Other Current Liabilities,Global Tax Payable,0,0
+,LLC Owner Equity,Equity,Accumulated Adjustment,84162.47,0
+,Z.Robin's Equity,Equity,Partner's Equity,26926.24,0
+,Cheri's Equity,Equity,Partner's Equity,44593.45,0
+,Sara's Equity,Equity,Partner's Equity,-11416.74,0
+,Jimmy's Equity,Equity,Partner's Equity,46930.52,0
+,Katie's Equity,Equity,Partner's Equity,-11436,0
+,Miles's Equity,Equity,Partner's Equity,-11435,0
+,Freezer and Cooler,Long Term Liabilities,Notes Payable,0,0
+,LLC Checking 9663,Bank,Checking,-4860.56,459.99
+,LLC Savings 8505,Bank,Savings,5022.95,4222.95
+,Loans,Long Term Liabilities,Other Long Term Liabilities,0,0
+,Commercial Freezer,Fixed Assets,Machinery & Equipment,0,0
+,Members Clearing Account,Bank,Cash on hand,2545.23,0
+,Robins Receipts,Bank,Cash on hand,0,0
+,Cheryl Receipts,Bank,Cash on hand,0,0
+,Sara Receipts,Bank,Cash on hand,0,0
+,Jimmy Receipts,Bank,Cash on hand,0,0
+,Miles Receipts,Bank,Cash on hand,0,0
+,Katies Receipts,Bank,Cash on hand,0,0
+,Kubota Tractor,Fixed Assets,Fixed Asset Other Tools Equipment,45696,0
+,Rhino Mower,Fixed Assets,Fixed Asset Other Tools Equipment,9500,0
+,Grazing System,Fixed Assets,Fixed Asset Other Tools Equipment,25600,0
+,Water System,Fixed Assets,Fixed Asset Other Tools Equipment,6578,0
+,Cheri Capital,Equity,Partner's Equity,43093.45,0
+,Jimmy Capital,Equity,Partner's Equity,46930.52,0
+,Katie Capital,Equity,Partner's Equity,-11436,0
+,Miles Capital,Equity,Partner's Equity,-11435,0
+,Robin Capital,Equity,Partner's Equity,21926.24,0
+,Sara Capital,Equity,Partner's Equity,-11416.74,0
+,Chase Freedom 5100,Credit Card,Credit Card,5035.01,-4837.16
+,Chase Ink Credit Card,Credit Card,Credit Card,-111.81,-1594.16
+,Gift Card Outstanding,Other Current Liabilities,Other Current Liabilities,0,0
+,Tips,Other Current Liabilities,Undistributed Tips,0,0
+,Square Sales Tax Payable,Other Current Liabilities,Sales Tax Payable,0,0
+,Kubota UTV,Fixed Assets,Machinery & Equipment,19287.15,0
+,Food Trailer,Fixed Assets,Machinery & Equipment,23979,0
+,J. YOUMANS (5318) - 18,Credit Card,Credit Card,0,0
+,S. YOUMANS (5334) - 18,Credit Card,Credit Card,0,0
+,Food Trailer Expense,Expenses,Travel,0,0
+,PayPal Gift card,Other Current Liabilities,Deferred Revenue,0,0
+,Channel discount,Income,Discounts/Refunds Given,0,0
+,PayPal discount,Income,Discounts/Refunds Given,0,0
+,Channel sales tax payable,Other Current Liabilities,Sales Tax Payable,0,0
+,PayPal sales tax payable,Other Current Liabilities,Sales Tax Payable,0,0
+,Channel sales,Income,Sales of Product Income,0,0
+,PayPal sales,Income,Sales of Product Income,0,0
+,Channel shipping income,Income,Other Primary Income,0,0
+,PayPal shipping income,Income,Other Primary Income,0,0
+,Channel selling fees,Cost of Goods Sold,Other Costs of Services - COS,0,0
+,Channel adjustments,Cost of Goods Sold,Other Costs of Services - COS,0,0
+,Channel expenses,Expenses,Other Business Expenses,0,0
+,Shipping Income,Income,Sales of Product Income,0,0
+,Square Fees,Expenses,Bank Charges,0,0
+,Discount Income,Income,Sales of Product Income,0,0
+,Cash,Bank,Cash on hand,51,0
+,J Youmans (4526) MC,Bank,Checking,0,0
+,7030 Revolving Line of Credit,Other Current Liabilities,Line of Credit,0,0
+,5128 Robin's card,Bank,Checking,0,0
+,COGS Beef Cattle,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Feed,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Processing Costs,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,Beef Sales,Income,Sales of Product Income,0,0
+,Lamb Sales,Income,Sales of Product Income,0,0
+,Egg Sales,Income,Sales of Product Income,0,0
+,Meat Hen Sales,Income,Sales of Product Income,0,0
+,Bakery Sales,Income,Sales of Product Income,0,0
+,Food Truck Sales,Income,Sales of Product Income,0,0
+,COGS Livestock Purchase,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Lamb,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Feed,Cost of Goods Sold,Supplies & Materials - COGS,0,0
+,COGS Livestock Purchase,Cost of Goods Sold,"Shipping, Freight & Delivery - COS",0,0
+,COGS Processing Costs,Cost of Goods Sold,"Shipping, Freight & Delivery - COS",0,0

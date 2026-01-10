@@ -1,0 +1,45 @@
+{
+  "name": "hoodfamilyfarms-api",
+  "version": "1.0.0",
+  "description": "Hood Family Farms API - Backend for farm management, eCommerce, and food trailer",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "migrate": "node src/utils/migrate.js",
+    "seed": "node src/utils/seed.js",
+    "test": "jest"
+  },
+  "keywords": [
+    "farm",
+    "ecommerce",
+    "api",
+    "nodejs",
+    "postgresql"
+  ],
+  "author": "Hood Family Farms",
+  "license": "PROPRIETARY",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-parse": "^6.1.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "pg": "^8.11.3",
+    "plaid": "^41.0.0",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

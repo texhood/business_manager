@@ -1,0 +1,804 @@
+/**
+ * API Service
+ * Handles all communication with the backend API
+ */
+
+import axios from 'axios';
+
+const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
+
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Request interceptor - add auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor - handle auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// ============================================================================
+// AUTH
+// ============================================================================
+
+export const authService = {
+  login: async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
+    const { token, refreshToken, user } = response.data.data;
+    localStorage.setItem('token', token);
+    localStorage.setItem('refreshToken', refreshToken);
+    localStorage.setItem('user', JSON.stringify(user));
+    return user;
+  },
+
+  register: async (data) => {
+    const response = await api.post('/auth/register', data);
+    const { token, user } = response.data.data;
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    return user;
+  },
+
+  logout: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+  },
+
+  getCurrentUser: () => {
+    const user = localStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+  },
+
+  getMe: async () => {
+    const response = await api.get('/auth/me');
+    return response.data.data;
+  },
+
+  updateProfile: async (data) => {
+    const response = await api.put('/auth/me', data);
+    localStorage.setItem('user', JSON.stringify(response.data.data));
+    return response.data.data;
+  },
+
+  changePassword: async (currentPassword, newPassword) => {
+    const response = await api.put('/auth/password', { currentPassword, newPassword });
+    return response.data;
+  },
+};
+
+// ============================================================================
+// ACCOUNTS (User accounts - customers, staff, etc.)
+// ============================================================================
+
+export const accountsService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/accounts', { params });
+    return response.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/accounts/${id}`);
+    return response.data.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/accounts', data);
+    return response.data.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/accounts/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/accounts/${id}`);
+    return response.data;
+  },
+
+  toggleMembership: async (id, isFarmMember) => {
+    const response = await api.patch(`/accounts/${id}/membership`, { is_farm_member: isFarmMember });
+    return response.data.data;
+  },
+};
+
+// ============================================================================
+// ITEMS
+// ============================================================================
+
+export const itemsService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/items', { params });
+    return response.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/items/${id}`);
+    return response.data.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/items', data);
+    return response.data.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/items/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id, hard = false) => {
+    const response = await api.delete(`/items/${id}`, { params: { hard } });
+    return response.data;
+  },
+
+  adjustInventory: async (id, data) => {
+    const response = await api.patch(`/items/${id}/inventory`, data);
+    return response.data.data;
+  },
+
+  getInventoryHistory: async (id, limit = 50) => {
+    const response = await api.get(`/items/${id}/inventory-history`, { params: { limit } });
+    return response.data.data;
+  },
+};
+
+// ============================================================================
+// ITEM CATEGORIES & TAGS (for inventory items)
+// ============================================================================
+
+export const categoriesService = {
+  getAll: async (includeInactive = false) => {
+    const response = await api.get('/categories', { params: { include_inactive: includeInactive } });
+    return response.data.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/categories', data);
+    return response.data.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/categories/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/categories/${id}`);
+    return response.data;
+  },
+};
+
+export const tagsService = {
+  getAll: async () => {
+    const response = await api.get('/tags');
+    return response.data.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/tags', data);
+    return response.data.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/tags/${id}`);
+    return response.data;
+  },
+};
+
+// ============================================================================
+// ACCOUNTING CATEGORIES (for transaction classification - income/expense)
+// ============================================================================
+
+export const accountingCategoriesService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/accounting-categories', { params });
+    return response.data.data;
+  },
+
+  getGrouped: async () => {
+    const response = await api.get('/accounting-categories/grouped');
+    return response.data.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/accounting-categories/${id}`);
+    return response.data.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/accounting-categories', data);
+    return response.data.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/accounting-categories/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/accounting-categories/${id}`);
+    return response.data;
+  },
+
+  getSummaryReport: async (startDate, endDate) => {
+    const params = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    const response = await api.get('/accounting-categories/report/summary', { params });
+    return response.data.data;
+  },
+};
+
+// ============================================================================
+// TRANSACTIONS
+// ============================================================================
+
+export const transactionsService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/transactions', { params });
+    return response.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/transactions/${id}`);
+    return response.data.data;
+  },
+
+  getSummary: async (params = {}) => {
+    const response = await api.get('/transactions/summary', { params });
+    return response.data.data;
+  },
+
+  getCategories: async (type) => {
+    const response = await api.get('/transactions/categories', { params: { type } });
+    return response.data.data;
+  },
+
+  getBankAccounts: async () => {
+    const response = await api.get('/transactions/bank-accounts');
+    return response.data.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/transactions', data);
+    return response.data.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/transactions/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/transactions/${id}`);
+    return response.data;
+  },
+
+  bulkCreate: async (transactions) => {
+    const response = await api.post('/transactions/bulk', { transactions });
+    return response.data.data;
+  },
+
+  exportCSV: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    const token = localStorage.getItem('token');
+    window.open(`${API_URL}/transactions/export/csv?${queryString}&token=${token}`, '_blank');
+  },
+};
+
+// ============================================================================
+// DELIVERY ZONES
+// ============================================================================
+
+export const deliveryZonesService = {
+  getAll: async (includeInactive = false) => {
+    const response = await api.get('/delivery-zones', { params: { include_inactive: includeInactive } });
+    return response.data.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/delivery-zones/${id}`);
+    return response.data.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/delivery-zones', data);
+    return response.data.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/delivery-zones/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/delivery-zones/${id}`);
+    return response.data;
+  },
+
+  getCustomers: async (id) => {
+    const response = await api.get(`/delivery-zones/${id}/customers`);
+    return response.data.data;
+  },
+};
+
+// ============================================================================
+// MEMBERSHIPS
+// ============================================================================
+
+export const membershipsService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/memberships', { params });
+    return response.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/memberships/${id}`);
+    return response.data.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/memberships', data);
+    return response.data.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/memberships/${id}`, data);
+    return response.data.data;
+  },
+
+  renew: async (id, newEndDate) => {
+    const response = await api.post(`/memberships/${id}/renew`, { new_end_date: newEndDate });
+    return response.data.data;
+  },
+
+  getExpiring: async (days = 30) => {
+    const response = await api.get('/memberships/reports/expiring', { params: { days } });
+    return response.data.data;
+  },
+};
+
+// ============================================================================
+// ORDERS
+// ============================================================================
+
+export const ordersService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/orders', { params });
+    return response.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/orders/${id}`);
+    return response.data.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/orders', data);
+    return response.data.data;
+  },
+
+  updateStatus: async (id, status) => {
+    const response = await api.patch(`/orders/${id}/status`, { status });
+    return response.data.data;
+  },
+
+  cancel: async (id) => {
+    const response = await api.delete(`/orders/${id}`);
+    return response.data;
+  },
+};
+
+// ============================================================================
+// CLASSES (for tracking by business segment)
+// ============================================================================
+
+export const classesService = {
+  getAll: async () => {
+    const response = await api.get('/classes');
+    return response.data.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/classes', data);
+    return response.data.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/classes/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/classes/${id}`);
+    return response.data;
+  },
+};
+
+// ============================================================================
+// REPORTS
+// ============================================================================
+
+export const reportsService = {
+  getDashboard: async () => {
+    const response = await api.get('/reports/dashboard');
+    return response.data.data;
+  },
+
+  getProfitLoss: async (params = {}) => {
+    const response = await api.get('/reports/profit-loss', { params });
+    return response.data.data;
+  },
+
+  getSales: async (params = {}) => {
+    const response = await api.get('/reports/sales', { params });
+    return response.data.data;
+  },
+
+  getInventory: async () => {
+    const response = await api.get('/reports/inventory');
+    return response.data.data;
+  },
+
+  getCustomers: async () => {
+    const response = await api.get('/reports/customers');
+    return response.data.data;
+  },
+
+  getDelivery: async (date) => {
+    const response = await api.get('/reports/delivery', { params: { date } });
+    return response.data.data;
+  },
+
+  // Financial Reports
+  getIncomeStatement: async (startDate, endDate, options = {}) => {
+    const params = { start_date: startDate, end_date: endDate, ...options };
+    const response = await api.get('/financial-reports/income-statement', { params });
+    return response.data.data;
+  },
+
+  getBalanceSheet: async (asOfDate, options = {}) => {
+    const params = { as_of_date: asOfDate, ...options };
+    const response = await api.get('/financial-reports/balance-sheet', { params });
+    return response.data.data;
+  },
+
+  getSalesByCustomer: async (startDate, endDate, limit = 50) => {
+    const params = { start_date: startDate, end_date: endDate, limit };
+    const response = await api.get('/financial-reports/sales-by-customer', { params });
+    return response.data.data;
+  },
+
+  getSalesByClass: async (startDate, endDate) => {
+    const params = { start_date: startDate, end_date: endDate };
+    const response = await api.get('/financial-reports/sales-by-class', { params });
+    return response.data.data;
+  },
+
+  // Report configurations
+  getConfigurations: async (reportType = null) => {
+    const params = reportType ? { report_type: reportType } : {};
+    const response = await api.get('/financial-reports/configurations', { params });
+    return response.data.data;
+  },
+
+  saveConfiguration: async (config) => {
+    const response = await api.post('/financial-reports/configurations', config);
+    return response.data.data;
+  },
+
+  updateConfiguration: async (id, config) => {
+    const response = await api.put(`/financial-reports/configurations/${id}`, config);
+    return response.data.data;
+  },
+
+  deleteConfiguration: async (id) => {
+    const response = await api.delete(`/financial-reports/configurations/${id}`);
+    return response.data;
+  },
+
+  getReportAccounts: async (type = null) => {
+    const params = type ? { type } : {};
+    const response = await api.get('/financial-reports/accounts', { params });
+    return response.data.data;
+  },
+
+  getAccountTransactions: async (accountId, startDate = null, endDate = null) => {
+    const params = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    const response = await api.get(`/financial-reports/account-transactions/${accountId}`, { params });
+    return response.data.data;
+  },
+
+  // CSV Export methods - use fetch with auth header and trigger download
+  exportIncomeStatementCSV: async (startDate, endDate) => {
+    try {
+      const response = await api.get(`/financial-reports/income-statement/csv?start_date=${startDate}&end_date=${endDate}`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `income_statement_${startDate}_${endDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('CSV export error:', error);
+      alert('Failed to export CSV. Please try again.');
+    }
+  },
+
+  exportBalanceSheetCSV: async (asOfDate) => {
+    try {
+      const response = await api.get(`/financial-reports/balance-sheet/csv?as_of_date=${asOfDate}`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `balance_sheet_${asOfDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('CSV export error:', error);
+      alert('Failed to export CSV. Please try again.');
+    }
+  },
+
+  exportSalesByCustomerCSV: async (startDate, endDate) => {
+    try {
+      const response = await api.get(`/financial-reports/sales-by-customer/csv?start_date=${startDate}&end_date=${endDate}`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `sales_by_customer_${startDate}_${endDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('CSV export error:', error);
+      alert('Failed to export CSV. Please try again.');
+    }
+  },
+
+  exportSalesByClassCSV: async (startDate, endDate) => {
+    try {
+      const response = await api.get(`/financial-reports/sales-by-class/csv?start_date=${startDate}&end_date=${endDate}`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `sales_by_class_${startDate}_${endDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('CSV export error:', error);
+      alert('Failed to export CSV. Please try again.');
+    }
+  },
+};
+
+// ============================================================================
+// ACCOUNTING (Double-Entry)
+// ============================================================================
+
+export const accountingService = {
+  // Chart of Accounts
+  getAccounts: async (params = {}) => {
+    const response = await api.get('/accounting/accounts', { params });
+    return response.data.data;
+  },
+
+  getAccountById: async (id) => {
+    const response = await api.get(`/accounting/accounts/${id}`);
+    return response.data.data;
+  },
+
+  createAccount: async (data) => {
+    const response = await api.post('/accounting/accounts', data);
+    return response.data.data;
+  },
+
+  updateAccount: async (id, data) => {
+    const response = await api.put(`/accounting/accounts/${id}`, data);
+    return response.data.data;
+  },
+
+  deleteAccount: async (id) => {
+    const response = await api.delete(`/accounting/accounts/${id}`);
+    return response.data;
+  },
+
+  // Journal Entries
+  getJournalEntries: async (params = {}) => {
+    const response = await api.get('/accounting/journal-entries', { params });
+    return response.data;
+  },
+
+  getJournalEntry: async (id) => {
+    const response = await api.get(`/accounting/journal-entries/${id}`);
+    return response.data.data;
+  },
+
+  createJournalEntry: async (data) => {
+    const response = await api.post('/accounting/journal-entries', data);
+    return response.data.data;
+  },
+
+  postJournalEntry: async (id) => {
+    const response = await api.post(`/accounting/journal-entries/${id}/post`);
+    return response.data.data;
+  },
+
+  voidJournalEntry: async (id, reason) => {
+    const response = await api.post(`/accounting/journal-entries/${id}/void`, { reason });
+    return response.data.data;
+  },
+
+  deleteJournalEntry: async (id) => {
+    const response = await api.delete(`/accounting/journal-entries/${id}`);
+    return response.data;
+  },
+
+  // Financial Reports
+  getTrialBalance: async (asOfDate) => {
+    const response = await api.get('/accounting/reports/trial-balance', { 
+      params: { as_of_date: asOfDate } 
+    });
+    return response.data.data;
+  },
+
+  getBalanceSheet: async () => {
+    const response = await api.get('/accounting/reports/balance-sheet');
+    return response.data.data;
+  },
+
+  getIncomeStatement: async (startDate, endDate) => {
+    const response = await api.get('/accounting/reports/income-statement', { 
+      params: { start_date: startDate, end_date: endDate } 
+    });
+    return response.data.data;
+  },
+
+  getGeneralLedger: async (accountId, startDate, endDate) => {
+    const response = await api.get(`/accounting/reports/general-ledger/${accountId}`, { 
+      params: { start_date: startDate, end_date: endDate } 
+    });
+    return response.data.data;
+  },
+};
+
+// ============================================================================
+// IMPORT (QuickBooks CSV)
+// ============================================================================
+
+export const importService = {
+  importChartOfAccounts: async (file, options = {}) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (options.replace_existing) formData.append('replace_existing', options.replace_existing);
+    if (options.skip_duplicates) formData.append('skip_duplicates', options.skip_duplicates);
+    
+    const response = await api.post('/import/quickbooks/chart-of-accounts', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  downloadTemplate: () => {
+    const token = localStorage.getItem('token');
+    window.open(`${API_URL}/import/quickbooks/template?token=${token}`, '_blank');
+  },
+};
+
+// ============================================================================
+// TRANSACTION ACCEPTANCE (Bank Feed Workflow - Simplified with Categories)
+// ============================================================================
+
+export const transactionAcceptanceService = {
+  // Get transactions by status
+  getPending: async (limit = 100, offset = 0) => {
+    const response = await api.get('/transaction-acceptance/pending', { params: { limit, offset } });
+    return response.data;
+  },
+
+  getAccepted: async (params = {}) => {
+    const response = await api.get('/transaction-acceptance/accepted', { params });
+    return response.data;
+  },
+
+  getExcluded: async (limit = 100, offset = 0) => {
+    const response = await api.get('/transaction-acceptance/excluded', { params: { limit, offset } });
+    return response.data;
+  },
+
+  getSummary: async () => {
+    const response = await api.get('/transaction-acceptance/summary');
+    return response.data.data;
+  },
+
+  getBankAccounts: async () => {
+    const response = await api.get('/transaction-acceptance/bank-accounts');
+    return response.data.data;
+  },
+
+  // Accept a transaction (simplified - uses category instead of GL account)
+  // data should contain: category_id, bank_account_id, class_id (optional), description (optional)
+  accept: async (id, data) => {
+    const response = await api.post(`/transaction-acceptance/${id}/accept`, data);
+    return response.data;
+  },
+
+  // Exclude a transaction (mark as not applicable)
+  exclude: async (id, reason) => {
+    const response = await api.post(`/transaction-acceptance/${id}/exclude`, { reason });
+    return response.data;
+  },
+
+  // Unaccept a transaction (void journal entry, return to pending)
+  unaccept: async (id) => {
+    const response = await api.post(`/transaction-acceptance/${id}/unaccept`);
+    return response.data;
+  },
+
+  // Restore an excluded transaction back to pending
+  restore: async (id) => {
+    const response = await api.post(`/transaction-acceptance/${id}/restore`);
+    return response.data;
+  },
+
+  // Create a manual transaction for review
+  createManual: async (data) => {
+    const response = await api.post('/transaction-acceptance/manual', data);
+    return response.data;
+  },
+
+  // Bulk accept transactions (simplified - uses category)
+  bulkAccept: async (transactionIds, categoryId, bankAccountId, classId = null) => {
+    const response = await api.post('/transaction-acceptance/bulk-accept', {
+      transaction_ids: transactionIds,
+      category_id: categoryId,
+      bank_account_id: bankAccountId,
+      class_id: classId
+    });
+    return response.data;
+  },
+};
+
+export default api;
