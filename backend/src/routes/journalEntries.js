@@ -119,6 +119,7 @@ router.get('/:id', async (req, res) => {
       FROM journal_entry_lines jel
       JOIN accounts_chart ac ON jel.account_id = ac.id
       LEFT JOIN classes cl ON jel.class_id = cl.id
+      WHERE jel.journal_entry_id = $1
       ORDER BY jel.line_number
     `, [id]);
     
