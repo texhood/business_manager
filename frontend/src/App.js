@@ -22,7 +22,7 @@ import {
   BankConnectionsView,
   JournalEntriesView,
   TransactionsView,
-  AccountingCategoriesView,
+  ItemCategoriesView,
   ChartOfAccountsView,
   ReportsView,
   DeliveryZonesView,
@@ -115,7 +115,7 @@ function App() {
     { id: 'bankConnections', label: 'Bank Connections', icon: Icons.Bank },
     { id: 'journalEntries', label: 'Journal Entries', icon: Icons.FileText },
     { id: 'transactions', label: 'Bookkeeping', icon: Icons.DollarSign },
-    { id: 'accountingCategories', label: 'Categories', icon: Icons.Tag },
+    { id: 'itemCategories', label: 'Item Categories', icon: Icons.Tag },
     { id: 'chartOfAccounts', label: 'Chart of Accounts', icon: Icons.Book },
     { id: 'reports', label: 'Reports', icon: Icons.BarChart },
     { id: 'deliveryZones', label: 'Delivery Zones', icon: Icons.Truck },
@@ -129,7 +129,7 @@ function App() {
       case 'accounts':
         return <AccountsView accounts={accounts} loading={dataLoading} onRefresh={loadData} />;
       case 'items':
-        return <ItemsView items={items} loading={dataLoading} />;
+        return <ItemsView />;
       case 'bankFeed':
         return <BankFeedView />;
       case 'bankConnections':
@@ -138,14 +138,14 @@ function App() {
         return <JournalEntriesView />;
       case 'transactions':
         return <TransactionsView />;
-      case 'accountingCategories':
-        return <AccountingCategoriesView />;
+      case 'itemCategories':
+        return <ItemCategoriesView />;
       case 'chartOfAccounts':
         return <ChartOfAccountsView accounts={chartOfAccounts} loading={dataLoading} onRefresh={loadData} />;
       case 'reports':
         return <ReportsView />;
       case 'deliveryZones':
-        return <DeliveryZonesView zones={deliveryZones} loading={dataLoading} />;
+        return <DeliveryZonesView />;
       default:
         return <DashboardView accounts={accounts} items={items} transactions={transactions} />;
     }

@@ -13,6 +13,9 @@ const logger = require('../utils/logger');
 
 const router = express.Router();
 
+// Valid item statuses
+const VALID_STATUSES = ['active', 'inactive', 'draft'];
+
 // ============================================================================
 // VALIDATION RULES
 // ============================================================================
@@ -22,6 +25,7 @@ const itemValidation = [
   body('name').trim().notEmpty().withMessage('Name is required'),
   body('price').isFloat({ min: 0 }).withMessage('Valid price required'),
   body('item_type').isIn(['inventory', 'non-inventory', 'digital']).withMessage('Invalid item type'),
+  body('status').optional().isIn(VALID_STATUSES).withMessage('Invalid status'),
   body('shipping_zone').optional().isIn(['not-shippable', 'in-state', 'in-country', 'no-restrictions']),
   body('is_taxable').optional().isBoolean(),
   body('inventory_quantity').optional().isInt({ min: 0 }),
@@ -49,7 +53,8 @@ router.get('/', optionalAuth, asyncHandler(async (req, res) => {
     item_type,
     shipping_zone,
     in_stock,
-    is_active = 'true',
+    status,
+    include_all_statuses,
     search,
     tag,
     page = 1,
@@ -80,10 +85,22 @@ router.get('/', optionalAuth, asyncHandler(async (req, res) => {
   const params = [];
   let paramCount = 0;
 
-  // Apply filters
-  if (is_active !== undefined) {
-    params.push(is_active === 'true');
-    queryText += ` AND i.is_active = $${++paramCount}`;
+  // Apply status filter
+  // For public/customer access, only show active items unless staff
+  const isStaff = ['admin', 'staff'].includes(req.user?.role);
+  
+  if (include_all_statuses === 'true' && isStaff) {
+    // Staff can see all statuses if requested
+  } else if (status && isStaff) {
+    // Staff can filter by specific status
+    params.push(status);
+    queryText += ` AND i.status = $${++paramCount}`;
+  } else if (isStaff) {
+    // Staff default: show active and draft (not inactive unless requested)
+    queryText += ` AND i.status IN ('active', 'draft')`;
+  } else {
+    // Public/customers only see active items
+    queryText += ` AND i.status = 'active'`;
   }
 
   if (category) {
@@ -144,7 +161,7 @@ router.get('/', optionalAuth, asyncHandler(async (req, res) => {
   const result = await db.query(queryText, params);
 
   // Determine if user should see member prices
-  const showMemberPrices = req.user?.is_farm_member || ['admin', 'staff'].includes(req.user?.role);
+  const showMemberPrices = req.user?.is_farm_member || isStaff;
 
   const items = result.rows.map(item => ({
     ...item,
@@ -200,7 +217,14 @@ router.get('/:id', optionalAuth, asyncHandler(async (req, res) => {
   }
 
   const item = result.rows[0];
-  const showMemberPrices = req.user?.is_farm_member || ['admin', 'staff'].includes(req.user?.role);
+  const isStaff = ['admin', 'staff'].includes(req.user?.role);
+  
+  // Non-staff can only see active items
+  if (!isStaff && item.status !== 'active') {
+    throw new ApiError(404, 'Item not found');
+  }
+  
+  const showMemberPrices = req.user?.is_farm_member || isStaff;
 
   res.json({
     status: 'success',
@@ -234,12 +258,17 @@ router.post('/', authenticate, requireStaff, itemValidation, validate, asyncHand
     tax_rate = 0.0825,
     shipping_zone = 'in-state',
     weight_oz,
-    is_active = true,
+    status = 'draft',
     is_featured = false,
     image_url,
     digital_file_url,
     tags = [],
   } = req.body;
+
+  // Validate status
+  if (!VALID_STATUSES.includes(status)) {
+    throw new ApiError(400, 'Invalid status. Must be: active, inactive, or draft');
+  }
 
   // Use transaction for item + tags
   const item = await db.transaction(async (client) => {
@@ -248,15 +277,16 @@ router.post('/', authenticate, requireStaff, itemValidation, validate, asyncHand
       INSERT INTO items (
         sku, name, description, item_type, category_id, price, member_price, cost,
         inventory_quantity, low_stock_threshold, is_taxable, tax_rate, shipping_zone,
-        weight_oz, is_active, is_featured, image_url, digital_file_url
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        weight_oz, status, is_active, is_featured, image_url, digital_file_url
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *
     `, [
       sku, name, description, item_type, category_id || null, price,
       member_price || null, cost || null,
       item_type === 'inventory' ? inventory_quantity : null,
       low_stock_threshold, is_taxable, tax_rate, shipping_zone,
-      weight_oz || null, is_active, is_featured, image_url || null, digital_file_url || null,
+      weight_oz || null, status, status === 'active', is_featured, 
+      image_url || null, digital_file_url || null,
     ]);
 
     const newItem = itemResult.rows[0];
@@ -274,7 +304,7 @@ router.post('/', authenticate, requireStaff, itemValidation, validate, asyncHand
     return newItem;
   });
 
-  logger.info('Item created', { itemId: item.id, sku: item.sku, createdBy: req.user.id });
+  logger.info('Item created', { itemId: item.id, sku: item.sku, status: item.status, createdBy: req.user.id });
 
   res.status(201).json({
     status: 'success',
@@ -303,15 +333,22 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
     tax_rate,
     shipping_zone,
     weight_oz,
-    is_active,
+    status,
     is_featured,
     image_url,
     digital_file_url,
     tags,
   } = req.body;
 
+  // Validate status if provided
+  if (status !== undefined && !VALID_STATUSES.includes(status)) {
+    throw new ApiError(400, 'Invalid status. Must be: active, inactive, or draft');
+  }
+
   const item = await db.transaction(async (client) => {
-    // Update item
+    // Update item - sync is_active with status for backward compatibility
+    const isActive = status ? status === 'active' : undefined;
+    
     const result = await client.query(`
       UPDATE items SET
         sku = COALESCE($1, sku),
@@ -328,12 +365,13 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
         tax_rate = COALESCE($12, tax_rate),
         shipping_zone = COALESCE($13, shipping_zone),
         weight_oz = $14,
-        is_active = COALESCE($15, is_active),
-        is_featured = COALESCE($16, is_featured),
-        image_url = $17,
-        digital_file_url = $18,
+        status = COALESCE($15, status),
+        is_active = COALESCE($16, is_active),
+        is_featured = COALESCE($17, is_featured),
+        image_url = $18,
+        digital_file_url = $19,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $19
+      WHERE id = $20
       RETURNING *
     `, [
       sku, name, description, item_type,
@@ -343,7 +381,9 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
       cost !== undefined ? cost : null,
       inventory_quantity, low_stock_threshold, is_taxable, tax_rate, shipping_zone,
       weight_oz !== undefined ? weight_oz : null,
-      is_active, is_featured,
+      status,
+      isActive,
+      is_featured,
       image_url !== undefined ? image_url : null,
       digital_file_url !== undefined ? digital_file_url : null,
       id,
@@ -367,11 +407,44 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
     return result.rows[0];
   });
 
-  logger.info('Item updated', { itemId: id, updatedBy: req.user.id });
+  logger.info('Item updated', { itemId: id, status: item.status, updatedBy: req.user.id });
 
   res.json({
     status: 'success',
     data: item,
+  });
+}));
+
+/**
+ * PATCH /items/:id/status
+ * Quick status change (staff+ only)
+ */
+router.patch('/:id/status', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!status || !VALID_STATUSES.includes(status)) {
+    throw new ApiError(400, 'Invalid status. Must be: active, inactive, or draft');
+  }
+
+  const result = await db.query(`
+    UPDATE items SET 
+      status = $1, 
+      is_active = $2,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $3
+    RETURNING *
+  `, [status, status === 'active', id]);
+
+  if (result.rows.length === 0) {
+    throw new ApiError(404, 'Item not found');
+  }
+
+  logger.info('Item status changed', { itemId: id, newStatus: status, changedBy: req.user.id });
+
+  res.json({
+    status: 'success',
+    data: result.rows[0],
   });
 }));
 
@@ -450,12 +523,10 @@ router.patch('/:id/inventory', authenticate, requireStaff, asyncHandler(async (r
 
 /**
  * DELETE /items/:id
- * Delete item (admin only)
+ * Delete item (admin only) - sets status to inactive by default
  */
 router.delete('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { id } = req.params;
-
-  // Soft delete by setting is_active to false, or hard delete
   const { hard = false } = req.query;
 
   if (hard === 'true') {
@@ -464,21 +535,28 @@ router.delete('/:id', authenticate, requireStaff, asyncHandler(async (req, res) 
       throw new ApiError(404, 'Item not found');
     }
     logger.info('Item deleted (hard)', { itemId: id, deletedBy: req.user.id });
+    
+    res.json({
+      status: 'success',
+      message: 'Item deleted permanently',
+    });
   } else {
+    // Soft delete: set status to inactive
     const result = await db.query(
-      'UPDATE items SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id',
+      `UPDATE items SET status = 'inactive', is_active = false, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $1 RETURNING id`,
       [id]
     );
     if (result.rows.length === 0) {
       throw new ApiError(404, 'Item not found');
     }
     logger.info('Item deactivated', { itemId: id, deletedBy: req.user.id });
+    
+    res.json({
+      status: 'success',
+      message: 'Item set to inactive',
+    });
   }
-
-  res.json({
-    status: 'success',
-    message: hard === 'true' ? 'Item deleted permanently' : 'Item deactivated',
-  });
 }));
 
 /**

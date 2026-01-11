@@ -151,6 +151,11 @@ export const itemsService = {
     return response.data.data;
   },
 
+  updateStatus: async (id, status) => {
+    const response = await api.patch(`/items/${id}/status`, { status });
+    return response.data.data;
+  },
+
   delete: async (id, hard = false) => {
     const response = await api.delete(`/items/${id}`, { params: { hard } });
     return response.data;
@@ -168,12 +173,17 @@ export const itemsService = {
 };
 
 // ============================================================================
-// ITEM CATEGORIES & TAGS (for inventory items)
+// ITEM CATEGORIES (for product/item classification)
 // ============================================================================
 
 export const categoriesService = {
   getAll: async (includeInactive = false) => {
     const response = await api.get('/categories', { params: { include_inactive: includeInactive } });
+    return response.data.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/categories/${id}`);
     return response.data.data;
   },
 
@@ -189,6 +199,11 @@ export const categoriesService = {
 
   delete: async (id) => {
     const response = await api.delete(`/categories/${id}`);
+    return response.data;
+  },
+
+  reorder: async (orders) => {
+    const response = await api.patch('/categories/reorder', { orders });
     return response.data;
   },
 };
@@ -211,53 +226,6 @@ export const tagsService = {
 };
 
 // ============================================================================
-// TRANSACTION CATEGORIES (for transaction classification - income/expense)
-// ============================================================================
-
-export const transactionCategoriesService = {
-  getAll: async (params = {}) => {
-    const response = await api.get('/transaction-categories', { params });
-    return response.data.data;
-  },
-
-  getGrouped: async () => {
-    const response = await api.get('/transaction-categories/grouped');
-    return response.data.data;
-  },
-
-  getById: async (id) => {
-    const response = await api.get(`/transaction-categories/${id}`);
-    return response.data.data;
-  },
-
-  create: async (data) => {
-    const response = await api.post('/transaction-categories', data);
-    return response.data.data;
-  },
-
-  update: async (id, data) => {
-    const response = await api.put(`/transaction-categories/${id}`, data);
-    return response.data.data;
-  },
-
-  delete: async (id) => {
-    const response = await api.delete(`/transaction-categories/${id}`);
-    return response.data;
-  },
-
-  getSummaryReport: async (startDate, endDate) => {
-    const params = {};
-    if (startDate) params.start_date = startDate;
-    if (endDate) params.end_date = endDate;
-    const response = await api.get('/transaction-categories/report/summary', { params });
-    return response.data.data;
-  },
-};
-
-// Legacy alias - will be removed in future
-export const accountingCategoriesService = transactionCategoriesService;
-
-// ============================================================================
 // TRANSACTIONS
 // ============================================================================
 
@@ -277,8 +245,8 @@ export const transactionsService = {
     return response.data.data;
   },
 
-  getCategories: async (type) => {
-    const response = await api.get('/transactions/categories', { params: { type } });
+  getFilterOptions: async () => {
+    const response = await api.get('/transactions/filter-options');
     return response.data.data;
   },
 

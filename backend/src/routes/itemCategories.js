@@ -1,6 +1,6 @@
 /**
- * Categories Routes
- * Handles item/product categories (Beef, Chicken, Eggs, etc.)
+ * Item Categories Routes
+ * Handles product/item categories (Beef, Chicken, Eggs, etc.)
  */
 
 const express = require('express');
@@ -11,7 +11,7 @@ const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
 
 // ============================================================================
-// GET /categories - List all item categories
+// GET /item-categories - List all item categories
 // ============================================================================
 router.get('/', asyncHandler(async (req, res) => {
   const { include_inactive } = req.query;
@@ -38,7 +38,7 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 // ============================================================================
-// GET /categories/:id - Get single category with item count
+// GET /item-categories/:id - Get single category with items
 // ============================================================================
 router.get('/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -61,7 +61,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
 }));
 
 // ============================================================================
-// POST /categories - Create new category
+// POST /item-categories - Create new category
 // ============================================================================
 router.post('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { name, slug, description, sort_order = 0 } = req.body;
@@ -98,7 +98,7 @@ router.post('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
 }));
 
 // ============================================================================
-// PUT /categories/:id - Update category
+// PUT /item-categories/:id - Update category
 // ============================================================================
 router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -141,7 +141,7 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
 }));
 
 // ============================================================================
-// DELETE /categories/:id - Delete category
+// DELETE /item-categories/:id - Delete category
 // ============================================================================
 router.delete('/:id', authenticate, requireAdmin, asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -179,27 +179,30 @@ router.delete('/:id', authenticate, requireAdmin, asyncHandler(async (req, res) 
 }));
 
 // ============================================================================
-// PATCH /categories/reorder - Batch update sort orders
+// PATCH /item-categories/:id/reorder - Update sort order
 // ============================================================================
-router.patch('/reorder', authenticate, requireStaff, asyncHandler(async (req, res) => {
-  const { orders } = req.body; // Array of { id, sort_order }
+router.patch('/:id/reorder', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { sort_order } = req.body;
   
-  if (!Array.isArray(orders)) {
-    throw new ApiError(400, 'orders must be an array of { id, sort_order }');
+  if (sort_order === undefined) {
+    throw new ApiError(400, 'sort_order is required');
   }
   
-  await db.transaction(async (client) => {
-    for (const item of orders) {
-      await client.query(
-        'UPDATE categories SET sort_order = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-        [item.sort_order, item.id]
-      );
-    }
-  });
+  const result = await db.query(`
+    UPDATE categories 
+    SET sort_order = $1, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $2
+    RETURNING *
+  `, [sort_order, id]);
+  
+  if (result.rows.length === 0) {
+    throw new ApiError(404, 'Category not found');
+  }
   
   res.json({
     status: 'success',
-    message: 'Category order updated'
+    data: result.rows[0]
   });
 }));
 

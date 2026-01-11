@@ -138,8 +138,6 @@ router.get('/pending', async (req, res) => {
     
     const result = await db.query(`
       SELECT t.*, 
-             tc.name as category_name,
-             tc.type as category_type,
              cl.name as class_name,
              pa.name as plaid_account_name,
              pa.mask as plaid_account_mask,
@@ -148,7 +146,6 @@ router.get('/pending', async (req, res) => {
              ac_bank.name as bank_gl_account_name,
              COALESCE(pa.name || ' (...' || pa.mask || ') - ' || pi.institution_name, 'Unknown Source') as source_display
       FROM transactions t
-      LEFT JOIN transaction_categories tc ON t.category_id = tc.id
       LEFT JOIN classes cl ON t.class_id = cl.id
       LEFT JOIN plaid_accounts pa ON t.plaid_account_id = pa.id
       LEFT JOIN plaid_items pi ON pa.plaid_item_id = pi.id
@@ -186,8 +183,6 @@ router.get('/accepted', async (req, res) => {
     
     let query = `
       SELECT t.*, 
-             tc.name as category_name,
-             tc.type as category_type,
              cl.name as class_name,
              je.entry_number as journal_entry_number,
              pa.name as plaid_account_name,
@@ -197,7 +192,6 @@ router.get('/accepted', async (req, res) => {
              ac_bank.name as bank_gl_account_name,
              COALESCE(pa.name || ' (...' || pa.mask || ') - ' || pi.institution_name, 'Unknown Source') as source_display
       FROM transactions t
-      LEFT JOIN transaction_categories tc ON t.category_id = tc.id
       LEFT JOIN classes cl ON t.class_id = cl.id
       LEFT JOIN journal_entries je ON je.source = 'transaction' AND je.source_id = t.id
       LEFT JOIN plaid_accounts pa ON t.plaid_account_id = pa.id

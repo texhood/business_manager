@@ -33,7 +33,67 @@ const validate = (req, res, next) => {
 };
 
 // ============================================================================
-// ROUTES
+// FILTER OPTIONS ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /transactions/filter-options
+ * Get all filter options (GL accounts, classes, vendors) for transactions
+ */
+router.get('/filter-options', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  // Get GL accounts that have been used in transactions
+  const glAccountsResult = await db.query(`
+    SELECT DISTINCT ac.id, ac.account_code, ac.name, ac.account_type
+    FROM transactions t
+    JOIN accounts_chart ac ON t.accepted_gl_account_id = ac.id
+    WHERE t.accepted_gl_account_id IS NOT NULL
+    ORDER BY ac.account_code, ac.name
+  `);
+
+  // Get classes that have been used in transactions
+  const classesResult = await db.query(`
+    SELECT DISTINCT c.id, c.name
+    FROM transactions t
+    JOIN classes c ON t.class_id = c.id
+    WHERE t.class_id IS NOT NULL
+    ORDER BY c.name
+  `);
+
+  // Get distinct vendors from transactions
+  const vendorsResult = await db.query(`
+    SELECT DISTINCT vendor
+    FROM transactions
+    WHERE vendor IS NOT NULL AND vendor != ''
+    ORDER BY vendor
+  `);
+
+  res.json({
+    status: 'success',
+    data: {
+      gl_accounts: glAccountsResult.rows,
+      classes: classesResult.rows,
+      vendors: vendorsResult.rows.map(r => r.vendor),
+    },
+  });
+}));
+
+/**
+ * GET /transactions/bank-accounts
+ * List bank accounts
+ */
+router.get('/bank-accounts', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const result = await db.query(
+    'SELECT * FROM bank_accounts WHERE is_active = true ORDER BY name'
+  );
+
+  res.json({
+    status: 'success',
+    data: result.rows,
+  });
+}));
+
+// ============================================================================
+// MAIN ROUTES
 // ============================================================================
 
 /**
@@ -43,14 +103,16 @@ const validate = (req, res, next) => {
 router.get('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const {
     type,
-    category_id,
     bank_account_id,
+    accepted_gl_account_id,
+    class_id,
+    vendor,
     start_date,
     end_date,
     search,
     is_reconciled,
     page = 1,
-    limit = 50,
+    limit = 500,
     sort = 'date',
     order = 'desc',
   } = req.query;
@@ -58,13 +120,15 @@ router.get('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
   let queryText = `
     SELECT 
       t.*,
-      tc.name as category_name,
-      tc.type as category_type,
       ba.name as bank_account_name,
+      ac.name as gl_account_name,
+      ac.account_code as gl_account_code,
+      cl.name as class_name,
       a.name as created_by_name
     FROM transactions t
-    LEFT JOIN transaction_categories tc ON t.category_id = tc.id
     LEFT JOIN bank_accounts ba ON t.bank_account_id = ba.id
+    LEFT JOIN accounts_chart ac ON t.accepted_gl_account_id = ac.id
+    LEFT JOIN classes cl ON t.class_id = cl.id
     LEFT JOIN accounts a ON t.created_by = a.id
     WHERE 1=1
   `;
@@ -77,14 +141,24 @@ router.get('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
     queryText += ` AND t.type = $${++paramCount}`;
   }
 
-  if (category_id) {
-    params.push(category_id);
-    queryText += ` AND t.category_id = $${++paramCount}`;
-  }
-
   if (bank_account_id) {
     params.push(bank_account_id);
     queryText += ` AND t.bank_account_id = $${++paramCount}`;
+  }
+
+  if (accepted_gl_account_id) {
+    params.push(accepted_gl_account_id);
+    queryText += ` AND t.accepted_gl_account_id = $${++paramCount}`;
+  }
+
+  if (class_id) {
+    params.push(class_id);
+    queryText += ` AND t.class_id = $${++paramCount}`;
+  }
+
+  if (vendor) {
+    params.push(vendor);
+    queryText += ` AND t.vendor = $${++paramCount}`;
   }
 
   if (start_date) {
@@ -121,7 +195,8 @@ router.get('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
       COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as total_income,
       COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as total_expenses
     FROM transactions t
-    LEFT JOIN transaction_categories tc ON t.category_id = tc.id
+    LEFT JOIN accounts_chart ac ON t.accepted_gl_account_id = ac.id
+    LEFT JOIN classes cl ON t.class_id = cl.id
     WHERE 1=1 ${queryText.split('WHERE 1=1')[1]?.split('ORDER BY')[0] || ''}
   `;
   const totalsResult = await db.query(totalsQuery, params);
@@ -166,7 +241,7 @@ router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res)
   const {
     start_date,
     end_date,
-    group_by = 'month', // month, week, day, category
+    group_by = 'month', // month, week, day
   } = req.query;
 
   let dateFilter = '';
@@ -191,20 +266,6 @@ router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res)
       COUNT(CASE WHEN type = 'expense' THEN 1 END) as expense_count
     FROM transactions
     WHERE 1=1 ${dateFilter}
-  `, params);
-
-  // By category
-  const categoryResult = await db.query(`
-    SELECT 
-      tc.name as category,
-      t.type,
-      SUM(t.amount) as total,
-      COUNT(*) as count
-    FROM transactions t
-    JOIN transaction_categories tc ON t.category_id = tc.id
-    WHERE 1=1 ${dateFilter}
-    GROUP BY tc.name, t.type
-    ORDER BY total DESC
   `, params);
 
   // By time period
@@ -241,10 +302,6 @@ router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res)
         income_count: parseInt(totals.income_count, 10),
         expense_count: parseInt(totals.expense_count, 10),
       },
-      by_category: categoryResult.rows.map(row => ({
-        ...row,
-        total: parseFloat(row.total),
-      })),
       by_period: periodResult.rows.map(row => ({
         period: row.period,
         income: parseFloat(row.income),
@@ -252,46 +309,6 @@ router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res)
         net: parseFloat(row.income) - parseFloat(row.expenses),
       })),
     },
-  });
-}));
-
-/**
- * GET /transactions/categories
- * List transaction categories
- */
-router.get('/categories', authenticate, requireStaff, asyncHandler(async (req, res) => {
-  const { type } = req.query;
-
-  let queryText = 'SELECT * FROM transaction_categories WHERE is_active = true';
-  const params = [];
-
-  if (type) {
-    params.push(type);
-    queryText += ` AND type = $1`;
-  }
-
-  queryText += ' ORDER BY type, name';
-
-  const result = await db.query(queryText, params);
-
-  res.json({
-    status: 'success',
-    data: result.rows,
-  });
-}));
-
-/**
- * GET /transactions/bank-accounts
- * List bank accounts
- */
-router.get('/bank-accounts', authenticate, requireStaff, asyncHandler(async (req, res) => {
-  const result = await db.query(
-    'SELECT * FROM bank_accounts WHERE is_active = true ORDER BY name'
-  );
-
-  res.json({
-    status: 'success',
-    data: result.rows,
   });
 }));
 
@@ -305,12 +322,15 @@ router.get('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
   const result = await db.query(`
     SELECT 
       t.*,
-      tc.name as category_name,
       ba.name as bank_account_name,
+      ac.name as gl_account_name,
+      ac.account_code as gl_account_code,
+      cl.name as class_name,
       a.name as created_by_name
     FROM transactions t
-    LEFT JOIN transaction_categories tc ON t.category_id = tc.id
     LEFT JOIN bank_accounts ba ON t.bank_account_id = ba.id
+    LEFT JOIN accounts_chart ac ON t.accepted_gl_account_id = ac.id
+    LEFT JOIN classes cl ON t.class_id = cl.id
     LEFT JOIN accounts a ON t.created_by = a.id
     WHERE t.id = $1
   `, [id]);
@@ -333,7 +353,6 @@ router.post('/', authenticate, requireStaff, transactionValidation, validate, as
   const {
     date,
     type,
-    category_id,
     description,
     amount,
     bank_account_id,
@@ -344,12 +363,12 @@ router.post('/', authenticate, requireStaff, transactionValidation, validate, as
 
   const result = await db.query(`
     INSERT INTO transactions (
-      date, type, category_id, description, amount, 
+      date, type, description, amount, 
       bank_account_id, reference, vendor, notes, created_by
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING *
   `, [
-    date, type, category_id || null, description, amount,
+    date, type, description, amount,
     bank_account_id || null, reference || null, vendor || null, notes || null, req.user.id,
   ]);
 
@@ -357,10 +376,8 @@ router.post('/', authenticate, requireStaff, transactionValidation, validate, as
   const fullResult = await db.query(`
     SELECT 
       t.*,
-      tc.name as category_name,
       ba.name as bank_account_name
     FROM transactions t
-    LEFT JOIN transaction_categories tc ON t.category_id = tc.id
     LEFT JOIN bank_accounts ba ON t.bank_account_id = ba.id
     WHERE t.id = $1
   `, [result.rows[0].id]);
@@ -387,7 +404,6 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
   const {
     date,
     type,
-    category_id,
     description,
     amount,
     bank_account_id,
@@ -401,21 +417,18 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
     UPDATE transactions SET
       date = COALESCE($1, date),
       type = COALESCE($2, type),
-      category_id = $3,
-      description = COALESCE($4, description),
-      amount = COALESCE($5, amount),
-      bank_account_id = $6,
-      reference = $7,
-      vendor = $8,
-      is_reconciled = COALESCE($9, is_reconciled),
-      notes = $10,
+      description = COALESCE($3, description),
+      amount = COALESCE($4, amount),
+      bank_account_id = $5,
+      reference = $6,
+      vendor = $7,
+      is_reconciled = COALESCE($8, is_reconciled),
+      notes = $9,
       updated_at = CURRENT_TIMESTAMP
-    WHERE id = $11
+    WHERE id = $10
     RETURNING *
   `, [
-    date, type,
-    category_id !== undefined ? category_id : null,
-    description, amount,
+    date, type, description, amount,
     bank_account_id !== undefined ? bank_account_id : null,
     reference !== undefined ? reference : null,
     vendor !== undefined ? vendor : null,
@@ -432,10 +445,8 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
   const fullResult = await db.query(`
     SELECT 
       t.*,
-      tc.name as category_name,
       ba.name as bank_account_name
     FROM transactions t
-    LEFT JOIN transaction_categories tc ON t.category_id = tc.id
     LEFT JOIN bank_accounts ba ON t.bank_account_id = ba.id
     WHERE t.id = $1
   `, [id]);
@@ -493,12 +504,12 @@ router.post('/bulk', authenticate, requireStaff, asyncHandler(async (req, res) =
     for (const t of transactions) {
       const result = await client.query(`
         INSERT INTO transactions (
-          date, type, category_id, description, amount, 
+          date, type, description, amount, 
           bank_account_id, reference, vendor, notes, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
       `, [
-        t.date, t.type, t.category_id || null, t.description, t.amount,
+        t.date, t.type, t.description, t.amount,
         t.bank_account_id || null, t.reference || null, t.vendor || null, 
         t.notes || null, req.user.id,
       ]);
@@ -518,7 +529,7 @@ router.post('/bulk', authenticate, requireStaff, asyncHandler(async (req, res) =
 }));
 
 /**
- * GET /transactions/export
+ * GET /transactions/export/csv
  * Export transactions as CSV
  */
 router.get('/export/csv', authenticate, requireStaff, asyncHandler(async (req, res) => {
@@ -528,17 +539,19 @@ router.get('/export/csv', authenticate, requireStaff, asyncHandler(async (req, r
     SELECT 
       t.date,
       t.type,
-      tc.name as category,
       t.description,
       t.amount,
       ba.name as account,
+      ac.name as gl_account,
+      cl.name as class,
       t.reference,
       t.vendor,
       t.is_reconciled,
       t.notes
     FROM transactions t
-    LEFT JOIN transaction_categories tc ON t.category_id = tc.id
     LEFT JOIN bank_accounts ba ON t.bank_account_id = ba.id
+    LEFT JOIN accounts_chart ac ON t.accepted_gl_account_id = ac.id
+    LEFT JOIN classes cl ON t.class_id = cl.id
     WHERE 1=1
   `;
   const params = [];
@@ -563,14 +576,15 @@ router.get('/export/csv', authenticate, requireStaff, asyncHandler(async (req, r
   const result = await db.query(queryText, params);
 
   // Generate CSV
-  const headers = ['Date', 'Type', 'Category', 'Description', 'Amount', 'Account', 'Reference', 'Vendor', 'Reconciled', 'Notes'];
+  const headers = ['Date', 'Type', 'Description', 'Amount', 'Bank Account', 'GL Account', 'Class', 'Reference', 'Vendor', 'Reconciled', 'Notes'];
   const rows = result.rows.map(row => [
     row.date,
     row.type,
-    row.category || '',
     `"${(row.description || '').replace(/"/g, '""')}"`,
     row.amount,
     row.account || '',
+    row.gl_account || '',
+    row.class || '',
     row.reference || '',
     row.vendor || '',
     row.is_reconciled ? 'Yes' : 'No',

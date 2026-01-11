@@ -290,7 +290,7 @@ async function syncItemTransactions(item, results) {
     // Process removed transactions
     for (const removed of data.removed) {
       await db.query(
-        `UPDATE transactions SET status = 'excluded', excluded_reason = 'Removed by bank'
+        `UPDATE transactions SET acceptance_status = 'excluded', exclusion_reason = 'Removed by bank'
          WHERE plaid_transaction_id = $1`,
         [removed.transaction_id]
       );
@@ -330,14 +330,13 @@ async function upsertTransaction(txn, accountMap, plaidItemId) {
 
   await db.query(
     `INSERT INTO transactions (
-      date, type, description, amount, category, status, source,
+      date, type, description, amount, acceptance_status, source,
       plaid_transaction_id, plaid_account_id, notes
-    ) VALUES ($1, $2, $3, $4, $5, 'pending', 'plaid', $6, $7, $8)
+    ) VALUES ($1, $2, $3, $4, 'pending', 'plaid', $5, $6, $7)
     ON CONFLICT (plaid_transaction_id) DO UPDATE SET
       date = EXCLUDED.date,
       description = EXCLUDED.description,
       amount = EXCLUDED.amount,
-      category = EXCLUDED.category,
       notes = EXCLUDED.notes,
       plaid_account_id = COALESCE(EXCLUDED.plaid_account_id, transactions.plaid_account_id),
       updated_at = NOW()`,
@@ -346,7 +345,6 @@ async function upsertTransaction(txn, accountMap, plaidItemId) {
       transactionType,
       description.substring(0, 500),
       normalizedAmount,
-      category,
       txn.transaction_id,
       plaidAccountId,
       `Plaid: ${txn.name} | ${txn.personal_finance_category?.detailed || ''}`.trim(),
