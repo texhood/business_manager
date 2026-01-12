@@ -14,3 +14,6 @@ export { default as ItemCategoriesView } from './ItemCategoriesView';
 export { default as ChartOfAccountsView } from './ChartOfAccountsView';
 export { default as ReportsView } from './ReportsView';
 export { default as DeliveryZonesView } from './DeliveryZonesView';
+export { default as MenusView } from './MenusView';
+export { default as MenuItemsView } from './MenuItemsView';
+export { default as EventsView } from './EventsView';

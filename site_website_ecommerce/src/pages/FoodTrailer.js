@@ -16,6 +16,9 @@ const galleryImages = [
 function FoodTrailer() {
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
+  const [showItemsModal, setShowItemsModal] = useState(false);
+  const [menuItems, setMenuItems] = useState([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
 
   useEffect(() => {
     async function fetchEvents() {
@@ -34,6 +37,34 @@ function FoodTrailer() {
 
     fetchEvents();
   }, []);
+
+  const handleViewItems = async () => {
+    setShowItemsModal(true);
+    if (menuItems.length === 0) {
+      setItemsLoading(true);
+      try {
+        const response = await fetch(`${API_URL}/menus/items/all`);
+        if (response.ok) {
+          const data = await response.json();
+          setMenuItems(data.data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching menu items:', err);
+      } finally {
+        setItemsLoading(false);
+      }
+    }
+  };
+
+  const getDietaryIcons = (item) => {
+    const icons = [];
+    if (item.is_vegetarian) icons.push({ label: 'V', title: 'Vegetarian' });
+    if (item.is_vegan) icons.push({ label: 'VG', title: 'Vegan' });
+    if (item.is_gluten_free) icons.push({ label: 'GF', title: 'Gluten Free' });
+    if (item.is_dairy_free) icons.push({ label: 'DF', title: 'Dairy Free' });
+    if (item.is_spicy) icons.push({ label: '🌶️', title: 'Spicy' });
+    return icons;
+  };
 
   const formatEventDate = (dateStr) => {
     const date = new Date(dateStr);
@@ -120,7 +151,10 @@ function FoodTrailer() {
         <div className="container">
           <div className="action-buttons">
             <Link to="/menu" className="btn btn-primary btn-lg">View Current Menu</Link>
-            <Link to="/contact" className="btn btn-secondary btn-lg">Event Inquiry</Link>
+            <button onClick={handleViewItems} className="btn btn-secondary btn-lg">
+              Browse Items for Your Event
+            </button>
+            <Link to="/contact" className="btn btn-outline btn-lg">Event Inquiry</Link>
           </div>
         </div>
       </section>
@@ -191,6 +225,57 @@ function FoodTrailer() {
           )}
         </div>
       </section>
+
+      {/* Menu Items Modal for Event Planning */}
+      {showItemsModal && (
+        <div className="items-modal-overlay" onClick={() => setShowItemsModal(false)}>
+          <div className="items-modal" onClick={e => e.stopPropagation()}>
+            <div className="items-modal-header">
+              <h2>Available Items for Your Event</h2>
+              <button className="modal-close" onClick={() => setShowItemsModal(false)}>×</button>
+            </div>
+            <div className="items-modal-body">
+              <p className="items-intro">
+                Browse our available menu items below. Contact us to discuss your event and customize a menu that fits your needs.
+              </p>
+              
+              {itemsLoading ? (
+                <div className="items-loading">
+                  <div className="spinner"></div>
+                  <p>Loading items...</p>
+                </div>
+              ) : menuItems.length === 0 ? (
+                <p>No items available at this time.</p>
+              ) : (
+                <div className="items-list">
+                  {menuItems.filter(item => item.is_available).map(item => (
+                    <div key={item.id} className="item-card">
+                      <h4>{item.name}</h4>
+                      {item.description && <p className="item-description">{item.description}</p>}
+                      {getDietaryIcons(item).length > 0 && (
+                        <div className="dietary-icons">
+                          {getDietaryIcons(item).map((icon, idx) => (
+                            <span key={idx} className="dietary-icon" title={icon.title}>
+                              {icon.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div className="items-cta">
+                <p>Ready to plan your event?</p>
+                <Link to="/contact" className="btn btn-primary" onClick={() => setShowItemsModal(false)}>
+                  Contact Us for Pricing
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

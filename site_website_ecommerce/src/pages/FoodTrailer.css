@@ -242,3 +242,142 @@
     width: 100%;
   }
 }
+
+/* Items Modal for Event Planning */
+.items-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--spacing-md);
+}
+
+.items-modal {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  max-width: 700px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.items-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.items-modal-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: var(--color-primary-dark);
+}
+
+.items-modal-header .modal-close {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: var(--color-text-light);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.items-modal-header .modal-close:hover {
+  color: var(--color-text);
+}
+
+.items-modal-body {
+  padding: var(--spacing-lg);
+  overflow-y: auto;
+}
+
+.items-intro {
+  text-align: center;
+  color: var(--color-text-light);
+  margin-bottom: var(--spacing-lg);
+  font-size: 1rem;
+}
+
+.items-loading {
+  text-align: center;
+  padding: var(--spacing-xl);
+}
+
+.items-list {
+  display: grid;
+  gap: var(--spacing-md);
+}
+
+.item-card {
+  padding: var(--spacing-md);
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--color-primary);
+}
+
+.item-card h4 {
+  margin: 0 0 var(--spacing-xs);
+  color: var(--color-text);
+  font-size: 1.05rem;
+}
+
+.item-card .item-description {
+  margin: 0 0 var(--spacing-sm);
+  color: var(--color-text-light);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.item-card .dietary-icons {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.item-card .dietary-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  background-color: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.items-cta {
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  text-align: center;
+}
+
+.items-cta p {
+  margin-bottom: var(--spacing-md);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Outline button style */
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary);
+}
+
+.btn-outline:hover {
+  background: var(--color-primary);
+  color: var(--color-white);
+}

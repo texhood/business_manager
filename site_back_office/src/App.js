@@ -26,6 +26,9 @@ import {
   ChartOfAccountsView,
   ReportsView,
   DeliveryZonesView,
+  MenusView,
+  MenuItemsView,
+  EventsView,
 } from './components/views';
 
 // ============================================================================
@@ -42,6 +45,7 @@ function App() {
   const [deliveryZones, setDeliveryZones] = useState([]);
   const [chartOfAccounts, setChartOfAccounts] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
+  const [expandedSections, setExpandedSections] = useState(['foodTrailer']); // Default expanded
 
   // Check for existing session on mount
   useEffect(() => {
@@ -91,6 +95,14 @@ function App() {
     setChartOfAccounts([]);
   };
 
+  const toggleSection = (sectionId) => {
+    setExpandedSections(prev => 
+      prev.includes(sectionId) 
+        ? prev.filter(id => id !== sectionId)
+        : [...prev, sectionId]
+    );
+  };
+
   // Loading screen
   if (loading) {
     return (
@@ -106,19 +118,54 @@ function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  // Navigation items
-  const navItems = [
+  // Navigation structure with sections
+  const navStructure = [
     { id: 'dashboard', label: 'Dashboard', icon: Icons.Dashboard },
-    { id: 'accounts', label: 'Accounts', icon: Icons.Users },
-    { id: 'items', label: 'Items', icon: Icons.Package },
-    { id: 'bankFeed', label: 'Bank Feed', icon: Icons.Inbox },
-    { id: 'bankConnections', label: 'Bank Connections', icon: Icons.Bank },
-    { id: 'journalEntries', label: 'Journal Entries', icon: Icons.FileText },
-    { id: 'transactions', label: 'Bookkeeping', icon: Icons.DollarSign },
-    { id: 'itemCategories', label: 'Item Categories', icon: Icons.Tag },
-    { id: 'chartOfAccounts', label: 'Chart of Accounts', icon: Icons.Book },
+    
+    // Food Trailer Section
+    {
+      id: 'foodTrailer',
+      label: 'Food Trailer',
+      icon: Icons.Truck,
+      isSection: true,
+      children: [
+        { id: 'menus', label: 'Menus', icon: Icons.Menu },
+        { id: 'menuItems', label: 'Menu Items', icon: Icons.List },
+        { id: 'events', label: 'Events', icon: Icons.Calendar },
+      ],
+    },
+    
+    // Inventory Section
+    {
+      id: 'inventory',
+      label: 'Inventory',
+      icon: Icons.Package,
+      isSection: true,
+      children: [
+        { id: 'items', label: 'Products', icon: Icons.Package },
+        { id: 'itemCategories', label: 'Categories', icon: Icons.Tag },
+      ],
+    },
+    
+    // Accounting Section
+    {
+      id: 'accounting',
+      label: 'Accounting',
+      icon: Icons.DollarSign,
+      isSection: true,
+      children: [
+        { id: 'transactions', label: 'Bookkeeping', icon: Icons.DollarSign },
+        { id: 'bankFeed', label: 'Bank Feed', icon: Icons.Inbox },
+        { id: 'bankConnections', label: 'Bank Connections', icon: Icons.Bank },
+        { id: 'journalEntries', label: 'Journal Entries', icon: Icons.FileText },
+        { id: 'chartOfAccounts', label: 'Chart of Accounts', icon: Icons.Book },
+      ],
+    },
+    
+    // Other items
+    { id: 'accounts', label: 'Customers', icon: Icons.Users },
+    { id: 'deliveryZones', label: 'Delivery Zones', icon: Icons.MapPin },
     { id: 'reports', label: 'Reports', icon: Icons.BarChart },
-    { id: 'deliveryZones', label: 'Delivery Zones', icon: Icons.Truck },
   ];
 
   // Render current view
@@ -146,9 +193,54 @@ function App() {
         return <ReportsView />;
       case 'deliveryZones':
         return <DeliveryZonesView />;
+      case 'menus':
+        return <MenusView />;
+      case 'menuItems':
+        return <MenuItemsView />;
+      case 'events':
+        return <EventsView />;
       default:
         return <DashboardView accounts={accounts} items={items} transactions={transactions} />;
     }
+  };
+
+  // Render navigation item
+  const renderNavItem = (item, isChild = false) => {
+    if (item.isSection) {
+      const isExpanded = expandedSections.includes(item.id);
+      const hasActiveChild = item.children?.some(child => child.id === currentView);
+      
+      return (
+        <div key={item.id} className="nav-section">
+          <button
+            className={`nav-item nav-section-header ${hasActiveChild ? 'active-parent' : ''}`}
+            onClick={() => toggleSection(item.id)}
+          >
+            <item.icon />
+            {item.label}
+            <span className={`nav-chevron ${isExpanded ? 'expanded' : ''}`}>
+              <Icons.ChevronDown />
+            </span>
+          </button>
+          {isExpanded && (
+            <div className="nav-section-children">
+              {item.children.map(child => renderNavItem(child, true))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <button
+        key={item.id}
+        className={`nav-item ${isChild ? 'nav-child' : ''} ${currentView === item.id ? 'active' : ''}`}
+        onClick={() => setCurrentView(item.id)}
+      >
+        <item.icon />
+        {item.label}
+      </button>
+    );
   };
 
   return (
@@ -161,16 +253,7 @@ function App() {
         </div>
         
         <nav className="sidebar-nav">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              className={`nav-item ${currentView === item.id ? 'active' : ''}`}
-              onClick={() => setCurrentView(item.id)}
-            >
-              <item.icon />
-              {item.label}
-            </button>
-          ))}
+          {navStructure.map(item => renderNavItem(item))}
         </nav>
         
         <div className="sidebar-footer">

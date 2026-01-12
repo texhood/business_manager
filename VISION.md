@@ -44,6 +44,8 @@ The Hood Family Farms Platform is a comprehensive business management and digita
 #### 1. Back Office (Admin Hub)
 The central management console for all business operations.
 
+**Folder:** `site_back_office`
+
 **Features:**
 - Accounting & Bookkeeping (QuickBooks-style workflow)
 - Inventory Management
@@ -64,6 +66,8 @@ The central management console for all business operations.
 #### 2. E-Commerce Website
 Customer-facing website with integrated shopping.
 
+**Folder:** `site_website_ecommerce`
+
 **Features:**
 - Product catalog (database-driven)
 - Shopping cart
@@ -77,6 +81,8 @@ Customer-facing website with integrated shopping.
 
 #### 3. Market POS (Point of Sale Terminal)
 For farmers markets and direct sales with Stripe Terminal integration.
+
+**Folder:** `site_point_of_sale_terminal`
 
 **Features:**
 - Quick product lookup
@@ -92,6 +98,8 @@ For farmers markets and direct sales with Stripe Terminal integration.
 #### 4. Restaurant POS
 Menu-based ordering system for food trailer events.
 
+**Folder:** `site_restaurant_pos`
+
 **Features:**
 - Event menu selection
 - Visual menu interface
@@ -106,6 +114,8 @@ Menu-based ordering system for food trailer events.
 
 #### 5. Kitchen Display System (KDS)
 Real-time order management for food preparation.
+
+**Folder:** `site_kitchen_display_system`
 
 **Features:**
 - Live order queue
@@ -154,31 +164,36 @@ Real-time order management for food preparation.
 ```
 business_manager/
 │
-├── backend/                        # Unified Multi-Tenant API
+├── backend/                            # Unified Multi-Tenant API
 │   └── src/
 │       ├── middleware/
-│       │   ├── auth.js             # Authentication
-│       │   └── tenant.js           # Tenant resolution & isolation
+│       │   ├── auth.js                 # Authentication
+│       │   └── tenant.js               # Tenant resolution & isolation
 │       └── routes/
-│           ├── platform/           # Platform-level (super admin)
-│           ├── admin/              # Tenant admin routes
-│           └── public/             # Public API routes
+│           ├── platform/               # Platform-level (super admin)
+│           ├── admin/                  # Tenant admin routes
+│           └── public/                 # Public API routes
 │
-├── apps/
-│   ├── backoffice/                 # (1) Admin Dashboard
-│   ├── ecommerce/                  # (2) Customer Website
-│   ├── pos-terminal/               # (3) Market POS
-│   ├── pos-restaurant/             # (4) Food Trailer POS
-│   └── kitchen-display/            # (5) KDS
+├── site_back_office/                   # (1) Admin Dashboard
 │
-├── packages/                       # Shared code (monorepo)
-│   ├── ui/                         # Shared React components
-│   ├── api-client/                 # Typed API client
-│   └── utils/                      # Shared utilities
+├── site_website_ecommerce/             # (2) Customer Website
 │
-└── infrastructure/
-    ├── terraform/                  # Infrastructure as code
-    └── docker/                     # Container configs
+├── site_point_of_sale_terminal/        # (3) Market POS
+│
+├── site_restaurant_pos/                # (4) Food Trailer POS
+│
+├── site_kitchen_display_system/        # (5) KDS
+│
+├── packages/                           # Shared code (monorepo) - future
+│   ├── ui/                             # Shared React components
+│   ├── api-client/                     # Typed API client
+│   └── utils/                          # Shared utilities
+│
+├── scripts/                            # Utility scripts
+│
+└── infrastructure/                     # Future
+    ├── terraform/                      # Infrastructure as code
+    └── docker/                         # Container configs
 ```
 
 ---
@@ -270,19 +285,21 @@ Every data table includes a `tenant_id` for complete data isolation:
 - [x] E-commerce website structure
 - [x] Stripe payment integration
 - [x] Blog system (API)
-- [ ] Complete CMS (media, pages, menus, events)
+- [x] Menu system (API)
+- [x] Events system (API)
+- [ ] Complete CMS (media, pages)
 - [ ] Back office site admin integration
 
 ### Phase 2: POS Systems
 - [ ] Stripe Terminal integration research
-- [ ] Market POS application
-- [ ] Restaurant POS application
-- [ ] Kitchen Display System
+- [ ] Market POS application (`site_point_of_sale_terminal`)
+- [ ] Restaurant POS application (`site_restaurant_pos`)
+- [ ] Kitchen Display System (`site_kitchen_display_system`)
 - [ ] Real-time order sync (WebSockets)
 - [ ] Offline capability
 
 ### Phase 3: Multi-Tenancy
-- [ ] Add tenant_id to all tables
+- [x] Add tenant_id to all tables
 - [ ] Tenant middleware & isolation
 - [ ] Row-level security policies
 - [ ] Onboarding flow
@@ -343,6 +360,7 @@ Every data table includes a `tenant_id` for complete data isolation:
 | Date | Version | Author | Changes |
 |------|---------|--------|---------|
 | 2026-01-12 | 1.0 | Robin Hood | Initial vision document |
+| 2026-01-12 | 1.1 | Robin Hood | Updated folder naming convention |
 
 ---
 
