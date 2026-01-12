@@ -1,0 +1,176 @@
+/* Order Confirmation Page */
+
+.confirmation-page {
+  min-height: 80vh;
+  background-color: var(--color-background-alt);
+  display: flex;
+  align-items: center;
+}
+
+.confirmation-content {
+  padding: var(--spacing-xxl) 0;
+  width: 100%;
+}
+
+.confirmation-card {
+  max-width: 600px;
+  margin: 0 auto;
+  background-color: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--spacing-xxl);
+  text-align: center;
+}
+
+.confirmation-icon {
+  margin-bottom: var(--spacing-lg);
+}
+
+.confirmation-icon svg {
+  width: 80px;
+  height: 80px;
+  color: var(--color-success);
+}
+
+.confirmation-card h1 {
+  color: var(--color-primary);
+  font-size: 2.5rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.confirmation-subtitle {
+  font-size: 1.2rem;
+  color: var(--color-text-light);
+  margin-bottom: var(--spacing-xl);
+}
+
+.order-number {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background-color: var(--color-background-alt);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-xl);
+}
+
+.order-number span {
+  color: var(--color-text-light);
+}
+
+.order-number strong {
+  color: var(--color-primary);
+  font-size: 1.2rem;
+  font-family: monospace;
+}
+
+/* Confirmation Details */
+.confirmation-details {
+  text-align: left;
+  padding: var(--spacing-lg);
+  background-color: var(--color-background-alt);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-xl);
+}
+
+.confirmation-details > p {
+  margin-bottom: var(--spacing-lg);
+  color: var(--color-text);
+}
+
+.pickup-info,
+.delivery-info {
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.pickup-info h3,
+.delivery-info h3 {
+  color: var(--color-primary);
+  font-size: 1.1rem;
+  margin-bottom: var(--spacing-md);
+}
+
+.pickup-info p,
+.delivery-info p {
+  color: var(--color-text);
+  margin-bottom: var(--spacing-sm);
+}
+
+.pickup-info address {
+  font-style: normal;
+  padding: var(--spacing-md);
+  background-color: var(--color-white);
+  border-radius: var(--radius-sm);
+  margin: var(--spacing-md) 0;
+  color: var(--color-text);
+}
+
+.delivery-info ul {
+  list-style: none;
+  padding: 0;
+  margin: var(--spacing-md) 0 0;
+}
+
+.delivery-info li {
+  padding: var(--spacing-xs) 0;
+  padding-left: var(--spacing-md);
+  position: relative;
+  color: var(--color-text);
+}
+
+.delivery-info li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--color-primary);
+}
+
+/* Actions */
+.confirmation-actions {
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: center;
+  margin-bottom: var(--spacing-xl);
+}
+
+/* Contact */
+.confirmation-contact {
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.confirmation-contact p {
+  font-size: 0.9rem;
+  color: var(--color-text-light);
+  margin: 0;
+}
+
+.confirmation-contact a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.confirmation-contact a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+  .confirmation-card {
+    padding: var(--spacing-lg);
+  }
+
+  .confirmation-card h1 {
+    font-size: 2rem;
+  }
+
+  .confirmation-actions {
+    flex-direction: column;
+  }
+
+  .confirmation-icon svg {
+    width: 60px;
+    height: 60px;
+  }
+}

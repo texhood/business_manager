@@ -37,4 +37,4 @@ Thumbs.db
 coverage/
 
 # Misc
-.eslintcache
+.eslintcache*.backup

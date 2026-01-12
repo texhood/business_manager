@@ -11,6 +11,8 @@ const { authenticate, optionalAuth, requireStaff } = require('../middleware/auth
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
 
+const { syncItemToStripe, archiveStripeProduct, reactivateStripeProduct } = require('../utils/stripeSync');
+
 const router = express.Router();
 
 // Valid item statuses
@@ -208,7 +210,7 @@ router.get('/:id', optionalAuth, asyncHandler(async (req, res) => {
     LEFT JOIN categories c ON i.category_id = c.id
     LEFT JOIN item_tags it ON i.id = it.item_id
     LEFT JOIN tags t ON it.tag_id = t.id
-    WHERE i.id = $1 OR i.sku = $1
+    WHERE i.id::text = $1 OR i.sku = $1
     GROUP BY i.id, c.name, c.slug
   `, [id]);
 
@@ -305,6 +307,34 @@ router.post('/', authenticate, requireStaff, itemValidation, validate, asyncHand
   });
 
   logger.info('Item created', { itemId: item.id, sku: item.sku, status: item.status, createdBy: req.user.id });
+
+  // Sync to Stripe if item is active
+  let stripeIds = null;
+  if (item.status === 'active' && process.env.STRIPE_SECRET_KEY) {
+    try {
+      // Get category name for Stripe metadata
+      const categoryResult = await db.query('SELECT name FROM categories WHERE id = $1', [item.category_id]);
+      const itemWithCategory = { ...item, category_name: categoryResult.rows[0]?.name };
+      
+      stripeIds = await syncItemToStripe(itemWithCategory);
+      
+      // Update item with Stripe IDs
+      await db.query(`
+        UPDATE items SET 
+          stripe_product_id = $1,
+          stripe_price_id = $2,
+          stripe_member_price_id = $3
+        WHERE id = $4
+      `, [stripeIds.stripe_product_id, stripeIds.stripe_price_id, stripeIds.stripe_member_price_id, item.id]);
+      
+      item.stripe_product_id = stripeIds.stripe_product_id;
+      item.stripe_price_id = stripeIds.stripe_price_id;
+      item.stripe_member_price_id = stripeIds.stripe_member_price_id;
+    } catch (stripeError) {
+      logger.error('Failed to sync item to Stripe', { itemId: item.id, error: stripeError.message });
+      // Don't fail the request - item is created, Stripe sync can be retried
+    }
+  }
 
   res.status(201).json({
     status: 'success',
@@ -408,6 +438,41 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
   });
 
   logger.info('Item updated', { itemId: id, status: item.status, updatedBy: req.user.id });
+
+  // Sync to Stripe if item is active
+  if (process.env.STRIPE_SECRET_KEY) {
+    try {
+      // Get category name for Stripe metadata
+      const categoryResult = await db.query('SELECT name FROM categories WHERE id = $1', [item.category_id]);
+      const itemWithCategory = { ...item, category_name: categoryResult.rows[0]?.name };
+      
+      if (item.status === 'active') {
+        const stripeIds = await syncItemToStripe(itemWithCategory);
+        
+        // Update item with Stripe IDs if they changed
+        if (stripeIds.stripe_product_id !== item.stripe_product_id ||
+            stripeIds.stripe_price_id !== item.stripe_price_id ||
+            stripeIds.stripe_member_price_id !== item.stripe_member_price_id) {
+          await db.query(`
+            UPDATE items SET 
+              stripe_product_id = $1,
+              stripe_price_id = $2,
+              stripe_member_price_id = $3
+            WHERE id = $4
+          `, [stripeIds.stripe_product_id, stripeIds.stripe_price_id, stripeIds.stripe_member_price_id, id]);
+          
+          item.stripe_product_id = stripeIds.stripe_product_id;
+          item.stripe_price_id = stripeIds.stripe_price_id;
+          item.stripe_member_price_id = stripeIds.stripe_member_price_id;
+        }
+      } else if (item.stripe_product_id) {
+        // Item is no longer active - archive in Stripe
+        await archiveStripeProduct(item.stripe_product_id);
+      }
+    } catch (stripeError) {
+      logger.error('Failed to sync item to Stripe', { itemId: id, error: stripeError.message });
+    }
+  }
 
   res.json({
     status: 'success',
@@ -581,6 +646,25 @@ router.get('/:id/inventory-history', authenticate, requireStaff, asyncHandler(as
   res.json({
     status: 'success',
     data: result.rows,
+  });
+}));
+
+/**
+ * POST /items/sync-stripe
+ * Bulk sync all active items to Stripe (admin only)
+ */
+router.post('/sync-stripe', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new ApiError(400, 'Stripe is not configured');
+  }
+
+  const { bulkSyncItemsToStripe } = require('../utils/stripeSync');
+  const result = await bulkSyncItemsToStripe(db);
+
+  res.json({
+    status: 'success',
+    message: `Synced ${result.synced} items to Stripe (${result.failed} failed)`,
+    data: result
   });
 }));
 

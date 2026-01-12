@@ -1,0 +1,368 @@
+/* Menu Page */
+.menu-page {
+  min-height: 100vh;
+  background-color: var(--color-background);
+}
+
+/* Hero Section */
+.menu-hero {
+  position: relative;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
+  overflow: hidden;
+}
+
+.menu-hero-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.menu-hero-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.3;
+}
+
+.menu-hero-default {
+  padding: var(--spacing-xl);
+}
+
+.menu-logo {
+  max-width: 200px;
+  height: auto;
+}
+
+.menu-hero-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  color: var(--color-white);
+  padding: var(--spacing-xl);
+}
+
+.menu-hero-content h1 {
+  font-size: 2.5rem;
+  margin-bottom: var(--spacing-md);
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.menu-description {
+  font-size: 1.1rem;
+  max-width: 600px;
+  margin: 0 auto var(--spacing-md);
+  opacity: 0.95;
+}
+
+.menu-season {
+  display: inline-block;
+  padding: var(--spacing-xs) var(--spacing-md);
+  background-color: rgba(255,255,255,0.2);
+  border-radius: 20px;
+  font-size: 0.9rem;
+  text-transform: capitalize;
+}
+
+/* Dietary Legend */
+.dietary-legend {
+  background-color: var(--color-white);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.legend-items {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 0.85rem;
+  color: var(--color-text-light);
+}
+
+.legend-item .icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background-color: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* Menu Content */
+.menu-content {
+  padding: var(--spacing-xxl) 0;
+}
+
+.menu-section {
+  margin-bottom: var(--spacing-xxl);
+}
+
+.menu-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-header {
+  text-align: center;
+  margin-bottom: var(--spacing-xl);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 2px solid var(--color-primary);
+}
+
+.section-header h2 {
+  font-size: 1.75rem;
+  color: var(--color-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.section-header p {
+  color: var(--color-text-light);
+  font-style: italic;
+}
+
+/* Menu Items Grid */
+.menu-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.menu-items.columns-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-lg);
+}
+
+.menu-items.columns-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-lg);
+}
+
+/* Menu Item */
+.menu-item {
+  display: flex;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--color-white);
+  border-radius: var(--radius-md);
+  transition: box-shadow var(--transition-fast);
+}
+
+.menu-item:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.menu-item.featured {
+  border: 2px solid var(--color-primary);
+  background-color: var(--color-primary-light);
+}
+
+.menu-item.unavailable {
+  opacity: 0.6;
+}
+
+.item-image {
+  flex-shrink: 0;
+  width: 100px;
+  height: 100px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.item-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+}
+
+.item-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.featured-badge {
+  color: var(--color-accent);
+  margin-left: var(--spacing-xs);
+}
+
+.item-price {
+  font-weight: 700;
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
+.item-description {
+  font-size: 0.9rem;
+  color: var(--color-text-light);
+  line-height: 1.5;
+  margin-bottom: var(--spacing-sm);
+}
+
+.item-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.dietary-icons {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.dietary-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  background-color: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.unavailable-label {
+  font-size: 0.8rem;
+  color: var(--color-error);
+  font-style: italic;
+}
+
+.allergen-warning {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs);
+  padding-top: var(--spacing-xs);
+  border-top: 1px dashed var(--color-border);
+}
+
+/* No Items State */
+.no-items {
+  text-align: center;
+  padding: var(--spacing-xxl);
+  color: var(--color-text-light);
+}
+
+/* Menu Footer */
+.menu-footer {
+  text-align: center;
+}
+
+.menu-footer p {
+  font-style: italic;
+  color: var(--color-text-light);
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Navigation */
+.menu-nav {
+  text-align: center;
+}
+
+/* Loading and Error States */
+.loading-state,
+.error-state {
+  text-align: center;
+  padding: var(--spacing-xxxl) var(--spacing-md);
+}
+
+.error-state h2 {
+  color: var(--color-text);
+  margin-bottom: var(--spacing-md);
+}
+
+.error-state p {
+  color: var(--color-text-light);
+  margin-bottom: var(--spacing-xl);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  margin: 0 auto var(--spacing-md);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .menu-hero-content h1 {
+    font-size: 1.75rem;
+  }
+
+  .legend-items {
+    gap: var(--spacing-md);
+  }
+
+  .legend-item {
+    font-size: 0.8rem;
+  }
+
+  .menu-items.columns-2,
+  .menu-items.columns-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .menu-item {
+    flex-direction: column;
+  }
+
+  .item-image {
+    width: 100%;
+    height: 150px;
+  }
+
+  .item-header {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .section-header h2 {
+    font-size: 1.4rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .legend-items {
+    justify-content: flex-start;
+  }
+}

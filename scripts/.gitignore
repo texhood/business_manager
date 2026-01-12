@@ -1,0 +1,8 @@
+*.backup
+.env.backup
+*.backup
+.env.backup
+
+# Backup files with secrets
+*.backup
+**/.env.backup

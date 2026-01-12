@@ -31,6 +31,10 @@ const transactionAcceptanceRouter = require('./routes/transactionAcceptance');
 const plaidRoutes = require('./routes/plaid');
 const classesRouter = require('./routes/classes');
 const journalEntriesRouter = require('./routes/journalEntries');
+const paymentsRouter = require('./routes/payments');
+const blogRouter = require('./routes/blog');
+const menusRouter = require('./routes/menus');
+const eventsRouter = require('./routes/events');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -51,8 +55,30 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 // CORS configuration
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3002')
+  .split(',')
+  .map(origin => origin.trim());
+
+logger.info('CORS allowed origins:', corsOrigins);
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, Postman, etc)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    if (corsOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      logger.warn(`CORS blocked origin: ${origin}`);
+      // In development, allow all origins for easier testing
+      if (process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -117,6 +143,10 @@ app.use(`${API_PREFIX}/transaction-acceptance`, transactionAcceptanceRouter);
 app.use('/api/v1/plaid', plaidRoutes);
 app.use(`${API_PREFIX}/classes`, classesRouter);
 app.use(`${API_PREFIX}/journal-entries`, journalEntriesRouter);
+app.use(`${API_PREFIX}/payments`, paymentsRouter);
+app.use(`${API_PREFIX}/blog`, blogRouter);
+app.use(`${API_PREFIX}/menus`, menusRouter);
+app.use(`${API_PREFIX}/events`, eventsRouter);
 
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {

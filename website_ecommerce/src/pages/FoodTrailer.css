@@ -1,0 +1,244 @@
+/* Food Trailer Page */
+.food-trailer-page {
+  /* No padding on hero */
+}
+
+/* Hero Section */
+.food-trailer-hero {
+  background-color: var(--color-background-alt);
+  padding: var(--spacing-xxl) 0;
+  text-align: center;
+}
+
+.hero-logo {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.hero-logo img {
+  width: 100%;
+  height: auto;
+}
+
+/* Gallery Section */
+.food-trailer-gallery {
+  padding: var(--spacing-xxl) 0;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-md);
+}
+
+.gallery-item {
+  position: relative;
+  padding-top: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+
+.gallery-item img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-slow);
+}
+
+.gallery-item:hover img {
+  transform: scale(1.05);
+}
+
+/* About Section */
+.food-trailer-about {
+  text-align: center;
+}
+
+.about-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.about-content h2 {
+  color: var(--color-primary);
+  margin-bottom: var(--spacing-lg);
+}
+
+.about-content p {
+  font-size: 1.05rem;
+  line-height: 1.8;
+  margin-bottom: var(--spacing-lg);
+}
+
+.about-content .btn {
+  margin-bottom: var(--spacing-xl);
+}
+
+.social-cta {
+  color: var(--color-text-light);
+}
+
+.social-cta a {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.social-cta a:hover {
+  text-decoration: underline;
+}
+
+/* Action Buttons */
+.food-trailer-actions {
+  text-align: center;
+  padding: var(--spacing-xl) 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+/* Events Section */
+.food-trailer-events h2 {
+  text-align: center;
+  color: var(--color-primary);
+  margin-bottom: var(--spacing-xl);
+}
+
+.events-list {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.event-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  background-color: var(--color-white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--spacing-md);
+  align-items: center;
+  transition: box-shadow var(--transition-normal);
+}
+
+.event-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.event-date-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  padding: var(--spacing-md);
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.event-date-box .month {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.event-date-box .day {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: var(--spacing-xs);
+}
+
+.event-details h3 {
+  font-size: 1.1rem;
+  margin-bottom: var(--spacing-xs);
+  color: var(--color-text);
+}
+
+.event-datetime {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.9rem;
+  color: var(--color-text-light);
+  margin-bottom: var(--spacing-xs);
+}
+
+.event-datetime .time {
+  color: var(--color-text-muted);
+}
+
+.event-location {
+  font-size: 0.9rem;
+  color: var(--color-text-light);
+  margin-bottom: var(--spacing-xs);
+}
+
+.event-location a {
+  color: var(--color-primary);
+  margin-left: var(--spacing-xs);
+  font-size: 0.85rem;
+}
+
+.event-description {
+  font-size: 0.9rem;
+  color: var(--color-primary);
+  font-style: italic;
+  margin: 0;
+}
+
+.event-actions {
+  flex-shrink: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .gallery-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .event-card {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .event-date-box {
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .event-date-box .day {
+    margin-top: 0;
+  }
+
+  .event-datetime {
+    align-items: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .gallery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .action-buttons .btn {
+    width: 100%;
+  }
+}
