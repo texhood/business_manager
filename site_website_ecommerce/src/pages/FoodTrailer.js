@@ -43,7 +43,7 @@ function FoodTrailer() {
     if (menuItems.length === 0) {
       setItemsLoading(true);
       try {
-        const response = await fetch(`${API_URL}/menus/items/all`);
+        const response = await fetch(`${API_URL}/menus/items/public`);
         if (response.ok) {
           const data = await response.json();
           setMenuItems(data.data || []);
@@ -248,7 +248,7 @@ function FoodTrailer() {
                 <p>No items available at this time.</p>
               ) : (
                 <div className="items-list">
-                  {menuItems.filter(item => item.is_available).map(item => (
+                  {menuItems.map(item => (
                     <div key={item.id} className="item-card">
                       <h4>{item.name}</h4>
                       {item.description && <p className="item-description">{item.description}</p>}

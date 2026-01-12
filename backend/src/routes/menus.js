@@ -133,6 +133,37 @@ router.get('/featured', asyncHandler(async (req, res) => {
 }));
 
 /**
+ * GET /menus/items/public
+ * Get all available menu items (public - for event planning)
+ */
+router.get('/items/public', asyncHandler(async (req, res) => {
+  const { search } = req.query;
+
+  let queryText = `
+    SELECT id, name, description, price, price_label,
+      is_vegetarian, is_vegan, is_gluten_free, is_dairy_free, is_spicy,
+      allergens, image_url
+    FROM menu_items 
+    WHERE is_available = true
+  `;
+  const params = [];
+
+  if (search) {
+    params.push(`%${search}%`);
+    queryText += ` AND (name ILIKE $1 OR description ILIKE $1)`;
+  }
+
+  queryText += ' ORDER BY name';
+
+  const result = await db.query(queryText, params);
+
+  res.json({
+    status: 'success',
+    data: result.rows,
+  });
+}));
+
+/**
  * GET /menus/:idOrSlug
  * Get a single menu with all sections and items
  */
