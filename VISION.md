@@ -11,15 +11,15 @@ The Hood Family Farms Platform is a comprehensive business management and digita
 ### The Five Applications
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────────────────┐
 │                         HOOD FAMILY FARMS PLATFORM                           │
 │                        (Future: Multi-Tenant SaaS)                           │
-├─────────────────────────────────────────────────────────────────────────────┤
+├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │                            SHARED BACKEND API                                │
 │                     (Authentication, Data, Business Logic)                   │
 │                                                                              │
-├────────────┬────────────┬────────────┬────────────┬────────────────────────┤
+├────────────┬────────────┬────────────┬────────────┬──────────────────────────┤
 │            │            │            │            │                          │
 │    (1)     │    (2)     │    (3)     │    (4)     │         (5)              │
 │            │            │            │            │                          │
@@ -135,27 +135,27 @@ Real-time order management for food preparation.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    DEPLOYMENT ARCHITECTURE                       │
+│                    DEPLOYMENT ARCHITECTURE                      │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
+│                                                                 │
 │   Vercel (Frontend)        Railway (Backend + DB)               │
 │   ┌─────────────────┐      ┌─────────────────────┐              │
 │   │ React Apps      │ ←──→ │ Node.js API         │              │
 │   │ - Back Office   │      │ PostgreSQL          │              │
 │   │ - E-Commerce    │      │ Redis (sessions)    │              │
 │   │ - POS Apps      │      └──────────┬──────────┘              │
-│   │ - KDS           │                 │                          │
-│   └─────────────────┘                 ↓                          │
+│   │ - KDS           │                 │                         │
+│   └─────────────────┘                 ↓                         │
 │                            ┌─────────────────────┐              │
 │                            │ Cloudflare R2       │              │
 │                            │ (Media Storage)     │              │
 │                            └──────────┬──────────┘              │
-│                                       ↓                          │
+│                                       ↓                         │
 │                            ┌─────────────────────┐              │
 │                            │ Cloudflare CDN      │              │
 │                            │ (Global Edge Cache) │              │
 │                            └─────────────────────┘              │
-│                                                                  │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -206,34 +206,34 @@ Every data table includes a `tenant_id` for complete data isolation:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           MULTI-TENANT DATA MODEL                            │
+│                           MULTI-TENANT DATA MODEL                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
+│                                                                             │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                         PLATFORM LEVEL                               │   │
-│   │   • Tenant management (subscriptions, billing)                       │   │
-│   │   • Platform admins                                                  │   │
-│   │   • Shared resources (component library, templates)                  │   │
+│   │                         PLATFORM LEVEL                              │   │
+│   │   • Tenant management (subscriptions, billing)                      │   │
+│   │   • Platform admins                                                 │   │
+│   │   • Shared resources (component library, templates)                 │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                         │
+│                                    │                                        │
 │          ┌─────────────────────────┼─────────────────────────┐              │
 │          ▼                         ▼                         ▼              │
-│   ┌─────────────┐          ┌─────────────┐          ┌─────────────┐        │
-│   │  TENANT A   │          │  TENANT B   │          │  TENANT C   │        │
-│   │ Hood Family │          │ Smith Farms │          │ Jones Ranch │        │
-│   │   Farms     │          │             │          │             │        │
-│   ├─────────────┤          ├─────────────┤          ├─────────────┤        │
-│   │ • Products  │          │ • Products  │          │ • Products  │        │
-│   │ • Orders    │          │ • Orders    │          │ • Orders    │        │
-│   │ • Customers │          │ • Customers │          │ • Customers │        │
-│   │ • Menus     │          │ • Menus     │          │ • Menus     │        │
-│   │ • Events    │          │ • Events    │          │ • Events    │        │
-│   │ • Media     │          │ • Media     │          │ • Media     │        │
-│   │ • Pages     │          │ • Pages     │          │ • Pages     │        │
-│   │ • Settings  │          │ • Settings  │          │ • Settings  │        │
-│   │ • Staff     │          │ • Staff     │          │ • Staff     │        │
-│   └─────────────┘          └─────────────┘          └─────────────┘        │
-│                                                                              │
+│   ┌─────────────┐          ┌─────────────┐          ┌─────────────┐         │
+│   │  TENANT A   │          │  TENANT B   │          │  TENANT C   │         │
+│   │ Hood Family │          │ Smith Farms │          │ Jones Ranch │         │
+│   │   Farms     │          │             │          │             │         │
+│   ├─────────────┤          ├─────────────┤          ├─────────────┤         │
+│   │ • Products  │          │ • Products  │          │ • Products  │         │
+│   │ • Orders    │          │ • Orders    │          │ • Orders    │         │
+│   │ • Customers │          │ • Customers │          │ • Customers │         │
+│   │ • Menus     │          │ • Menus     │          │ • Menus     │         │
+│   │ • Events    │          │ • Events    │          │ • Events    │         │
+│   │ • Media     │          │ • Media     │          │ • Media     │         │
+│   │ • Pages     │          │ • Pages     │          │ • Pages     │         │
+│   │ • Settings  │          │ • Settings  │          │ • Settings  │         │
+│   │ • Staff     │          │ • Staff     │          │ • Staff     │         │
+│   └─────────────┘          └─────────────┘          └─────────────┘         │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 

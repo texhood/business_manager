@@ -10,6 +10,7 @@ const db = require('../../config/database');
 const { authenticate, optionalAuth, requireStaff } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
+const { syncMenuItemToStripe, archiveStripeProduct } = require('../utils/stripeSync');
 
 const router = express.Router();
 
@@ -626,9 +627,30 @@ router.post('/items', authenticate, requireStaff, asyncHandler(async (req, res) 
     allergens, is_featured, item_id
   ]);
 
+  const menuItem = result.rows[0];
+
+  // Sync to Stripe for POS use (non-blocking)
+  if (price) {
+    try {
+      const stripeIds = await syncMenuItemToStripe(menuItem);
+      // Update the record with Stripe IDs
+      await db.query(`
+        UPDATE menu_items SET
+          stripe_product_id = $1,
+          stripe_price_id = $2
+        WHERE id = $3
+      `, [stripeIds.stripe_product_id, stripeIds.stripe_price_id, menuItem.id]);
+      menuItem.stripe_product_id = stripeIds.stripe_product_id;
+      menuItem.stripe_price_id = stripeIds.stripe_price_id;
+    } catch (stripeError) {
+      logger.error('Failed to sync menu item to Stripe', { menuItemId: menuItem.id, error: stripeError.message });
+      // Don't fail the request - item was created, Stripe sync can be retried
+    }
+  }
+
   res.status(201).json({
     status: 'success',
-    data: result.rows[0],
+    data: menuItem,
   });
 }));
 
@@ -682,9 +704,33 @@ router.put('/items/:itemId', authenticate, requireStaff, asyncHandler(async (req
     itemId
   ]);
 
+  const menuItem = result.rows[0];
+
+  // Sync to Stripe if item has a price (handles both new syncs and price updates)
+  if (menuItem.price) {
+    try {
+      const stripeIds = await syncMenuItemToStripe(menuItem);
+      // Update the record with Stripe IDs if changed
+      if (stripeIds.stripe_product_id !== menuItem.stripe_product_id || 
+          stripeIds.stripe_price_id !== menuItem.stripe_price_id) {
+        await db.query(`
+          UPDATE menu_items SET
+            stripe_product_id = $1,
+            stripe_price_id = $2
+          WHERE id = $3
+        `, [stripeIds.stripe_product_id, stripeIds.stripe_price_id, menuItem.id]);
+        menuItem.stripe_product_id = stripeIds.stripe_product_id;
+        menuItem.stripe_price_id = stripeIds.stripe_price_id;
+      }
+    } catch (stripeError) {
+      logger.error('Failed to sync menu item to Stripe', { menuItemId: menuItem.id, error: stripeError.message });
+      // Don't fail the request - item was updated, Stripe sync can be retried
+    }
+  }
+
   res.json({
     status: 'success',
-    data: result.rows[0],
+    data: menuItem,
   });
 }));
 
@@ -695,9 +741,22 @@ router.put('/items/:itemId', authenticate, requireStaff, asyncHandler(async (req
 router.delete('/items/:itemId', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { itemId } = req.params;
 
-  const result = await db.query('DELETE FROM menu_items WHERE id = $1 RETURNING id', [itemId]);
-  if (result.rows.length === 0) {
+  // Get the item first to check for Stripe product
+  const existing = await db.query('SELECT stripe_product_id FROM menu_items WHERE id = $1', [itemId]);
+  if (existing.rows.length === 0) {
     throw new ApiError(404, 'Menu item not found');
+  }
+
+  const result = await db.query('DELETE FROM menu_items WHERE id = $1 RETURNING id', [itemId]);
+
+  // Archive the Stripe product if it exists
+  if (existing.rows[0].stripe_product_id) {
+    try {
+      await archiveStripeProduct(existing.rows[0].stripe_product_id);
+    } catch (stripeError) {
+      logger.error('Failed to archive Stripe product', { menuItemId: itemId, error: stripeError.message });
+      // Don't fail - item is deleted, Stripe cleanup is best-effort
+    }
   }
 
   res.json({ status: 'success', message: 'Menu item deleted' });

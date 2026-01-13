@@ -35,6 +35,7 @@ const paymentsRouter = require('./routes/payments');
 const blogRouter = require('./routes/blog');
 const menusRouter = require('./routes/menus');
 const eventsRouter = require('./routes/events');
+const terminalRouter = require('./routes/terminal');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -55,7 +56,7 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 // CORS configuration
-const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3002')
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3002,http://localhost:3003')
   .split(',')
   .map(origin => origin.trim());
 
@@ -147,6 +148,7 @@ app.use(`${API_PREFIX}/payments`, paymentsRouter);
 app.use(`${API_PREFIX}/blog`, blogRouter);
 app.use(`${API_PREFIX}/menus`, menusRouter);
 app.use(`${API_PREFIX}/events`, eventsRouter);
+app.use(`${API_PREFIX}/terminal`, terminalRouter);
 
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {
