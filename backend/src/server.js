@@ -36,6 +36,7 @@ const blogRouter = require('./routes/blog');
 const menusRouter = require('./routes/menus');
 const eventsRouter = require('./routes/events');
 const terminalRouter = require('./routes/terminal');
+const restaurantPosRouter = require('./routes/restaurantPos');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -149,6 +150,7 @@ app.use(`${API_PREFIX}/blog`, blogRouter);
 app.use(`${API_PREFIX}/menus`, menusRouter);
 app.use(`${API_PREFIX}/events`, eventsRouter);
 app.use(`${API_PREFIX}/terminal`, terminalRouter);
+app.use(`${API_PREFIX}/restaurant-pos`, restaurantPosRouter);
 
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {
