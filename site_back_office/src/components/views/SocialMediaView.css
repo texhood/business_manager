@@ -1,0 +1,769 @@
+/**
+ * Social Media View Styles
+ */
+
+.social-media-view {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header */
+.social-media-view .view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.social-media-view .view-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.social-media-view .view-title h2 {
+  margin: 0;
+  font-size: 1.75rem;
+  color: #2c3e50;
+}
+
+.social-media-view .connection-count {
+  font-size: 14px;
+  color: #666;
+}
+
+.social-media-view .view-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* Stats Cards */
+.social-media-view .stats-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.social-media-view .stat-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.social-media-view .stat-value {
+  font-size: 2rem;
+  font-weight: 600;
+  color: #4a6741;
+}
+
+.social-media-view .stat-label {
+  font-size: 13px;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* View Toggle */
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  background: #f5f5f5;
+  padding: 4px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  width: fit-content;
+}
+
+.toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.toggle-btn:hover {
+  color: #333;
+}
+
+.toggle-btn.active {
+  background: #fff;
+  color: #4a6741;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.toggle-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================================================
+   CALENDAR
+   ============================================================================ */
+
+.calendar {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.calendar-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.calendar-title h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #2c3e50;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.calendar-day-header {
+  padding: 12px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  background: #fafafa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.calendar-day {
+  min-height: 120px;
+  padding: 8px;
+  border-right: 1px solid #e8e8e8;
+  border-bottom: 1px solid #e8e8e8;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.calendar-day:nth-child(7n) {
+  border-right: none;
+}
+
+.calendar-day:hover {
+  background: #f9f9f9;
+}
+
+.calendar-day.empty {
+  background: #fafafa;
+  cursor: default;
+}
+
+.calendar-day.today {
+  background: #f0f7ed;
+}
+
+.calendar-day.today .day-number {
+  background: #4a6741;
+  color: #fff;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.day-number {
+  font-weight: 500;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.day-posts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.day-post {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: #e8f4fd;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.day-post:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.day-post.scheduled {
+  background: #fff3cd;
+  border-left: 3px solid #ffc107;
+}
+
+.day-post.published {
+  background: #d4edda;
+  border-left: 3px solid #28a745;
+}
+
+.day-post.draft {
+  background: #f0f0f0;
+  border-left: 3px solid #6c757d;
+}
+
+.day-post.failed {
+  background: #f8d7da;
+  border-left: 3px solid #dc3545;
+}
+
+.post-platforms {
+  display: flex;
+  gap: 3px;
+}
+
+.platform-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.platform-dot.facebook { background: #1877f2; }
+.platform-dot.instagram { background: #e4405f; }
+.platform-dot.twitter { background: #000; }
+.platform-dot.linkedin { background: #0a66c2; }
+
+.post-preview {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #333;
+}
+
+.more-posts {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+  padding: 4px;
+}
+
+/* ============================================================================
+   POST COMPOSER
+   ============================================================================ */
+
+.post-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-section label {
+  font-weight: 500;
+  font-size: 14px;
+  color: #333;
+}
+
+.platform-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.platform-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.platform-btn:hover {
+  border-color: #4a6741;
+}
+
+.platform-btn.selected {
+  border-color: #4a6741;
+  background: #f0f7ed;
+}
+
+.platform-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.platform-icon.facebook { color: #1877f2; }
+.platform-icon.instagram { color: #e4405f; }
+.platform-icon.twitter { color: #000; }
+.platform-icon.linkedin { color: #0a66c2; }
+
+.platform-name {
+  font-weight: 500;
+  color: #333;
+}
+
+.platform-limit {
+  font-size: 11px;
+  color: #999;
+}
+
+.no-connections {
+  color: #666;
+  font-style: italic;
+}
+
+.form-select,
+.form-input,
+.form-textarea {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.form-select:focus,
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: #4a6741;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 120px;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.form-textarea.over-limit {
+  border-color: #dc3545;
+  background: #fff5f5;
+}
+
+.char-counter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #666;
+}
+
+.char-counter .over-limit {
+  color: #dc3545;
+  font-weight: 500;
+}
+
+.limit-warning {
+  color: #dc3545;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: #999;
+}
+
+.composer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+.action-group {
+  display: flex;
+  gap: 12px;
+}
+
+/* ============================================================================
+   CONNECTIONS MANAGER
+   ============================================================================ */
+
+.connections-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.connections-intro {
+  color: #666;
+  margin: 0;
+}
+
+.connections-intro small {
+  color: #999;
+}
+
+.platforms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.platform-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.platform-item.connected {
+  background: #f0f7ed;
+  border-color: #4a6741;
+}
+
+.platform-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.platform-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.platform-details .platform-name {
+  font-weight: 600;
+}
+
+.platform-details .account-name {
+  font-size: 13px;
+  color: #666;
+}
+
+/* ============================================================================
+   POST QUEUE
+   ============================================================================ */
+
+.post-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.queue-item {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.queue-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.queue-platforms {
+  display: flex;
+  gap: 8px;
+}
+
+.platform-icon-sm {
+  width: 20px;
+  height: 20px;
+}
+
+.platform-icon-sm.facebook { color: #1877f2; }
+.platform-icon-sm.instagram { color: #e4405f; }
+.platform-icon-sm.twitter { color: #000; }
+.platform-icon-sm.linkedin { color: #0a66c2; }
+
+.queue-item-content p {
+  margin: 0;
+  color: #333;
+  line-height: 1.5;
+}
+
+.queue-item-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+}
+
+.queue-time {
+  font-size: 13px;
+  color: #666;
+}
+
+.queue-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.empty-queue {
+  text-align: center;
+  padding: 60px 20px;
+  color: #999;
+}
+
+.empty-queue svg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
+}
+
+/* ============================================================================
+   STATUS BADGES
+   ============================================================================ */
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-draft {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.status-scheduled {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-publishing {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.status-published {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-failed {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.status-cancelled {
+  background: #e2e3e5;
+  color: #383d41;
+}
+
+/* ============================================================================
+   EMPTY & LOADING STATES
+   ============================================================================ */
+
+.social-media-view .empty-state,
+.social-media-view .loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.social-media-view .empty-state svg,
+.social-media-view .loading-state svg {
+  width: 64px;
+  height: 64px;
+  color: #ccc;
+  margin-bottom: 16px;
+}
+
+.social-media-view .empty-state h3 {
+  margin: 0 0 8px 0;
+  color: #333;
+}
+
+.social-media-view .empty-state p {
+  margin: 0 0 20px 0;
+  color: #666;
+}
+
+/* ============================================================================
+   BUTTONS
+   ============================================================================ */
+
+.social-media-view .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.social-media-view .btn-primary {
+  background: #4a6741;
+  color: #fff;
+}
+
+.social-media-view .btn-primary:hover {
+  background: #3d5636;
+}
+
+.social-media-view .btn-secondary {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.social-media-view .btn-secondary:hover {
+  background: #e0e0e0;
+}
+
+.social-media-view .btn-danger {
+  background: #dc3545;
+  color: #fff;
+}
+
+.social-media-view .btn-danger:hover {
+  background: #c82333;
+}
+
+.social-media-view .btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.social-media-view .btn-icon {
+  padding: 8px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.social-media-view .btn-icon:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.social-media-view .btn-icon.btn-danger:hover {
+  background: #fee;
+  color: #dc3545;
+}
+
+.social-media-view .btn-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.social-media-view .btn-link {
+  background: transparent;
+  border: none;
+  color: #4a6741;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.social-media-view .btn-link:hover {
+  text-decoration: underline;
+}
+
+.social-media-view .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 1024px) {
+  .social-media-view .stats-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .calendar-day {
+    min-height: 100px;
+  }
+}
+
+@media (max-width: 768px) {
+  .social-media-view .view-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .social-media-view .stats-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .calendar-day {
+    min-height: 80px;
+    padding: 4px;
+  }
+  
+  .day-post {
+    font-size: 10px;
+  }
+  
+  .platform-selector {
+    flex-direction: column;
+  }
+  
+  .platform-btn {
+    width: 100%;
+  }
+  
+  .composer-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .action-group {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

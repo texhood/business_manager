@@ -19,3 +19,4 @@ export { default as MenuItemsView } from './MenuItemsView';
 export { default as EventsView } from './EventsView';
 export { default as MediaLibraryView } from './MediaLibraryView';
 export { default as BlogManagementView } from './BlogManagementView';
+export { default as SocialMediaView } from './SocialMediaView';

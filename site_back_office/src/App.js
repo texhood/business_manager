@@ -31,6 +31,7 @@ import {
   EventsView,
   MediaLibraryView,
   BlogManagementView,
+  SocialMediaView,
 } from './components/views';
 import ModificationsManager from './components/views/ModificationsManager';
 import BlogPreviewView from './components/views/BlogPreviewView';
@@ -188,6 +189,7 @@ function App() {
       children: [
         { id: 'mediaLibrary', label: 'Media Library', icon: Icons.Image },
         { id: 'blogPosts', label: 'Blog Posts', icon: Icons.FileText },
+        { id: 'socialMedia', label: 'Social Media', icon: Icons.TrendingUp },
       ],
     },
     
@@ -236,6 +238,8 @@ function App() {
         return <BlogManagementView onPreview={handlePreviewPost} />;
       case 'blogPreview':
         return <BlogPreviewView postId={previewPostId} onBack={handleBackFromPreview} />;
+      case 'socialMedia':
+        return <SocialMediaView />;
       default:
         return <DashboardView accounts={accounts} items={items} transactions={transactions} />;
     }

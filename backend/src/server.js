@@ -40,6 +40,7 @@ const restaurantPosRouter = require('./routes/restaurantPos');
 const kdsRouter = require('./routes/kds');
 const modificationsRouter = require('./routes/modifications');
 const mediaRouter = require('./routes/media');
+const socialRouter = require('./routes/social');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -165,6 +166,7 @@ app.use(`${API_PREFIX}/restaurant-pos`, restaurantPosRouter);
 app.use(`${API_PREFIX}/kds`, kdsRouter);
 app.use(`${API_PREFIX}/modifications`, modificationsRouter);
 app.use(`${API_PREFIX}/media`, mediaRouter);
+app.use(`${API_PREFIX}/social`, socialRouter);
 
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {
