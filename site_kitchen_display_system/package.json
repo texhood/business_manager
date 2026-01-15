@@ -1,25 +1,24 @@
 {
-  "name": "hoodfamilyfarms-website",
+  "name": "site_kitchen_display_system",
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "@stripe/react-stripe-js": "^2.9.0",
-    "@stripe/stripe-js": "^2.4.0",
-    "axios": "^1.6.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.1",
+    "react-router-dom": "^6.21.0",
     "react-scripts": "5.0.1"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "set PORT=3005 && react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
+  "proxy": "http://localhost:3001",
   "eslintConfig": {
     "extends": [
-      "react-app"
+      "react-app",
+      "react-app/jest"
     ]
   },
   "browserslist": {
@@ -33,6 +32,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "proxy": "http://localhost:3000"
+  }
 }

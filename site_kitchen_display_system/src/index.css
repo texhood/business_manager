@@ -1,0 +1,897 @@
+/* ============================================================================
+   Kitchen Display System - Global Styles
+   ============================================================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #1a1a2e;
+  color: #ffffff;
+}
+
+/* ============================================================================
+   KDS Container
+   ============================================================================ */
+
+.kds-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+
+.kds-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.kds-header-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.kds-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.kds-stats {
+  display: flex;
+  gap: 12px;
+}
+
+.kds-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  font-size: 14px;
+  border: none;
+  color: white;
+}
+
+.kds-stat.clickable {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.kds-stat.clickable:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.kds-stat.clickable.active {
+  background: rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 0 2px #10b981;
+}
+
+.kds-stat-count {
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.kds-stat.pending .kds-stat-count {
+  color: #f59e0b;
+}
+
+.kds-stat.done .kds-stat-count {
+  color: #10b981;
+}
+
+.kds-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.kds-time {
+  font-size: 28px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.kds-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ============================================================================
+   Error Banner
+   ============================================================================ */
+
+.kds-error {
+  padding: 12px 24px;
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   Main Content Area
+   ============================================================================ */
+
+.kds-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.kds-queue-wrapper {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ============================================================================
+   Orders Queue - Scrolls horizontally, oldest on LEFT
+   ============================================================================ */
+
+.kds-queue-container {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  padding: 16px;
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1;
+}
+
+.kds-queue-container::-webkit-scrollbar {
+  height: 12px;
+}
+
+.kds-queue-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+.kds-queue-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+}
+
+.kds-queue-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* ============================================================================
+   Order Card
+   ============================================================================ */
+
+.order-card {
+  flex-shrink: 0;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  background: #006d77;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.order-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.order-card.is-urgent {
+  animation: urgent-pulse 1.5s ease-in-out infinite;
+}
+
+/* Reissued order styling - orange/red to draw attention */
+.order-card.is-reissued {
+  background: #dc2626;
+  border: 3px solid #fbbf24;
+}
+
+.order-card.is-reissued .order-card-header {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Allergy Alert Styling */
+.order-card.has-allergy {
+  border: 3px solid #f59e0b;
+}
+
+.allergy-banner {
+  background: #f59e0b;
+  color: #000000;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  padding: 8px 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  animation: allergy-pulse 1s ease-in-out infinite;
+}
+
+@keyframes allergy-pulse {
+  0%, 100% { background: #f59e0b; }
+  50% { background: #fbbf24; }
+}
+
+.order-item.has-allergy {
+  background: rgba(245, 158, 11, 0.2);
+  border-left: 3px solid #f59e0b;
+}
+
+.order-item-mod.allergy-mod {
+  color: #fbbf24;
+  font-weight: 600;
+  font-style: normal;
+}
+
+.reissued-badge {
+  background: #fbbf24;
+  color: #000000;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  padding: 6px 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+@keyframes urgent-pulse {
+  0%, 100% {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.6), 0 0 30px rgba(239, 68, 68, 0.4);
+  }
+}
+
+/* Card Header */
+.order-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.order-ticket-number {
+  font-size: 36px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.order-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.order-type-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.order-type-badge.takeout {
+  background: #f59e0b;
+  color: #000000;
+}
+
+.order-type-badge.delivery {
+  background: #ec4899;
+}
+
+.order-timer {
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: 'Courier New', monospace;
+}
+
+.order-timer.warning {
+  color: #fbbf24;
+}
+
+.order-timer.urgent {
+  color: #ef4444;
+  animation: blink 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Card Body */
+.order-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+
+.order-customer {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #ffffff;
+}
+
+.order-table {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 4px;
+}
+
+.order-phone {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 12px;
+}
+
+.order-items-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.order-item {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+}
+
+.order-item-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.order-item-qty {
+  min-width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.order-item-name {
+  flex: 1;
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.order-item-mods {
+  padding-left: 36px;
+  margin-top: 4px;
+}
+
+.order-item-mod {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+}
+
+.order-item-instructions {
+  font-size: 12px;
+  color: #fbbf24;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.order-kitchen-notes {
+  margin-top: 12px;
+  padding: 8px;
+  background: rgba(251, 191, 36, 0.2);
+  border-radius: 6px;
+  border-left: 3px solid #fbbf24;
+}
+
+.order-kitchen-notes-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #fbbf24;
+  margin-bottom: 4px;
+}
+
+.order-kitchen-notes-text {
+  font-size: 14px;
+  color: #ffffff;
+}
+
+/* Card Footer */
+.order-card-footer {
+  padding: 12px 16px;
+}
+
+.order-done-btn {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #22c55e;
+  color: #ffffff;
+}
+
+.order-done-btn:hover {
+  background: #16a34a;
+  transform: scale(1.02);
+}
+
+.order-done-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ============================================================================
+   Done Orders Panel
+   ============================================================================ */
+
+.done-panel {
+  width: 350px;
+  background: rgba(0, 0, 0, 0.4);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.done-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: rgba(16, 185, 129, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.done-panel-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #10b981;
+}
+
+.done-panel-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 28px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.done-panel-close:hover {
+  color: #ffffff;
+}
+
+.done-panel-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.done-panel-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.done-order-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border-left: 3px solid #10b981;
+}
+
+.done-order-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.done-order-ticket {
+  font-size: 20px;
+  font-weight: 700;
+  color: #10b981;
+}
+
+.done-order-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.done-order-name {
+  font-weight: 500;
+}
+
+.done-order-type {
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.done-order-times {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+}
+
+.done-order-times .label {
+  color: rgba(255, 255, 255, 0.5);
+  margin-right: 4px;
+}
+
+.done-order-times .value {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+}
+
+.done-order-reissue {
+  align-self: flex-start;
+  padding: 6px 12px;
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  border-radius: 6px;
+  color: #f59e0b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.done-order-reissue:hover {
+  background: rgba(245, 158, 11, 0.3);
+  border-color: #f59e0b;
+}
+
+/* ============================================================================
+   Empty State
+   ============================================================================ */
+
+.kds-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.kds-empty-icon {
+  font-size: 64px;
+}
+
+.kds-empty-text {
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.kds-empty-subtext {
+  font-size: 14px;
+}
+
+/* ============================================================================
+   Login Screen
+   ============================================================================ */
+
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 20px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 40px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.login-title {
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 8px;
+  color: #ffffff;
+}
+
+.login-subtitle {
+  font-size: 14px;
+  text-align: center;
+  margin-bottom: 32px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.form-group input {
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+  font-size: 16px;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.form-group input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.login-btn {
+  padding: 14px;
+  border: none;
+  border-radius: 8px;
+  background: #3b82f6;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.login-btn:hover {
+  background: #2563eb;
+}
+
+.login-btn:disabled {
+  background: #6b7280;
+  cursor: not-allowed;
+}
+
+.login-error {
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 8px;
+  color: #fca5a5;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ============================================================================
+   Loading State
+   ============================================================================ */
+
+.loading-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ============================================================================
+   Sound Toggle
+   ============================================================================ */
+
+.sound-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sound-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sound-toggle.muted {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ============================================================================
+   Logout Button
+   ============================================================================ */
+
+.kds-logout-btn {
+  padding: 8px 16px;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 8px;
+  background: transparent;
+  color: #ef4444;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.kds-logout-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ============================================================================
+   Responsive
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .kds-header {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .kds-header-left {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .kds-stats {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .order-card {
+    width: 260px;
+  }
+
+  .kds-queue-container {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .done-panel {
+    width: 280px;
+  }
+}
+
+/* Fullscreen optimization for landscape tablets */
+@media (min-width: 1024px) and (max-height: 800px) {
+  .kds-header {
+    padding: 8px 20px;
+  }
+
+  .kds-title {
+    font-size: 20px;
+  }
+
+  .order-card {
+    width: 260px;
+  }
+
+  .order-ticket-number {
+    font-size: 32px;
+  }
+
+  .order-card-header {
+    padding: 10px 14px;
+  }
+
+  .order-card-body {
+    padding: 10px 14px;
+  }
+
+  .order-done-btn {
+    padding: 14px;
+    font-size: 16px;
+  }
+}

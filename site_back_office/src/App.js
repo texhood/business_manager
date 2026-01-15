@@ -29,7 +29,11 @@ import {
   MenusView,
   MenuItemsView,
   EventsView,
+  MediaLibraryView,
+  BlogManagementView,
 } from './components/views';
+import ModificationsManager from './components/views/ModificationsManager';
+import BlogPreviewView from './components/views/BlogPreviewView';
 
 // ============================================================================
 // MAIN APP COMPONENT
@@ -39,6 +43,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState('dashboard');
+  const [previewPostId, setPreviewPostId] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [items, setItems] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -103,6 +108,17 @@ function App() {
     );
   };
 
+  // Handle blog preview navigation
+  const handlePreviewPost = (postId) => {
+    setPreviewPostId(postId);
+    setCurrentView('blogPreview');
+  };
+
+  const handleBackFromPreview = () => {
+    setPreviewPostId(null);
+    setCurrentView('blogPosts');
+  };
+
   // Loading screen
   if (loading) {
     return (
@@ -131,6 +147,7 @@ function App() {
       children: [
         { id: 'menus', label: 'Menus', icon: Icons.Menu },
         { id: 'menuItems', label: 'Menu Items', icon: Icons.List },
+        { id: 'modifications', label: 'Modifications', icon: Icons.Edit },
         { id: 'events', label: 'Events', icon: Icons.Calendar },
       ],
     },
@@ -159,6 +176,18 @@ function App() {
         { id: 'bankConnections', label: 'Bank Connections', icon: Icons.Bank },
         { id: 'journalEntries', label: 'Journal Entries', icon: Icons.FileText },
         { id: 'chartOfAccounts', label: 'Chart of Accounts', icon: Icons.Book },
+      ],
+    },
+    
+    // Site Management Section
+    {
+      id: 'siteManagement',
+      label: 'Site Management',
+      icon: Icons.Image,
+      isSection: true,
+      children: [
+        { id: 'mediaLibrary', label: 'Media Library', icon: Icons.Image },
+        { id: 'blogPosts', label: 'Blog Posts', icon: Icons.FileText },
       ],
     },
     
@@ -199,6 +228,14 @@ function App() {
         return <MenuItemsView />;
       case 'events':
         return <EventsView />;
+      case 'modifications':
+        return <ModificationsManager token={localStorage.getItem('token')} />;
+      case 'mediaLibrary':
+        return <MediaLibraryView />;
+      case 'blogPosts':
+        return <BlogManagementView onPreview={handlePreviewPost} />;
+      case 'blogPreview':
+        return <BlogPreviewView postId={previewPostId} onBack={handleBackFromPreview} />;
       default:
         return <DashboardView accounts={accounts} items={items} transactions={transactions} />;
     }

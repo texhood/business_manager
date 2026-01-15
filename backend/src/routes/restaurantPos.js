@@ -143,8 +143,18 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
     throw new ApiError(400, 'Order must have at least one item');
   }
 
-  // Calculate totals
-  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  // Calculate totals including modification prices
+  const subtotal = items.reduce((sum, item) => {
+    const basePrice = parseFloat(item.price) || 0;
+    const modsPrice = (item.modifications || []).reduce((modSum, mod) => {
+      if (typeof mod === 'object' && mod.price) {
+        return modSum + parseFloat(mod.price);
+      }
+      return modSum;
+    }, 0);
+    const itemPrice = basePrice + modsPrice;
+    return sum + (itemPrice * item.quantity);
+  }, 0);
   const taxRate = 0.0825; // 8.25% tax
   const taxAmount = Math.round(subtotal * taxRate * 100) / 100;
   const total = Math.round((subtotal + taxAmount) * 100) / 100;
@@ -188,6 +198,26 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
 
     // Insert order items
     for (const item of items) {
+      // Calculate price including modifications
+      const basePrice = parseFloat(item.price) || 0;
+      const modsPrice = (item.modifications || []).reduce((modSum, mod) => {
+        if (typeof mod === 'object' && mod.price) {
+          return modSum + parseFloat(mod.price);
+        }
+        return modSum;
+      }, 0);
+      const itemPrice = basePrice + modsPrice;
+
+      // Convert modifications to storage format
+      // If column is TEXT[], store as simple strings; if JSONB, store full objects
+      const modificationsForDb = (item.modifications || []).map(mod => {
+        if (typeof mod === 'string') {
+          return mod;
+        }
+        // Store as display name for TEXT[] compatibility
+        return mod.display_name || mod.name || 'Unknown';
+      });
+
       await client.query(`
         INSERT INTO restaurant_order_items (
           tenant_id, order_id, menu_item_id, name, quantity, 
@@ -199,9 +229,9 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
         item.menu_item_id,
         item.name,
         item.quantity,
-        item.price,
-        item.price * item.quantity,
-        item.modifications || [],
+        itemPrice,
+        itemPrice * item.quantity,
+        modificationsForDb,
         item.special_instructions
       ]);
     }

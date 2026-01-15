@@ -37,6 +37,9 @@ const menusRouter = require('./routes/menus');
 const eventsRouter = require('./routes/events');
 const terminalRouter = require('./routes/terminal');
 const restaurantPosRouter = require('./routes/restaurantPos');
+const kdsRouter = require('./routes/kds');
+const modificationsRouter = require('./routes/modifications');
+const mediaRouter = require('./routes/media');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -53,8 +56,16 @@ app.set('trust proxy', 1);
 // MIDDLEWARE
 // ============================================================================
 
-// Security headers
-app.use(helmet());
+// Security headers - configured to allow cross-origin image loading
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Serve uploaded files statically (before other middleware)
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+logger.info(`Serving static uploads from: ${path.join(__dirname, '../uploads')}`);
 
 // CORS configuration
 const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3002,http://localhost:3003')
@@ -151,6 +162,9 @@ app.use(`${API_PREFIX}/menus`, menusRouter);
 app.use(`${API_PREFIX}/events`, eventsRouter);
 app.use(`${API_PREFIX}/terminal`, terminalRouter);
 app.use(`${API_PREFIX}/restaurant-pos`, restaurantPosRouter);
+app.use(`${API_PREFIX}/kds`, kdsRouter);
+app.use(`${API_PREFIX}/modifications`, modificationsRouter);
+app.use(`${API_PREFIX}/media`, mediaRouter);
 
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {

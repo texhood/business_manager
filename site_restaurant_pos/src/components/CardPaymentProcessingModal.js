@@ -7,7 +7,7 @@ const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
 function CardPaymentProcessingModal({ menuId, onComplete, onClose }) {
   const { token } = useAuth();
-  const { items, total, orderType, customerName, phoneNumber, tableNumber } = useCart();
+  const { items, total, orderType, customerName, phoneNumber, tableNumber, kitchenNotes } = useCart();
   const { collectPayment, processPayment, cancelCollect } = useTerminal();
   
   const [status, setStatus] = useState('preparing');
@@ -83,6 +83,7 @@ function CardPaymentProcessingModal({ menuId, onComplete, onClose }) {
             phone_number: phoneNumber,
             table_number: tableNumber,
             order_type: orderType,
+            kitchen_notes: kitchenNotes,
             payment_method: 'card',
             payment_intent_id: processedIntent.id
           })
@@ -116,7 +117,7 @@ function CardPaymentProcessingModal({ menuId, onComplete, onClose }) {
       cancelled = true;
       cancelCollect();
     };
-  }, [token, menuId, items, total, orderType, customerName, phoneNumber, tableNumber, collectPayment, processPayment, cancelCollect, onComplete]);
+  }, [token, menuId, items, total, orderType, customerName, phoneNumber, tableNumber, kitchenNotes, collectPayment, processPayment, cancelCollect, onComplete]);
 
   const handleCancel = () => {
     cancelCollect();
