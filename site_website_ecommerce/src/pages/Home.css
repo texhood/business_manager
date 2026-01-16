@@ -6,8 +6,9 @@
   height: 90vh;
   min-height: 600px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 20px;
 }
 
 .hero-image {

@@ -10,7 +10,7 @@ import { Icons } from '../common/Icons';
 import Modal from '../common/Modal';
 import './BlogManagementView.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api/v1';
+const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 const PUBLIC_SITE_URL = process.env.REACT_APP_PUBLIC_SITE_URL || 'http://localhost:3000';
 
 // Get the base URL for media files (backend server without /api/v1)

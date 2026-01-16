@@ -7,9 +7,10 @@
 
 :root {
   /* Color Palette - Farm/Nature inspired */
-  --color-primary: #4a7c59;
-  --color-primary-dark: #3d6b4a;
-  --color-primary-light: #5d9a6e;
+  /* Green matched to Farm to Fork Food logo */
+  --color-primary: #3a7233;
+  --color-primary-dark: #2d5a27;
+  --color-primary-light: #4a8f42;
   --color-secondary: #8b7355;
   --color-accent: #c9a962;
   --color-background: #faf8f5;

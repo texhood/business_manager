@@ -20,3 +20,4 @@ export { default as EventsView } from './EventsView';
 export { default as MediaLibraryView } from './MediaLibraryView';
 export { default as BlogManagementView } from './BlogManagementView';
 export { default as SocialMediaView } from './SocialMediaView';
+export { default as SiteDesignerView } from './SiteDesignerView';

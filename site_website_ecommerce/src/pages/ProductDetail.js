@@ -5,6 +5,39 @@ import './ProductDetail.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
+// Category-based placeholder images for demo
+const CATEGORY_PLACEHOLDERS = {
+  'eggs': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/1555899058498-2H89M31WI3WIPPCGY3AL/eggs+in+carton.jpg',
+  'poultry': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/73db0cf1-b04f-443d-b391-666c7fed9cc6/3+copy.jpg',
+  'chicken': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/73db0cf1-b04f-443d-b391-666c7fed9cc6/3+copy.jpg',
+  'beef': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/920bc2fc-bb1c-4069-99bc-335475e74cba/Yoda+at+sunset.jpg',
+  'cattle': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/920bc2fc-bb1c-4069-99bc-335475e74cba/Yoda+at+sunset.jpg',
+  'lamb': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/1555899652498-RSGNQ1WYR8V2DKFQXFZW/sheep.jpg',
+  'sheep': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/1555899652498-RSGNQ1WYR8V2DKFQXFZW/sheep.jpg',
+  'pork': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/1711816675016-4KI49TCSYD4Y1AL9MZDU/IMG_1739.jpeg',
+  'produce': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/1711816670429-Q286VIVUPWNOQ9HQBEQK/20240323_113439.jpeg',
+  'garden': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/1711816670429-Q286VIVUPWNOQ9HQBEQK/20240323_113439.jpeg',
+  'merch': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/7aa38ec7-bf17-43f2-90dd-867b4e81e2f9/Farm+to+Fork+Food+TREE+logo+green.png',
+  'merchandise': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/7aa38ec7-bf17-43f2-90dd-867b4e81e2f9/Farm+to+Fork+Food+TREE+logo+green.png',
+  'default': 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/1577170369127-IBXEQUXW5SK5ZLQULDAG/farm+mist+jpg.jpg'
+};
+
+const getProductImage = (product) => {
+  if (product.image_url) return product.image_url;
+  
+  const categoryLower = (product.category_name || '').toLowerCase();
+  for (const [key, url] of Object.entries(CATEGORY_PLACEHOLDERS)) {
+    if (categoryLower.includes(key)) return url;
+  }
+  
+  const nameLower = (product.name || '').toLowerCase();
+  for (const [key, url] of Object.entries(CATEGORY_PLACEHOLDERS)) {
+    if (nameLower.includes(key)) return url;
+  }
+  
+  return CATEGORY_PLACEHOLDERS.default;
+};
+
 function ProductDetail() {
   const { id } = useParams();
   const { addToCart } = useCart();
@@ -62,12 +95,13 @@ function ProductDetail() {
     if (!product) return;
     
     // Create a product object for the cart
+    const productImage = getProductImage(product);
     const cartProduct = {
       id: product.id,
       name: product.name,
       price: currentPrice,
-      images: [product.image_url],
-      image: product.image_url
+      images: [productImage],
+      image: productImage
     };
     
     addToCart(cartProduct, quantity, selectedOption);
@@ -140,7 +174,7 @@ function ProductDetail() {
           <div className="product-images">
             <div className="main-image">
               <img 
-                src={product.image_url || 'https://images.squarespace-cdn.com/content/v1/5cb69ab47a1fbd701676934b/1555900163717-AYN5T9AUW61HX4WYDX8K/wide+shot+sunset.jpg'} 
+                src={getProductImage(product)} 
                 alt={product.name} 
               />
               {!isInStock && (

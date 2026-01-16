@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { Icons } from '../common/Icons';
 import './BlogPreviewView.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api/v1';
+const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
 const BlogPreviewView = ({ postId, onBack }) => {
   const [post, setPost] = useState(null);

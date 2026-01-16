@@ -107,8 +107,8 @@ router.get('/', optionalAuth, asyncHandler(async (req, res) => {
 
   if (category) {
     params.push(category);
-    queryText += ` AND (c.slug = $${paramCount} OR c.id::text = $${paramCount})`;
     paramCount++;
+    queryText += ` AND (c.name = $${paramCount} OR c.slug = $${paramCount} OR c.id::text = $${paramCount})`;
   }
 
   if (item_type) {

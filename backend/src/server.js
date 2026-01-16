@@ -41,6 +41,8 @@ const kdsRouter = require('./routes/kds');
 const modificationsRouter = require('./routes/modifications');
 const mediaRouter = require('./routes/media');
 const socialRouter = require('./routes/social');
+const siteDesignerRouter = require('./routes/siteDesigner');
+const herdsFlocksRouter = require('./routes/herdsFlocks');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -167,6 +169,8 @@ app.use(`${API_PREFIX}/kds`, kdsRouter);
 app.use(`${API_PREFIX}/modifications`, modificationsRouter);
 app.use(`${API_PREFIX}/media`, mediaRouter);
 app.use(`${API_PREFIX}/social`, socialRouter);
+app.use(`${API_PREFIX}/site-designer`, siteDesignerRouter);
+app.use(`${API_PREFIX}/herds-flocks`, herdsFlocksRouter);
 
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {

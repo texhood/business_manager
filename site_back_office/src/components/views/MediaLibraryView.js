@@ -8,7 +8,7 @@ import { Icons } from '../common/Icons';
 import Modal from '../common/Modal';
 import './MediaLibraryView.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api/v1';
+const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
 // Helper to format file sizes
 const formatBytes = (bytes) => {

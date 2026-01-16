@@ -32,6 +32,7 @@ import {
   MediaLibraryView,
   BlogManagementView,
   SocialMediaView,
+  SiteDesignerView,
 } from './components/views';
 import ModificationsManager from './components/views/ModificationsManager';
 import BlogPreviewView from './components/views/BlogPreviewView';
@@ -187,6 +188,7 @@ function App() {
       icon: Icons.Image,
       isSection: true,
       children: [
+        { id: 'siteDesigner', label: 'Site Designer', icon: Icons.Layout },
         { id: 'mediaLibrary', label: 'Media Library', icon: Icons.Image },
         { id: 'blogPosts', label: 'Blog Posts', icon: Icons.FileText },
         { id: 'socialMedia', label: 'Social Media', icon: Icons.TrendingUp },
@@ -240,6 +242,8 @@ function App() {
         return <BlogPreviewView postId={previewPostId} onBack={handleBackFromPreview} />;
       case 'socialMedia':
         return <SocialMediaView />;
+      case 'siteDesigner':
+        return <SiteDesignerView />;
       default:
         return <DashboardView accounts={accounts} items={items} transactions={transactions} />;
     }

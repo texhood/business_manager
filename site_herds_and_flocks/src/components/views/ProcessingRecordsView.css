@@ -1,0 +1,398 @@
+/**
+ * Processing Records View Styles
+ */
+
+/* ============================================================================
+   STATUS BADGES
+   ============================================================================ */
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-at-processor {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-complete {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* ============================================================================
+   STATISTICS CARDS
+   ============================================================================ */
+
+.processing-records-view .stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.processing-records-view .stat-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.processing-records-view .stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+}
+
+.processing-records-view .stat-pending .stat-icon {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.processing-records-view .stat-at-processor .stat-icon {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.processing-records-view .stat-complete .stat-icon {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.processing-records-view .stat-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1;
+}
+
+.processing-records-view .stat-label {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+/* ============================================================================
+   TOOLBAR
+   ============================================================================ */
+
+.processing-records-view .toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.processing-records-view .toolbar-left,
+.processing-records-view .toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.processing-records-view .view-toggle {
+  display: flex;
+  background: #f3f4f6;
+  border-radius: 6px;
+  padding: 3px;
+}
+
+.processing-records-view .view-toggle .toggle-btn,
+.processing-records-view .selection-toggle .toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #6b7280;
+  transition: all 0.15s ease;
+}
+
+.processing-records-view .view-toggle .toggle-btn:hover,
+.processing-records-view .selection-toggle .toggle-btn:hover {
+  color: #374151;
+}
+
+.processing-records-view .view-toggle .toggle-btn.active,
+.processing-records-view .selection-toggle .toggle-btn.active {
+  background: white;
+  color: #111827;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.processing-records-view .search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  min-width: 250px;
+}
+
+.processing-records-view .search-box input {
+  border: none;
+  outline: none;
+  flex: 1;
+  font-size: 14px;
+}
+
+.processing-records-view .search-box svg {
+  color: #9ca3af;
+}
+
+.processing-records-view .filter-select {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  min-width: 130px;
+}
+
+/* ============================================================================
+   TABLE
+   ============================================================================ */
+
+.processing-records-view .record-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.processing-records-view .record-name svg {
+  color: #9ca3af;
+}
+
+.processing-records-view .species-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #374151;
+}
+
+/* ============================================================================
+   MODAL STYLES
+   ============================================================================ */
+
+.processing-records-view .selection-toggle {
+  display: flex;
+  background: #f3f4f6;
+  border-radius: 6px;
+  padding: 3px;
+}
+
+.processing-records-view .selection-toggle .toggle-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.processing-records-view .form-section-header {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.processing-records-view .form-section-header h4 {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.processing-records-view .form-row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+/* ============================================================================
+   CALENDAR VIEW
+   ============================================================================ */
+
+.calendar-view {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.calendar-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.calendar-weekdays .weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 8px;
+  text-transform: uppercase;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-day {
+  min-height: 100px;
+  background: #f9fafb;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.calendar-day:hover {
+  background: #f3f4f6;
+}
+
+.calendar-day.empty {
+  background: transparent;
+  cursor: default;
+}
+
+.calendar-day.today {
+  background: #eff6ff;
+  border: 2px solid #3b82f6;
+}
+
+.calendar-day.has-records {
+  background: #fefce8;
+}
+
+.calendar-day .day-number {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.calendar-day.today .day-number {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.calendar-day .day-records {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calendar-record {
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.calendar-record.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.calendar-record.status-at_processor {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.calendar-record.status-complete {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.calendar-day .more-records {
+  font-size: 10px;
+  color: #6b7280;
+  padding: 2px 4px;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .processing-records-view .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .processing-records-view .toolbar-left,
+  .processing-records-view .toolbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  
+  .processing-records-view .search-box {
+    min-width: 100%;
+  }
+  
+  .processing-records-view .filter-select {
+    flex: 1;
+  }
+  
+  .processing-records-view .form-row-3 {
+    grid-template-columns: 1fr;
+  }
+  
+  .calendar-day {
+    min-height: 60px;
+  }
+  
+  .calendar-record {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
+}

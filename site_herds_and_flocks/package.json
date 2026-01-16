@@ -1,16 +1,17 @@
 {
-  "name": "hoodfamilyfarms-pos",
+  "name": "site_herds_and_flocks",
   "version": "1.0.0",
   "private": true,
+  "proxy": "http://localhost:3000",
   "dependencies": {
-    "@stripe/terminal-js": "^0.20.0",
+    "axios": "^1.6.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.1",
     "react-scripts": "5.0.1"
   },
   "scripts": {
-    "start": "set PORT=3003 && react-scripts start",
+    "start": "set PORT=3007 && react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
@@ -31,6 +32,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "proxy": "http://localhost:3000"
+  }
 }
