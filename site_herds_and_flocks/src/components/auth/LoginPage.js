@@ -20,8 +20,8 @@ const LoginPage = ({ onLogin }) => {
     try {
       const user = await authService.login(email, password);
       
-      // Check if user has staff/admin role
-      if (!['admin', 'staff'].includes(user.role)) {
+      // Check if user has staff/admin/super_admin role
+      if (!['admin', 'staff', 'super_admin'].includes(user.role)) {
         authService.logout();
         setError('Access denied. Staff or admin role required.');
         setLoading(false);
