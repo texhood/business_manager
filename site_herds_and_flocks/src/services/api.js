@@ -440,6 +440,32 @@ export const statsService = {
 };
 
 // ============================================================================
+// RAINFALL RECORDS
+// ============================================================================
+
+export const rainfallService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/herds-flocks/rainfall', { params });
+    return response.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/herds-flocks/rainfall', data);
+    return response.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/herds-flocks/rainfall/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/herds-flocks/rainfall/${id}`);
+    return response.data;
+  },
+};
+
+// ============================================================================
 // PROCESSING RECORDS
 // ============================================================================
 

@@ -2,6 +2,14 @@
    HOOD FAMILY FARMS - ADMIN APPLICATION STYLES
    ============================================================================ */
 
+/* CSS Custom Properties (Brand Colors) */
+:root {
+  --brand-color: #7A8B6E;
+  --brand-color-light: #8a9b7e;
+  --brand-color-dark: #6a7b5e;
+  --brand-color-bg: #f0f3ed;
+}
+
 /* Reset & Base */
 * { 
   box-sizing: border-box; 
@@ -23,7 +31,7 @@ body {
   display: flex; 
   align-items: center; 
   justify-content: center; 
-  background: linear-gradient(135deg, #7A8B6E 0%, #5a6b4e 100%); 
+  background: linear-gradient(135deg, var(--brand-color) 0%, var(--brand-color-dark) 100%); 
   padding: 20px; 
 }
 
@@ -42,7 +50,7 @@ body {
 }
 
 .login-logo h1 { 
-  color: #7A8B6E; 
+  color: var(--brand-color); 
   font-size: 28px; 
   margin-bottom: 5px; 
 }
@@ -73,13 +81,13 @@ body {
 
 .login-form input:focus { 
   outline: none; 
-  border-color: #7A8B6E; 
+  border-color: var(--brand-color); 
 }
 
 .login-btn { 
   width: 100%; 
   padding: 14px; 
-  background: #7A8B6E; 
+  background: var(--brand-color); 
   color: white; 
   border: none; 
   border-radius: 8px; 
@@ -93,7 +101,7 @@ body {
 }
 
 .login-btn:hover { 
-  background: #6a7b5e; 
+  background: var(--brand-color-dark); 
 }
 
 .login-btn:disabled { 
@@ -139,7 +147,7 @@ body {
 .loading-screen svg { 
   width: 48px; 
   height: 48px; 
-  color: #7A8B6E; 
+  color: var(--brand-color); 
 }
 
 .loading-screen p { 
@@ -166,7 +174,7 @@ body {
 /* Sidebar */
 .sidebar { 
   width: 260px; 
-  background: linear-gradient(180deg, #7A8B6E 0%, #5a6b4e 100%); 
+  background: linear-gradient(180deg, var(--brand-color) 0%, var(--brand-color-dark) 100%); 
   color: white; 
   display: flex; 
   flex-direction: column; 
@@ -504,12 +512,12 @@ tr:hover {
 }
 
 .btn-primary { 
-  background: #7A8B6E; 
+  background: var(--brand-color); 
   color: white; 
 }
 
 .btn-primary:hover { 
-  background: #6a7b5e; 
+  background: var(--brand-color-dark); 
 }
 
 .btn-secondary { 
@@ -662,7 +670,7 @@ tr:hover {
 .form-group select:focus, 
 .form-group textarea:focus { 
   outline: none; 
-  border-color: #7A8B6E; 
+  border-color: var(--brand-color); 
 }
 
 .form-control { 
@@ -675,7 +683,7 @@ tr:hover {
 
 .form-control:focus { 
   outline: none; 
-  border-color: #7A8B6E; 
+  border-color: var(--brand-color); 
 }
 
 .form-row { 
@@ -794,7 +802,7 @@ tr:hover {
 .loading-state svg {
   width: 32px;
   height: 32px;
-  color: #7A8B6E;
+  color: var(--brand-color);
   margin-bottom: 12px;
 }
 
@@ -832,8 +840,8 @@ tr:hover {
 }
 
 .nav-section-header.active-parent {
-  color: #2d5016;
-  background: rgba(45, 80, 22, 0.05);
+  color: var(--brand-color);
+  background: var(--brand-color-bg);
 }
 
 .nav-section-children {
@@ -951,7 +959,7 @@ tr:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #2d5016;
+  color: var(--brand-color);
   text-decoration: none;
   font-size: 0.9rem;
 }
@@ -1186,7 +1194,7 @@ tr:hover {
   justify-content: center;
   width: 60px;
   height: 60px;
-  background: #2d5016;
+  background: var(--brand-color);
   color: white;
   border-radius: 8px;
   flex-shrink: 0;

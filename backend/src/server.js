@@ -43,6 +43,10 @@ const mediaRouter = require('./routes/media');
 const socialRouter = require('./routes/social');
 const siteDesignerRouter = require('./routes/siteDesigner');
 const herdsFlocksRouter = require('./routes/herdsFlocks');
+const dataImportRouter = require('./routes/dataImport');
+const vendorsRouter = require('./routes/vendors');
+const adminRouter = require('./routes/admin');
+const tenantsRouter = require('./routes/tenants');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -71,7 +75,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 logger.info(`Serving static uploads from: ${path.join(__dirname, '../uploads')}`);
 
 // CORS configuration
-const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3002,http://localhost:3003')
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:3008')
   .split(',')
   .map(origin => origin.trim());
 
@@ -171,6 +175,10 @@ app.use(`${API_PREFIX}/media`, mediaRouter);
 app.use(`${API_PREFIX}/social`, socialRouter);
 app.use(`${API_PREFIX}/site-designer`, siteDesignerRouter);
 app.use(`${API_PREFIX}/herds-flocks`, herdsFlocksRouter);
+app.use(`${API_PREFIX}/data-import`, dataImportRouter);
+app.use(`${API_PREFIX}/vendors`, vendorsRouter);
+app.use(`${API_PREFIX}/admin`, adminRouter);
+app.use(`${API_PREFIX}/tenants`, tenantsRouter);
 
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {

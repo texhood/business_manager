@@ -186,10 +186,10 @@ router.post('/refresh', asyncHandler(async (req, res) => {
 }));
 
 /**
- * GET /auth/me
+ * GET /auth/me or /auth/profile
  * Get current user info
  */
-router.get('/me', authenticate, asyncHandler(async (req, res) => {
+const getCurrentUser = asyncHandler(async (req, res) => {
   const result = await db.query(`
     SELECT 
       a.*,
@@ -205,7 +205,11 @@ router.get('/me', authenticate, asyncHandler(async (req, res) => {
     status: 'success',
     data: user,
   });
-}));
+});
+
+// Register both /me and /profile endpoints
+router.get('/me', authenticate, getCurrentUser);
+router.get('/profile', authenticate, getCurrentUser);
 
 /**
  * PUT /auth/me

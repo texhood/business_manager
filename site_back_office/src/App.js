@@ -33,9 +33,56 @@ import {
   BlogManagementView,
   SocialMediaView,
   SiteDesignerView,
+  DataImportView,
 } from './components/views';
 import ModificationsManager from './components/views/ModificationsManager';
 import BlogPreviewView from './components/views/BlogPreviewView';
+
+// ============================================================================
+// HELPER: Convert hex to HSL for generating color variations
+// ============================================================================
+function hexToHsl(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return { h: 0, s: 0, l: 0 };
+  
+  let r = parseInt(result[1], 16) / 255;
+  let g = parseInt(result[2], 16) / 255;
+  let b = parseInt(result[3], 16) / 255;
+  
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  
+  if (max === min) {
+    h = s = 0;
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+      default: h = 0;
+    }
+  }
+  
+  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+function applyBrandColor(hexColor) {
+  const hsl = hexToHsl(hexColor);
+  const root = document.documentElement;
+  
+  // Set CSS custom properties
+  root.style.setProperty('--brand-color', hexColor);
+  root.style.setProperty('--brand-color-h', hsl.h);
+  root.style.setProperty('--brand-color-s', `${hsl.s}%`);
+  root.style.setProperty('--brand-color-l', `${hsl.l}%`);
+  
+  // Generate variations
+  root.style.setProperty('--brand-color-light', `hsl(${hsl.h}, ${hsl.s}%, ${Math.min(hsl.l + 15, 90)}%)`);
+  root.style.setProperty('--brand-color-dark', `hsl(${hsl.h}, ${hsl.s}%, ${Math.max(hsl.l - 10, 10)}%)`);
+  root.style.setProperty('--brand-color-bg', `hsl(${hsl.h}, ${Math.max(hsl.s - 30, 10)}%, 95%)`);
+}
 
 // ============================================================================
 // MAIN APP COMPONENT
@@ -53,15 +100,97 @@ function App() {
   const [chartOfAccounts, setChartOfAccounts] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
   const [expandedSections, setExpandedSections] = useState(['foodTrailer']); // Default expanded
+  const [tenant, setTenant] = useState(null);
+
+  // Fetch tenant branding (public, no auth required)
+  const loadTenantBranding = async (tenantId) => {
+    if (!tenantId) {
+      console.log('loadTenantBranding: No tenant ID provided');
+      return null;
+    }
+    
+    console.log('loadTenantBranding: Fetching tenant', tenantId);
+    
+    try {
+      // Use the public branding endpoint (no auth required)
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3000'}/api/v1/tenants/${tenantId}/branding`);
+      
+      console.log('loadTenantBranding: Response status', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('loadTenantBranding: Data received', data);
+        const tenantData = data.data || data;
+        setTenant(tenantData);
+        
+        // Apply brand color
+        if (tenantData.primary_color) {
+          console.log('loadTenantBranding: Applying color', tenantData.primary_color);
+          applyBrandColor(tenantData.primary_color);
+        }
+        
+        return tenantData;
+      } else {
+        const errorText = await response.text();
+        console.error('loadTenantBranding: Error response', response.status, errorText);
+      }
+    } catch (err) {
+      console.error('loadTenantBranding: Failed to load tenant:', err);
+    }
+    return null;
+  };
 
   // Check for existing session on mount
   useEffect(() => {
-    const storedUser = authService.getCurrentUser();
-    if (storedUser) {
-      setUser(storedUser);
-      loadData();
-    }
-    setLoading(false);
+    const init = async () => {
+      console.log('App init starting...');
+      
+      // Check for tenant ID override in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      let urlTenantId = urlParams.get('tenant');
+      
+      // Sanitize tenant ID (remove any trailing paths that might have been added accidentally)
+      if (urlTenantId && urlTenantId.includes('/')) {
+        urlTenantId = urlTenantId.split('/')[0];
+      }
+      
+      console.log('URL tenant ID:', urlTenantId);
+      
+      if (urlTenantId) {
+        localStorage.setItem('tenant_id_override', urlTenantId);
+      }
+      
+      // Determine tenant ID to use (URL > stored override > user's tenant)
+      const storedUser = authService.getCurrentUser();
+      let storedOverride = localStorage.getItem('tenant_id_override');
+      
+      // Sanitize stored override too
+      if (storedOverride && storedOverride.includes('/')) {
+        storedOverride = storedOverride.split('/')[0];
+        localStorage.setItem('tenant_id_override', storedOverride);
+      }
+      
+      const tenantIdToLoad = urlTenantId || storedOverride || storedUser?.tenant_id;
+      
+      console.log('Stored user:', storedUser);
+      console.log('Stored override:', storedOverride);
+      console.log('Tenant ID to load:', tenantIdToLoad);
+      
+      // Load tenant branding FIRST (public, no auth needed)
+      if (tenantIdToLoad) {
+        await loadTenantBranding(tenantIdToLoad);
+      }
+      
+      // Then handle user session
+      if (storedUser) {
+        setUser(storedUser);
+        loadData();
+      }
+      
+      setLoading(false);
+    };
+    
+    init();
   }, []);
 
   // Load all data
@@ -87,19 +216,36 @@ function App() {
     }
   };
 
-  const handleLogin = (user) => {
+  const handleLogin = async (user) => {
     setUser(user);
+    
+    // Load tenant branding if not already loaded
+    if (!tenant) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlTenantId = urlParams.get('tenant');
+      const tenantIdToLoad = urlTenantId || localStorage.getItem('tenant_id_override') || user.tenant_id;
+      
+      if (tenantIdToLoad) {
+        await loadTenantBranding(tenantIdToLoad);
+      }
+    }
+    
     loadData();
   };
 
   const handleLogout = () => {
     authService.logout();
+    localStorage.removeItem('tenant_id_override');
     setUser(null);
+    setTenant(null);
     setAccounts([]);
     setItems([]);
     setTransactions([]);
     setDeliveryZones([]);
     setChartOfAccounts([]);
+    
+    // Reset brand color to default
+    applyBrandColor('#7A8B6E');
   };
 
   const toggleSection = (sectionId) => {
@@ -195,6 +341,17 @@ function App() {
       ],
     },
     
+    // System Section
+    {
+      id: 'system',
+      label: 'System',
+      icon: Icons.Settings,
+      isSection: true,
+      children: [
+        { id: 'dataImport', label: 'Data Import', icon: Icons.Upload },
+      ],
+    },
+    
     // Other items
     { id: 'accounts', label: 'Customers', icon: Icons.Users },
     { id: 'deliveryZones', label: 'Delivery Zones', icon: Icons.MapPin },
@@ -244,6 +401,8 @@ function App() {
         return <SocialMediaView />;
       case 'siteDesigner':
         return <SiteDesignerView />;
+      case 'dataImport':
+        return <DataImportView />;
       default:
         return <DashboardView accounts={accounts} items={items} transactions={transactions} />;
     }
@@ -293,8 +452,8 @@ function App() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1>🌱 Hood Family Farms</h1>
-          <p>Business Manager</p>
+          <h1>🌱 {tenant?.name || 'Business Manager'}</h1>
+          <p>Back Office</p>
         </div>
         
         <nav className="sidebar-nav">

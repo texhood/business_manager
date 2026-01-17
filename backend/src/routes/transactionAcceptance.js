@@ -139,6 +139,8 @@ router.get('/pending', async (req, res) => {
     const result = await db.query(`
       SELECT t.*, 
              cl.name as class_name,
+             v.id as vendor_id,
+             v.name as vendor_name,
              pa.name as plaid_account_name,
              pa.mask as plaid_account_mask,
              pa.linked_account_id as bank_gl_account_id,
@@ -147,6 +149,7 @@ router.get('/pending', async (req, res) => {
              COALESCE(pa.name || ' (...' || pa.mask || ') - ' || pi.institution_name, 'Unknown Source') as source_display
       FROM transactions t
       LEFT JOIN classes cl ON t.class_id = cl.id
+      LEFT JOIN vendors v ON t.vendor_id = v.id
       LEFT JOIN plaid_accounts pa ON t.plaid_account_id = pa.id
       LEFT JOIN plaid_items pi ON pa.plaid_item_id = pi.id
       LEFT JOIN accounts_chart ac_bank ON pa.linked_account_id = ac_bank.id
@@ -184,6 +187,8 @@ router.get('/accepted', async (req, res) => {
     let query = `
       SELECT t.*, 
              cl.name as class_name,
+             v.id as vendor_id,
+             v.name as vendor_name,
              je.entry_number as journal_entry_number,
              pa.name as plaid_account_name,
              pa.mask as plaid_account_mask,
@@ -193,6 +198,7 @@ router.get('/accepted', async (req, res) => {
              COALESCE(pa.name || ' (...' || pa.mask || ') - ' || pi.institution_name, 'Unknown Source') as source_display
       FROM transactions t
       LEFT JOIN classes cl ON t.class_id = cl.id
+      LEFT JOIN vendors v ON t.vendor_id = v.id
       LEFT JOIN journal_entries je ON je.source = 'transaction' AND je.source_id = t.id
       LEFT JOIN plaid_accounts pa ON t.plaid_account_id = pa.id
       LEFT JOIN plaid_items pi ON pa.plaid_item_id = pi.id
@@ -307,7 +313,7 @@ router.post('/:id/accept', requireRole('admin', 'manager', 'staff'), async (req,
   
   try {
     const { id } = req.params;
-    const { account_id, class_id, description } = req.body;
+    const { account_id, class_id, vendor_id, description } = req.body;
     
     // account_id is the GL account (expense/revenue) user selected
     if (!account_id) {
@@ -347,13 +353,14 @@ router.post('/:id/accept', requireRole('admin', 'manager', 'staff'), async (req,
       UPDATE transactions 
       SET accepted_gl_account_id = $1, 
           class_id = $2, 
-          description = $3,
+          vendor_id = $3,
+          description = $4,
           acceptance_status = 'accepted',
           accepted_at = CURRENT_TIMESTAMP,
-          accepted_by = $4,
+          accepted_by = $5,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $5
-    `, [account_id, class_id || null, finalDescription, req.user.id, id]);
+      WHERE id = $6
+    `, [account_id, class_id || null, vendor_id || null, finalDescription, req.user.id, id]);
     
     // Create journal entry
     const { entryId, entryNumber } = await createJournalEntry(
@@ -523,6 +530,7 @@ router.post('/:id/unaccept', requireRole('admin', 'manager'), async (req, res) =
       SET acceptance_status = 'pending',
           accepted_gl_account_id = NULL,
           class_id = NULL,
+          vendor_id = NULL,
           accepted_at = NULL,
           accepted_by = NULL,
           updated_at = CURRENT_TIMESTAMP
@@ -553,7 +561,7 @@ router.post('/bulk-accept', requireRole('admin', 'manager'), async (req, res) =>
   const client = await db.pool.connect();
   
   try {
-    const { transaction_ids, account_id, class_id } = req.body;
+    const { transaction_ids, account_id, class_id, vendor_id } = req.body;
     
     if (!Array.isArray(transaction_ids) || transaction_ids.length === 0) {
       return res.status(400).json({ success: false, message: 'Transaction IDs required' });
@@ -588,13 +596,14 @@ router.post('/bulk-accept', requireRole('admin', 'manager'), async (req, res) =>
         await client.query(`
           UPDATE transactions 
           SET accepted_gl_account_id = $1, 
-              class_id = $2, 
+              class_id = $2,
+              vendor_id = $3,
               acceptance_status = 'accepted',
               accepted_at = CURRENT_TIMESTAMP,
-              accepted_by = $3,
+              accepted_by = $4,
               updated_at = CURRENT_TIMESTAMP
-          WHERE id = $4
-        `, [account_id, class_id || null, req.user.id, txnId]);
+          WHERE id = $5
+        `, [account_id, class_id || null, vendor_id || null, req.user.id, txnId]);
         
         await createJournalEntry(
           transaction, 

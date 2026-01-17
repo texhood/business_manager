@@ -827,4 +827,84 @@ export const journalEntriesService = {
   },
 };
 
+// ============================================================================
+// DATA IMPORT (Tenant Data Population)
+// ============================================================================
+
+export const dataImportService = {
+  // Get list of available import types grouped by category
+  getTypes: async () => {
+    const response = await api.get('/data-import/types');
+    return response.data;
+  },
+
+  // Download CSV template for a specific import type
+  downloadTemplate: (type) => {
+    const token = localStorage.getItem('token');
+    window.open(`${API_URL}/data-import/template/${type}?token=${token}`, '_blank');
+  },
+
+  // Validate import file (dry run)
+  validate: async (type, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(`/data-import/validate/${type}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  // Execute import
+  execute: async (type, file, tenantId = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (tenantId) formData.append('tenant_id', tenantId);
+    const response = await api.post(`/data-import/execute/${type}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+};
+
+// ============================================================================
+// VENDORS
+// ============================================================================
+
+export const vendorsService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/vendors', { params });
+    return response.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/vendors/${id}`);
+    return response.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/vendors', data);
+    return response.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/vendors/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id, hard = false) => {
+    const response = await api.delete(`/vendors/${id}`, { params: { hard } });
+    return response.data;
+  },
+
+  quickCreate: async (name) => {
+    const response = await api.post('/vendors/quick-create', { name });
+    return response.data;
+  },
+
+  getTransactions: async (id, params = {}) => {
+    const response = await api.get(`/vendors/${id}/transactions`, { params });
+    return response.data;
+  },
+};
+
 export default api;

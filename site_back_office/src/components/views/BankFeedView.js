@@ -6,36 +6,40 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Icons } from '../common/Icons';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { transactionAcceptanceService, accountingService, classesService } from '../../services/api';
+import { transactionAcceptanceService, accountingService, classesService, vendorsService } from '../../services/api';
 
 const BankFeedView = () => {
   const [transactions, setTransactions] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('pending');
   const [summary, setSummary] = useState({ pending: { count: 0 }, accepted: { count: 0 }, excluded: { count: 0 } });
   const [selectedTransaction, setSelectedTransaction] = useState(null);
-  const [acceptForm, setAcceptForm] = useState({ account_id: '', class_id: '', description: '' });
+  const [acceptForm, setAcceptForm] = useState({ account_id: '', class_id: '', vendor_id: '', description: '' });
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualForm, setManualForm] = useState({ date: new Date().toISOString().split('T')[0], description: '', amount: '', type: 'payment' });
   const [message, setMessage] = useState(null);
+  const [newVendorName, setNewVendorName] = useState('');
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [txnData, accountsData, classesData, summaryData] = await Promise.all([
+      const [txnData, accountsData, classesData, vendorsData, summaryData] = await Promise.all([
         activeTab === 'pending' ? transactionAcceptanceService.getPending() :
         activeTab === 'accepted' ? transactionAcceptanceService.getAccepted() :
         transactionAcceptanceService.getExcluded(),
         accountingService.getAccounts(),
         classesService.getAll(),
+        vendorsService.getAll(),
         transactionAcceptanceService.getSummary(),
       ]);
       setTransactions(txnData.data || []);
       setAccounts(Array.isArray(accountsData) ? accountsData : accountsData.data || []);
       setClasses(Array.isArray(classesData) ? classesData : classesData.data || []);
+      setVendors(Array.isArray(vendorsData) ? vendorsData : vendorsData.data || []);
       setSummary(summaryData || { pending: { count: 0 }, accepted: { count: 0 }, excluded: { count: 0 } });
     } catch (err) {
       console.error('Error loading data:', err);
@@ -56,7 +60,8 @@ const BankFeedView = () => {
 
   const openAcceptPanel = (txn) => {
     setSelectedTransaction(txn);
-    setAcceptForm({ account_id: '', class_id: '', description: txn.description || '' });
+    setAcceptForm({ account_id: '', class_id: '', vendor_id: txn.vendor_id || '', description: txn.description || '' });
+    setNewVendorName('');
   };
 
   const handleAccept = async (txn) => {
@@ -69,6 +74,7 @@ const BankFeedView = () => {
       await transactionAcceptanceService.accept(txn.id, {
         account_id: parseInt(acceptForm.account_id),
         class_id: acceptForm.class_id ? parseInt(acceptForm.class_id) : null,
+        vendor_id: acceptForm.vendor_id ? parseInt(acceptForm.vendor_id) : null,
         description: acceptForm.description || txn.description,
       });
       setMessage({ type: 'success', text: 'Transaction accepted and journal entry created' });
@@ -136,6 +142,24 @@ const BankFeedView = () => {
       setMessage({ type: 'error', text: 'Failed to create transaction' });
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleQuickCreateVendor = async () => {
+    if (!newVendorName.trim()) return;
+    try {
+      const result = await vendorsService.quickCreate(newVendorName.trim());
+      if (result.data) {
+        // Add to vendors list if new
+        if (!vendors.find(v => v.id === result.data.id)) {
+          setVendors([...vendors, result.data]);
+        }
+        setAcceptForm({ ...acceptForm, vendor_id: result.data.id.toString() });
+        setNewVendorName('');
+        setMessage({ type: 'success', text: result.message || 'Vendor created' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Failed to create vendor' });
     }
   };
 
@@ -259,6 +283,19 @@ const BankFeedView = () => {
                                   </optgroup>
                                 ))}
                               </select>
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500 }}>Vendor (optional)</label>
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                <select className="form-control" value={acceptForm.vendor_id} onChange={(e) => setAcceptForm({ ...acceptForm, vendor_id: e.target.value })} style={{ flex: 1, padding: '8px 12px' }}>
+                                  <option value="">-- No Vendor --</option>
+                                  {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                </select>
+                              </div>
+                              <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                                <input type="text" className="form-control" placeholder="New vendor name" value={newVendorName} onChange={(e) => setNewVendorName(e.target.value)} style={{ flex: 1, padding: '6px 8px', fontSize: 12 }} />
+                                <button type="button" className="btn btn-secondary" onClick={handleQuickCreateVendor} disabled={!newVendorName.trim()} style={{ padding: '6px 10px', fontSize: 12 }}>+ Add</button>
+                              </div>
                             </div>
                             <div>
                               <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500 }}>Class (optional)</label>

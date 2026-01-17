@@ -1569,28 +1569,28 @@ router.get('/processing-records', asyncHandler(async (req, res) => {
   
   if (status) {
     params.push(normalizeProcessingStatus(status));
-    query += ` AND pr.status = ${++paramCount}`;
+    query += ` AND pr.status = $${++paramCount}`;
   }
   
   if (herd_id) {
     params.push(herd_id);
-    query += ` AND pr.herd_id = ${++paramCount}`;
+    query += ` AND pr.herd_id = $${++paramCount}`;
   }
   
   if (species) {
     params.push(species);
     paramCount++;
-    query += ` AND (at.species::text = ${paramCount} OR hf.species::text = ${paramCount})`;
+    query += ` AND (at.species::text = $${paramCount} OR hf.species::text = $${paramCount})`;
   }
   
   if (year) {
     params.push(year);
-    query += ` AND EXTRACT(YEAR FROM pr.processing_date) = ${++paramCount}`;
+    query += ` AND EXTRACT(YEAR FROM pr.processing_date) = $${++paramCount}`;
   }
   
   if (month) {
     params.push(month);
-    query += ` AND EXTRACT(MONTH FROM pr.processing_date) = ${++paramCount}`;
+    query += ` AND EXTRACT(MONTH FROM pr.processing_date) = $${++paramCount}`;
   }
   
   query += ` ORDER BY pr.processing_date DESC`;
@@ -1755,6 +1755,99 @@ router.delete('/processing-records/:id', asyncHandler(async (req, res) => {
   );
   
   res.json({ message: 'Processing record deleted' });
+}));
+
+// ============================================================================
+// RAINFALL RECORDS
+// ============================================================================
+
+// Get all rainfall records with optional year filter
+router.get('/rainfall', asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { year } = req.query;
+  
+  let query = `
+    SELECT * FROM rainfall_records 
+    WHERE tenant_id = $1
+  `;
+  const params = [tenantId];
+  
+  if (year) {
+    params.push(year);
+    query += ` AND EXTRACT(YEAR FROM record_date) = $` + params.length;
+  }
+  
+  query += ` ORDER BY record_date DESC`;
+  
+  const result = await db.query(query, params);
+  res.json(result.rows);
+}));
+
+// Create rainfall record
+router.post('/rainfall', asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { record_date, amount_inches, notes } = req.body;
+  
+  if (!record_date) {
+    throw new ApiError(400, 'Date is required');
+  }
+  if (amount_inches === undefined || amount_inches === null || amount_inches < 0) {
+    throw new ApiError(400, 'Amount must be a non-negative number');
+  }
+  
+  const result = await db.query(
+    `INSERT INTO rainfall_records (tenant_id, record_date, amount_inches, notes)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [tenantId, record_date, amount_inches, notes || null]
+  );
+  
+  res.status(201).json(result.rows[0]);
+}));
+
+// Update rainfall record
+router.put('/rainfall/:id', asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+  const { record_date, amount_inches, notes } = req.body;
+  
+  if (amount_inches !== undefined && amount_inches < 0) {
+    throw new ApiError(400, 'Amount must be a non-negative number');
+  }
+  
+  const result = await db.query(
+    `UPDATE rainfall_records SET
+      record_date = COALESCE($3, record_date),
+      amount_inches = COALESCE($4, amount_inches),
+      notes = $5,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND tenant_id = $2
+    RETURNING *`,
+    [id, tenantId, record_date, amount_inches, notes]
+  );
+  
+  if (result.rows.length === 0) {
+    throw new ApiError(404, 'Rainfall record not found');
+  }
+  
+  res.json(result.rows[0]);
+}));
+
+// Delete rainfall record
+router.delete('/rainfall/:id', asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+  
+  const result = await db.query(
+    `DELETE FROM rainfall_records WHERE id = $1 AND tenant_id = $2 RETURNING id`,
+    [id, tenantId]
+  );
+  
+  if (result.rows.length === 0) {
+    throw new ApiError(404, 'Rainfall record not found');
+  }
+  
+  res.json({ message: 'Rainfall record deleted' });
 }));
 
 module.exports = router;

@@ -338,6 +338,7 @@ const GrazingEventsView = () => {
                   <th>End Date</th>
                   <th>Animals</th>
                   <th>Status</th>
+                  <th>Notes</th>
                   <th className="actions-col">Actions</th>
                 </tr>
               </thead>
@@ -354,6 +355,7 @@ const GrazingEventsView = () => {
                         {event.status}
                       </span>
                     </td>
+                    <td className="notes-cell">{event.notes ? (event.notes.length > 50 ? event.notes.substring(0, 50) + '...' : event.notes) : '—'}</td>
                     <td className="actions-col">
                       <button className="btn btn-icon btn-sm" onClick={() => { setEditingEvent(event); setShowModal(true); }} title="Edit">
                         <Icons.Edit />

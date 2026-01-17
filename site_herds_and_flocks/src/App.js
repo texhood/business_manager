@@ -28,6 +28,7 @@ import BreedsView from './components/views/BreedsView';
 import AnimalCategoriesView from './components/views/AnimalCategoriesView';
 import FeeTypesView from './components/views/FeeTypesView';
 import OwnersView from './components/views/OwnersView';
+import RainfallView from './components/views/RainfallView';
 
 // ============================================================================
 // TEMPORARY PLACEHOLDER VIEWS (until proper views are created)
@@ -230,6 +231,9 @@ function App() {
       ],
     },
     
+    // Rainfall (standalone)
+    { id: 'rainfall', label: 'Rainfall', icon: Icons.CloudRain },
+    
     // Sales Section
     {
       id: 'sales',
@@ -344,6 +348,8 @@ function App() {
         return <OwnersView />;
       case 'feeTypes':
         return <FeeTypesView />;
+      case 'rainfall':
+        return <RainfallView />;
       default:
         return <DashboardView stats={stats} loading={dataLoading} />;
     }
