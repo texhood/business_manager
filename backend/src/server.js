@@ -75,34 +75,62 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 logger.info(`Serving static uploads from: ${path.join(__dirname, '../uploads')}`);
 
 // CORS configuration
-const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:3008')
+// Development origins from environment or defaults
+const devOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:3005,http://localhost:3006,http://localhost:3007,http://localhost:3008')
   .split(',')
   .map(origin => origin.trim());
 
-logger.info('CORS allowed origins:', corsOrigins);
+// Production domain patterns for subdomain-based multi-tenancy
+const productionPatterns = [
+  /^https:\/\/[a-z0-9-]+\.office\.hoodfamilyfarms\.com$/,   // {tenant}.office.hoodfamilyfarms.com
+  /^https:\/\/[a-z0-9-]+\.herds\.hoodfamilyfarms\.com$/,    // {tenant}.herds.hoodfamilyfarms.com
+  /^https:\/\/[a-z0-9-]+\.rpos\.hoodfamilyfarms\.com$/,     // {tenant}.rpos.hoodfamilyfarms.com
+  /^https:\/\/[a-z0-9-]+\.kitchen\.hoodfamilyfarms\.com$/,  // {tenant}.kitchen.hoodfamilyfarms.com
+  /^https:\/\/[a-z0-9-]+\.pos\.hoodfamilyfarms\.com$/,      // {tenant}.pos.hoodfamilyfarms.com
+  /^https:\/\/office\.hoodfamilyfarms\.com$/,               // Base app domains
+  /^https:\/\/herds\.hoodfamilyfarms\.com$/,
+  /^https:\/\/rpos\.hoodfamilyfarms\.com$/,
+  /^https:\/\/kitchen\.hoodfamilyfarms\.com$/,
+  /^https:\/\/pos\.hoodfamilyfarms\.com$/,
+  /^https:\/\/signup\.hoodfamilyfarms\.com$/,
+  /^https:\/\/api\.hoodfamilyfarms\.com$/,
+  /^https:\/\/hoodfamilyfarms\.com$/,                        // Root domain
+  /^https:\/\/www\.hoodfamilyfarms\.com$/,                   // WWW
+];
+
+logger.info('CORS allowed dev origins:', devOrigins);
+logger.info('CORS production patterns enabled for *.hoodfamilyfarms.com');
 
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (mobile apps, curl, Postman, etc)
     if (!origin) return callback(null, true);
     
-    // Check if origin is in allowed list
-    if (corsOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      logger.warn(`CORS blocked origin: ${origin}`);
-      // In development, allow all origins for easier testing
-      if (process.env.NODE_ENV !== 'production') {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
+    // Check development origins first
+    if (devOrigins.includes(origin)) {
+      return callback(null, true);
     }
+    
+    // Check production patterns (subdomain wildcards)
+    const isProductionAllowed = productionPatterns.some(pattern => pattern.test(origin));
+    if (isProductionAllowed) {
+      return callback(null, true);
+    }
+    
+    // In development, allow all origins for easier testing
+    if (process.env.NODE_ENV !== 'production') {
+      logger.warn(`CORS allowing unknown origin in dev: ${origin}`);
+      return callback(null, true);
+    }
+    
+    // Production: reject unknown origins
+    logger.warn(`CORS blocked origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID'],
+}))
 
 // Rate limiting
 const limiter = rateLimit({

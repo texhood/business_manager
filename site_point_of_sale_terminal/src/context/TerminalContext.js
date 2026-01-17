@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { loadStripeTerminal } from '@stripe/terminal-js';
+import { getHeaders } from '../services/api';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
@@ -21,10 +22,7 @@ export function TerminalProvider({ children }) {
 
     const response = await fetch(`${API_URL}/terminal/connection-token`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+      headers: getHeaders(token)
     });
 
     if (!response.ok) {

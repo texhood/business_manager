@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getHeaders } from '../services/api';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
@@ -20,9 +21,7 @@ export function AuthProvider({ children }) {
   const validateToken = async () => {
     try {
       const response = await fetch(`${API_URL}/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: getHeaders(token)
       });
       
       if (response.ok) {
@@ -45,9 +44,7 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: getHeaders(),
       body: JSON.stringify({ email, password })
     });
 

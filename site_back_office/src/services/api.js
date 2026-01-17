@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios';
+import { getTenantFromSubdomain } from './tenant';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
@@ -15,9 +16,14 @@ const api = axios.create({
   },
 });
 
-// Request interceptor - add auth token
+// Request interceptor - add auth token and tenant header
 api.interceptors.request.use(
   (config) => {
+    // Add tenant header for multi-tenant routing
+    const tenant = getTenantFromSubdomain();
+    config.headers['X-Tenant-ID'] = tenant;
+    
+    // Add auth token if available
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

@@ -10,6 +10,7 @@ dist/
 # Environment
 .env
 .env.local
+.env.production
 .env.*.local
 backend/.env
 backend/.env.local
@@ -17,6 +18,9 @@ backend/.env.*.local
 frontend/.env
 frontend/.env.local
 frontend/.env.*.local
+site_*/.env
+site_*/.env.local
+site_*/.env.production
 
 # Logs
 npm-debug.log*

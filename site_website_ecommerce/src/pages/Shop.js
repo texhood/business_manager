@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { api } from '../services/api';
 import './Shop.css';
-
-const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
 // Category-based placeholder images for demo
 const CATEGORY_PLACEHOLDERS = {
@@ -56,7 +55,7 @@ function Shop() {
   useEffect(() => {
     async function fetchCategories() {
       try {
-        const response = await fetch(`${API_URL}/categories`);
+        const response = await api.get('/categories');
         if (response.ok) {
           const data = await response.json();
           const categoryNames = data.data
@@ -78,12 +77,12 @@ function Shop() {
       setError(null);
       
       try {
-        let url = `${API_URL}/items?status=active`;
+        let endpoint = '/items?status=active';
         if (currentCategory !== 'All') {
-          url += `&category=${encodeURIComponent(currentCategory)}`;
+          endpoint += `&category=${encodeURIComponent(currentCategory)}`;
         }
         
-        const response = await fetch(url);
+        const response = await api.get(endpoint);
         if (!response.ok) {
           throw new Error('Failed to fetch products');
         }

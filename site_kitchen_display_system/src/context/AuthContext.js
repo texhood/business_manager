@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getHeaders, API_URL } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -16,10 +17,8 @@ export const AuthProvider = ({ children }) => {
       if (storedToken && storedUser) {
         try {
           // Verify token is still valid
-          const response = await fetch('/api/v1/auth/me', {
-            headers: {
-              'Authorization': `Bearer ${storedToken}`
-            }
+          const response = await fetch(`${API_URL}/auth/me`, {
+            headers: getHeaders(storedToken)
           });
 
           if (response.ok) {
@@ -47,11 +46,9 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    const response = await fetch('/api/v1/auth/login', {
+    const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: getHeaders(),
       body: JSON.stringify({ email, password })
     });
 
