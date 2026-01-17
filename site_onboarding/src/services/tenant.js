@@ -8,15 +8,20 @@
 
 /**
  * Extract tenant slug from the current hostname
- * @returns {string} The tenant identifier
+ * @returns {string|null} The tenant identifier or null for system-wide access
  */
 export const getTenantFromSubdomain = () => {
   const hostname = window.location.hostname;
   
+  // System admin portal (signup.hoodfamilyfarms.com) - no tenant filtering
+  if (hostname === 'signup.hoodfamilyfarms.com' || hostname.startsWith('signup.')) {
+    return null; // Super admins operate across all tenants
+  }
+  
   // Development: localhost uses query param or default
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     const params = new URLSearchParams(window.location.search);
-    return params.get('tenant') || 'hood';
+    return params.get('tenant') || null;
   }
   
   // Production: extract tenant from subdomain
@@ -33,9 +38,8 @@ export const getTenantFromSubdomain = () => {
     return parts[0];
   }
   
-  // Fallback for app.hoodfamilyfarms.com (no tenant subdomain)
-  // or any other format - use default tenant
-  return 'hood';
+  // Fallback - no tenant filtering for system admin
+  return null;
 };
 
 /**

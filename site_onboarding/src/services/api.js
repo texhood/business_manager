@@ -18,9 +18,11 @@ const api = axios.create({
 
 // Add auth token and tenant header to requests
 api.interceptors.request.use((config) => {
-  // Add tenant header for multi-tenant routing
+  // Add tenant header for multi-tenant routing (only if tenant exists)
   const tenant = getTenantFromSubdomain();
-  config.headers['X-Tenant-ID'] = tenant;
+  if (tenant) {
+    config.headers['X-Tenant-ID'] = tenant;
+  }
   
   // Add auth token if available
   const token = localStorage.getItem('admin_token');
