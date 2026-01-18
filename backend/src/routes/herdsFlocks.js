@@ -30,7 +30,8 @@ const validate = (req, res, next) => {
 };
 
 const getTenantId = (req) => {
-  return req.tenantId || '00000000-0000-0000-0000-000000000001';
+  // Get tenant_id from authenticated user (set by authenticate middleware)
+  return req.user?.tenant_id || req.tenantId || null;
 };
 
 // Normalize processing status from frontend format to PostgreSQL enum format
