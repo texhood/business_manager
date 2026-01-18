@@ -207,6 +207,18 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
   const [offspring, setOffspring] = useState([]);
   const [childLoading, setChildLoading] = useState(false);
 
+  // Use counts from API response if available, otherwise calculate from local data
+  const healthRecordsCount = animal.health_records_count ?? healthRecords.length;
+  const weightsCount = animal.weights_count ?? weights.length;
+  
+  // For offspring, use API count if available, otherwise calculate from allAnimals
+  const offspringCount = animal.offspring_count ?? allAnimals.filter(a => 
+    a.dam_id === animal.id || a.sire_id === animal.id
+  ).length;
+
+  // Parents count (available immediately from animal data)
+  const parentsCount = (animal.dam_id ? 1 : 0) + (animal.sire_id ? 1 : 0);
+
   // Modal state
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState(null);
@@ -612,7 +624,7 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
             >
               <Icons.Stethoscope />
               Health Records
-              <span className="subtab-count">{healthRecords.length}</span>
+              <span className="subtab-count">{healthRecordsCount}</span>
             </button>
             <button 
               className={`subtab ${activeSubtab === 'weights' ? 'active' : ''}`}
@@ -620,7 +632,7 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
             >
               <Icons.Scale />
               Weight Tracking
-              <span className="subtab-count">{weights.length}</span>
+              <span className="subtab-count">{weightsCount}</span>
             </button>
             <button 
               className={`subtab ${activeSubtab === 'offspring' ? 'active' : ''}`}
@@ -628,7 +640,7 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
             >
               <Icons.Users />
               Offspring
-              <span className="subtab-count">{offspring.length}</span>
+              <span className="subtab-count">{offspringCount}</span>
             </button>
             <button 
               className={`subtab ${activeSubtab === 'parents' ? 'active' : ''}`}
@@ -636,7 +648,7 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
             >
               <Icons.Heart />
               Parents
-              <span className="subtab-count">{(animal.dam_id ? 1 : 0) + (animal.sire_id ? 1 : 0)}</span>
+              <span className="subtab-count">{parentsCount}</span>
             </button>
           </div>
           {(activeSubtab === 'health' || activeSubtab === 'weights') && (
@@ -796,7 +808,14 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
                         <tr 
                           key={child.id} 
                           className="clickable"
-                          onClick={() => onNavigateToAnimal && onNavigateToAnimal(child)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (onNavigateToAnimal) {
+                              onNavigateToAnimal(child);
+                            }
+                          }}
+                          style={{ cursor: 'pointer' }}
                         >
                           <td><strong className="link-text">{child.ear_tag}</strong></td>
                           <td>{child.name || '—'}</td>
@@ -846,7 +865,14 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
                           <tr 
                             key="dam" 
                             className="clickable"
-                            onClick={() => onNavigateToAnimal && onNavigateToAnimal(dam)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (onNavigateToAnimal) {
+                                onNavigateToAnimal(dam);
+                              }
+                            }}
+                            style={{ cursor: 'pointer' }}
                           >
                             <td><span className="badge badge-pink">Dam (Mother)</span></td>
                             <td><strong className="link-text">{dam.ear_tag}</strong></td>
@@ -874,7 +900,14 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
                           <tr 
                             key="sire" 
                             className="clickable"
-                            onClick={() => onNavigateToAnimal && onNavigateToAnimal(sire)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (onNavigateToAnimal) {
+                                onNavigateToAnimal(sire);
+                              }
+                            }}
+                            style={{ cursor: 'pointer' }}
                           >
                             <td><span className="badge badge-blue">Sire (Father)</span></td>
                             <td><strong className="link-text">{sire.ear_tag}</strong></td>
@@ -1365,13 +1398,23 @@ const AnimalsView = () => {
   };
 
   // Handler for navigating to a different animal (from parents/offspring subtabs)
-  const handleNavigateToAnimal = async (animal) => {
+  const handleNavigateToAnimal = async (targetAnimal) => {
+    if (!targetAnimal || !targetAnimal.id) {
+      console.error('handleNavigateToAnimal: Invalid animal', targetAnimal);
+      return;
+    }
     try {
-      const fullAnimal = await animalsService.getById(animal.id);
-      setSelectedAnimal(fullAnimal);
+      const fullAnimal = await animalsService.getById(targetAnimal.id);
+      if (fullAnimal) {
+        setSelectedAnimal(fullAnimal);
+      } else {
+        // Fallback to the basic animal data we have
+        setSelectedAnimal(targetAnimal);
+      }
     } catch (err) {
       console.error('Failed to load animal details:', err);
-      setSelectedAnimal(animal);
+      // Fallback to the basic animal data we have
+      setSelectedAnimal(targetAnimal);
     }
   };
 

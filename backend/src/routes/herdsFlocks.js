@@ -524,7 +524,10 @@ router.get('/animals/:id', asyncHandler(async (req, res) => {
       dam.ear_tag AS dam_ear_tag,
       dam.name AS dam_name,
       sire.ear_tag AS sire_ear_tag,
-      sire.name AS sire_name
+      sire.name AS sire_name,
+      (SELECT COUNT(*) FROM animal_health_records ahr WHERE ahr.animal_id = a.id) AS health_records_count,
+      (SELECT COUNT(*) FROM animal_weights aw WHERE aw.animal_id = a.id) AS weights_count,
+      (SELECT COUNT(*) FROM animals offspring WHERE offspring.dam_id = a.id OR offspring.sire_id = a.id) AS offspring_count
     FROM animals a
     LEFT JOIN animal_types at ON a.animal_type_id = at.id
     LEFT JOIN animal_categories ac ON a.category_id = ac.id
@@ -542,7 +545,13 @@ router.get('/animals/:id', asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Animal not found');
   }
   
-  res.json(result.rows[0]);
+  // Convert counts to integers
+  const animal = result.rows[0];
+  animal.health_records_count = parseInt(animal.health_records_count) || 0;
+  animal.weights_count = parseInt(animal.weights_count) || 0;
+  animal.offspring_count = parseInt(animal.offspring_count) || 0;
+  
+  res.json(animal);
 }));
 
 router.post('/animals', [
