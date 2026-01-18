@@ -2,13 +2,22 @@
  * Tenant Detection Service
  * Extracts tenant identifier from subdomain for multi-tenant routing
  * 
- * Production URL format: {tenant}.app.hoodfamilyfarms.com
+ * Production URL format: {tenant}.{app}.hoodfamilyfarms.com
+ * Example: hood-family-farms.kds.hoodfamilyfarms.com
+ * 
  * Development: Uses ?tenant= query param or defaults to 'hood'
  */
 
+// App subdomains that are NOT tenant slugs
+const APP_SUBDOMAINS = [
+  'www', 'api', 'office', 'pos', 'kds', 'herds', 'onboard', 
+  'app', 'admin', 'restaurant', 'ecommerce', 'shop', 'store',
+  'mail', 'smtp', 'ftp', 'cdn', 'static', 'dev', 'staging', 'test', 'demo'
+];
+
 /**
  * Extract tenant slug from the current hostname
- * @returns {string} The tenant identifier
+ * @returns {string} The tenant identifier (slug)
  */
 export const getTenantFromSubdomain = () => {
   const hostname = window.location.hostname;
@@ -20,25 +29,34 @@ export const getTenantFromSubdomain = () => {
   }
   
   // Production: extract tenant from subdomain
-  // Format: {tenant}.app.hoodfamilyfarms.com
+  // Format: {tenant}.{app}.hoodfamilyfarms.com
   const parts = hostname.split('.');
   
-  // Expecting: ['tenant', 'app', 'hoodfamilyfarms', 'com']
-  if (parts.length >= 4 && parts[1] === 'app') {
-    return parts[0];
+  // Need at least 4 parts: tenant.app.domain.tld
+  // Example: hood-family-farms.kds.hoodfamilyfarms.com
+  if (parts.length >= 4) {
+    const potentialTenant = parts[0];
+    
+    // If first part is not a reserved app subdomain, it's a tenant
+    if (!APP_SUBDOMAINS.includes(potentialTenant.toLowerCase())) {
+      return potentialTenant;
+    }
   }
   
-  // Format: {tenant}.hoodfamilyfarms.com (alternative)
-  if (parts.length >= 3 && parts[1] === 'hoodfamilyfarms') {
-    return parts[0];
+  // Format: {tenant}.hoodfamilyfarms.com (3 parts, alternative pattern)
+  if (parts.length === 3) {
+    const potentialTenant = parts[0];
+    if (!APP_SUBDOMAINS.includes(potentialTenant.toLowerCase())) {
+      return potentialTenant;
+    }
   }
   
-  // Fallback for app.hoodfamilyfarms.com (no tenant subdomain)
+  // Fallback: no tenant detected, use default
   return 'hood';
 };
 
 /**
- * Get the current tenant ID
+ * Get the current tenant ID (alias for getTenantFromSubdomain)
  * @returns {string} The tenant identifier
  */
 export const getTenantId = () => {

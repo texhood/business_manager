@@ -3,7 +3,7 @@
  * Extracts tenant identifier from subdomain for multi-tenant routing
  * 
  * Production URL format: {tenant}.{app}.hoodfamilyfarms.com
- * Example: hood-family-farms.herds.hoodfamilyfarms.com
+ * Example: hood-family-farms.restaurant.hoodfamilyfarms.com
  * 
  * Development: Uses ?tenant= query param or defaults to 'hood'
  */
@@ -33,10 +33,9 @@ export const getTenantFromSubdomain = () => {
   const parts = hostname.split('.');
   
   // Need at least 4 parts: tenant.app.domain.tld
-  // Example: hood-family-farms.herds.hoodfamilyfarms.com
+  // Example: hood-family-farms.restaurant.hoodfamilyfarms.com
   if (parts.length >= 4) {
     const potentialTenant = parts[0];
-    const appSubdomain = parts[1];
     
     // If first part is not a reserved app subdomain, it's a tenant
     if (!APP_SUBDOMAINS.includes(potentialTenant.toLowerCase())) {
@@ -73,26 +72,8 @@ export const isDevelopment = () => {
   return hostname === 'localhost' || hostname === '127.0.0.1';
 };
 
-/**
- * Build a URL for a different tenant (useful for tenant switching)
- * @param {string} tenantSlug - The tenant to switch to
- * @param {string} appName - The app subdomain (e.g., 'herds', 'office')
- * @returns {string} The full URL for that tenant
- */
-export const getTenantUrl = (tenantSlug, appName = 'app') => {
-  if (isDevelopment()) {
-    const url = new URL(window.location.href);
-    url.searchParams.set('tenant', tenantSlug);
-    return url.toString();
-  }
-  
-  // Production: construct subdomain URL
-  return `https://${tenantSlug}.${appName}.hoodfamilyfarms.com`;
-};
-
 export default {
   getTenantFromSubdomain,
   getTenantId,
   isDevelopment,
-  getTenantUrl,
 };

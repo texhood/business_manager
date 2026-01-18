@@ -3,29 +3,9 @@
  * Provides fetch wrappers with multi-tenant support
  */
 
-const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
+import { getTenantFromSubdomain } from './tenant';
 
-/**
- * Get tenant from subdomain
- */
-const getTenantFromSubdomain = () => {
-  const hostname = window.location.hostname;
-  
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('tenant') || 'hood';
-  }
-  
-  const parts = hostname.split('.');
-  if (parts.length >= 4 && parts[1] === 'app') {
-    return parts[0];
-  }
-  if (parts.length >= 3 && parts[1] === 'hoodfamilyfarms') {
-    return parts[0];
-  }
-  
-  return 'hood';
-};
+const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
 /**
  * Get default headers including tenant header
