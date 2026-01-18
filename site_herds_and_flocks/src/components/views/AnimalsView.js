@@ -195,7 +195,7 @@ const AnimalListView = ({ animals, loading, onSelect, onAdd, filters, setFilters
 // NETSUITE-STYLE ANIMAL DETAIL VIEW
 // ============================================================================
 
-const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnimals }) => {
+const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnimals, onNavigateToAnimal }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ ...animal });
   const [saving, setSaving] = useState(false);
@@ -228,6 +228,9 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
           a.dam_id === animal.id || a.sire_id === animal.id
         );
         setOffspring(offspringList);
+      } else if (activeSubtab === 'parents') {
+        // Parents are already in animal data (dam_id, sire_id)
+        // No additional loading needed
       }
     } catch (err) {
       console.error('Failed to load child records:', err);
@@ -627,6 +630,14 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
               Offspring
               <span className="subtab-count">{offspring.length}</span>
             </button>
+            <button 
+              className={`subtab ${activeSubtab === 'parents' ? 'active' : ''}`}
+              onClick={() => setActiveSubtab('parents')}
+            >
+              <Icons.Heart />
+              Parents
+              <span className="subtab-count">{(animal.dam_id ? 1 : 0) + (animal.sire_id ? 1 : 0)}</span>
+            </button>
           </div>
           {(activeSubtab === 'health' || activeSubtab === 'weights') && (
             <button 
@@ -782,7 +793,11 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
                     </thead>
                     <tbody>
                       {offspring.map((child) => (
-                        <tr key={child.id}>
+                        <tr 
+                          key={child.id} 
+                          className="clickable"
+                          onClick={() => onNavigateToAnimal && onNavigateToAnimal(child)}
+                        >
                           <td><strong className="link-text">{child.ear_tag}</strong></td>
                           <td>{child.name || '—'}</td>
                           <td>
@@ -799,6 +814,88 @@ const AnimalDetailView = ({ animal, onBack, onUpdate, onDelete, lookups, allAnim
                           </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                )
+              )}
+
+              {/* Parents Subtab */}
+              {activeSubtab === 'parents' && (
+                (!animal.dam_id && !animal.sire_id) ? (
+                  <div className="empty-subtab">
+                    <Icons.Heart />
+                    <p>No parents recorded</p>
+                    <span className="hint">Set Dam and Sire in the animal details above</span>
+                  </div>
+                ) : (
+                  <table className="subtab-table">
+                    <thead>
+                      <tr>
+                        <th>Relationship</th>
+                        <th>Tag</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Breed</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {animal.dam_id && (() => {
+                        const dam = allAnimals.find(a => a.id === animal.dam_id);
+                        return dam ? (
+                          <tr 
+                            key="dam" 
+                            className="clickable"
+                            onClick={() => onNavigateToAnimal && onNavigateToAnimal(dam)}
+                          >
+                            <td><span className="badge badge-pink">Dam (Mother)</span></td>
+                            <td><strong className="link-text">{dam.ear_tag}</strong></td>
+                            <td>{dam.name || '—'}</td>
+                            <td>{dam.animal_type_name || '—'}</td>
+                            <td>{dam.breed_name || '—'}</td>
+                            <td>
+                              <span className={`badge badge-${dam.status === 'Active' ? 'green' : dam.status === 'Sold' ? 'blue' : dam.status === 'Dead' ? 'red' : dam.status === 'Processed' ? 'purple' : 'gray'}`}>
+                                {dam.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr key="dam">
+                            <td><span className="badge badge-pink">Dam (Mother)</span></td>
+                            <td><strong>{animal.dam_ear_tag || 'Unknown'}</strong></td>
+                            <td>{animal.dam_name || '—'}</td>
+                            <td colSpan="3"><em className="text-muted">Full record not available</em></td>
+                          </tr>
+                        );
+                      })()}
+                      {animal.sire_id && (() => {
+                        const sire = allAnimals.find(a => a.id === animal.sire_id);
+                        return sire ? (
+                          <tr 
+                            key="sire" 
+                            className="clickable"
+                            onClick={() => onNavigateToAnimal && onNavigateToAnimal(sire)}
+                          >
+                            <td><span className="badge badge-blue">Sire (Father)</span></td>
+                            <td><strong className="link-text">{sire.ear_tag}</strong></td>
+                            <td>{sire.name || '—'}</td>
+                            <td>{sire.animal_type_name || '—'}</td>
+                            <td>{sire.breed_name || '—'}</td>
+                            <td>
+                              <span className={`badge badge-${sire.status === 'Active' ? 'green' : sire.status === 'Sold' ? 'blue' : sire.status === 'Dead' ? 'red' : sire.status === 'Processed' ? 'purple' : 'gray'}`}>
+                                {sire.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr key="sire">
+                            <td><span className="badge badge-blue">Sire (Father)</span></td>
+                            <td><strong>{animal.sire_ear_tag || 'Unknown'}</strong></td>
+                            <td>{animal.sire_name || '—'}</td>
+                            <td colSpan="3"><em className="text-muted">Full record not available</em></td>
+                          </tr>
+                        );
+                      })()}
                     </tbody>
                   </table>
                 )
@@ -1267,6 +1364,17 @@ const AnimalsView = () => {
     }
   };
 
+  // Handler for navigating to a different animal (from parents/offspring subtabs)
+  const handleNavigateToAnimal = async (animal) => {
+    try {
+      const fullAnimal = await animalsService.getById(animal.id);
+      setSelectedAnimal(fullAnimal);
+    } catch (err) {
+      console.error('Failed to load animal details:', err);
+      setSelectedAnimal(animal);
+    }
+  };
+
   if (selectedAnimal) {
     return (
       <AnimalDetailView
@@ -1276,6 +1384,7 @@ const AnimalsView = () => {
         onDelete={handleDeleteAnimal}
         lookups={lookups}
         allAnimals={animals}
+        onNavigateToAnimal={handleNavigateToAnimal}
       />
     );
   }

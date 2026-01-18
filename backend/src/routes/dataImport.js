@@ -177,16 +177,17 @@ const importConfigs = {
     `
   },
 
-  // Animals (complex - requires lookups)
+  // Animals (complex - requires lookups and two-pass for parentage)
   animals: {
     label: 'Animals',
     category: 'Livestock',
-    columns: ['ear_tag', 'name', 'animal_type', 'category', 'breed', 'herd_name', 'color_markings', 'owner', 'birth_date', 'purchase_date', 'purchase_price', 'pasture', 'status', 'notes'],
+    columns: ['ear_tag', 'name', 'animal_type', 'category', 'breed', 'herd_name', 'color_markings', 'owner', 'birth_date', 'purchase_date', 'purchase_price', 'pasture', 'status', 'notes', 'dam_ear_tag', 'sire_ear_tag'],
     required: ['ear_tag'],
     validations: {
       status: ['Active', 'Sold', 'Dead', 'Reference', 'Processed']
     },
     preprocess: true, // Requires lookup preprocessing
+    customImport: true, // Uses two-pass import for parentage resolution
     insertQuery: `
       INSERT INTO animals (tenant_id, ear_tag, name, animal_type_id, category_id, breed_id, herd_id, color_markings, owner_id, birth_date, purchase_date, purchase_price, current_pasture_id, status, notes)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::date, $11::date, $12::numeric, $13, COALESCE($14::animal_status, 'Active'), $15)
@@ -504,6 +505,13 @@ router.get('/template/:type', (req, res) => {
       'JE-002,2024-01-16,Feed expense,PO-123,import,,5100,Feed costs,125.50,0.00,Livestock,true',
       'JE-002,2024-01-16,Feed expense,PO-123,import,,1000,Cash payment,0.00,125.50,Livestock,true'
     ];
+  } else if (type === 'animals') {
+    // Sample animal rows showing parentage columns
+    sampleRows = [
+      'REQUIRED,,,,,,,,,,,,Active|Sold|Dead|Reference|Processed,,Dam Ear Tag,Sire Ear Tag',
+      '20-001,Bessie,Cow,Breeders,Angus,Main Herd,Black,Hood Family Farms,2020-03-15,,,North Pasture,Active,Foundation cow,,',
+      '24-105,,Calf,For Sale,Angus x Hereford,Spring 2024,Black Baldy,Hood Family Farms,2024-04-10,,,South Pasture,Active,Spring calf,20-001,23-B01'
+    ];
   } else {
     // Default hint row
     const hintRow = config.columns.map(col => {
@@ -683,6 +691,8 @@ router.post('/execute/:type', upload.single('file'), async (req, res) => {
         await importTransactions(client, records, tenantId, lookups, results);
       } else if (type === 'journal_entries') {
         await importJournalEntries(client, records, tenantId, lookups, results);
+      } else if (type === 'animals') {
+        await importAnimals(client, records, tenantId, lookups, results);
       }
     } else {
       // Standard import
@@ -725,13 +735,20 @@ router.post('/execute/:type', upload.single('file'), async (req, res) => {
 
     await client.query('COMMIT');
 
-    res.json({
+    const response = {
       totalRows: records.length,
       imported: results.success.length,
       errors: results.errors.length,
       skipped: results.skipped.length,
       details: results
-    });
+    };
+    
+    // Include parentage summary for animal imports
+    if (results.parentageSummary) {
+      response.parentageSummary = results.parentageSummary;
+    }
+
+    res.json(response);
 
   } catch (err) {
     await client.query('ROLLBACK');
@@ -1005,6 +1022,160 @@ async function importJournalEntries(client, records, tenantId, lookups, results)
     } catch (err) {
       results.errors.push({ row: entryData.rows.join(', '), error: err.message });
     }
+  }
+}
+
+/**
+ * Import animals with two-pass approach for parentage resolution
+ * Pass 1: Insert/update all animals (without dam_id/sire_id)
+ * Pass 2: Update dam_id and sire_id by looking up ear tags
+ */
+async function importAnimals(client, records, tenantId, lookups, results) {
+  const getValue = (record, key) => record[key] === '' ? null : record[key];
+  
+  // Track parentage for second pass
+  const parentageUpdates = [];
+  
+  // PASS 1: Insert/update all animals
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    const rowNum = i + 2;
+
+    try {
+      // Skip template/sample rows
+      if (record.ear_tag === 'REQUIRED') {
+        results.skipped.push({ row: rowNum, reason: 'Template/sample row' });
+        continue;
+      }
+      
+      // Skip rows that look like human-readable column labels
+      if (isLabelRow(record, importConfigs.animals.columns)) {
+        results.skipped.push({ row: rowNum, reason: 'Human-readable header row' });
+        continue;
+      }
+
+      // Validate required fields
+      if (!record.ear_tag || record.ear_tag.trim() === '') {
+        results.errors.push({ row: rowNum, error: 'Missing required field: ear_tag' });
+        continue;
+      }
+
+      // Build parameters for insert
+      const params = [
+        tenantId,
+        record.ear_tag,
+        getValue(record, 'name'),
+        lookups.animal_types?.[record.animal_type?.toLowerCase()?.trim()] || null,
+        lookups.animal_categories?.[record.category?.toLowerCase()?.trim()] || null,
+        lookups.breeds?.[record.breed?.toLowerCase()?.trim()] || null,
+        lookups.herds_flocks?.[record.herd_name?.toLowerCase()?.trim()] || null,
+        getValue(record, 'color_markings'),
+        lookups.animal_owners?.[record.owner?.toLowerCase()?.trim()] || null,
+        parseDate(record.birth_date),
+        parseDate(record.purchase_date),
+        parseCurrency(record.purchase_price),
+        lookups.pastures?.[record.pasture?.toLowerCase()?.trim()] || null,
+        getValue(record, 'status'),
+        getValue(record, 'notes')
+      ];
+
+      const result = await client.query(importConfigs.animals.insertQuery, params);
+      
+      if (result.rows.length > 0) {
+        results.success.push({ row: rowNum, record: result.rows[0] });
+        
+        // Track parentage for second pass if dam or sire ear tags provided
+        const damEarTag = getValue(record, 'dam_ear_tag')?.trim();
+        const sireEarTag = getValue(record, 'sire_ear_tag')?.trim();
+        
+        if (damEarTag || sireEarTag) {
+          parentageUpdates.push({
+            rowNum,
+            animalId: result.rows[0].id,
+            earTag: record.ear_tag,
+            damEarTag,
+            sireEarTag
+          });
+        }
+      }
+    } catch (err) {
+      results.errors.push({ row: rowNum, error: err.message });
+    }
+  }
+  
+  // PASS 2: Update parentage relationships
+  if (parentageUpdates.length > 0) {
+    // Build lookup of all animals by ear_tag for this tenant
+    const animalsResult = await client.query(
+      'SELECT id, ear_tag FROM animals WHERE tenant_id = $1',
+      [tenantId]
+    );
+    const animalsByEarTag = Object.fromEntries(
+      animalsResult.rows.map(r => [r.ear_tag.toLowerCase().trim(), r.id])
+    );
+    
+    let parentageSuccessCount = 0;
+    let parentageErrorCount = 0;
+    
+    for (const update of parentageUpdates) {
+      try {
+        let damId = null;
+        let sireId = null;
+        const warnings = [];
+        
+        // Lookup dam by ear tag
+        if (update.damEarTag) {
+          damId = animalsByEarTag[update.damEarTag.toLowerCase().trim()] || null;
+          if (!damId) {
+            warnings.push(`Dam not found: ${update.damEarTag}`);
+          }
+        }
+        
+        // Lookup sire by ear tag
+        if (update.sireEarTag) {
+          sireId = animalsByEarTag[update.sireEarTag.toLowerCase().trim()] || null;
+          if (!sireId) {
+            warnings.push(`Sire not found: ${update.sireEarTag}`);
+          }
+        }
+        
+        // Update the animal with dam_id and/or sire_id
+        if (damId || sireId) {
+          await client.query(
+            `UPDATE animals 
+             SET dam_id = COALESCE($2, dam_id), 
+                 sire_id = COALESCE($3, sire_id),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [update.animalId, damId, sireId]
+          );
+          parentageSuccessCount++;
+        }
+        
+        // Log warnings if parents couldn't be found
+        if (warnings.length > 0) {
+          // Find the success entry for this row and add a note
+          const successEntry = results.success.find(s => s.row === update.rowNum);
+          if (successEntry) {
+            successEntry.warnings = warnings;
+          }
+        }
+      } catch (err) {
+        parentageErrorCount++;
+        // Find the success entry and note the parentage error
+        const successEntry = results.success.find(s => s.row === update.rowNum);
+        if (successEntry) {
+          successEntry.parentageError = err.message;
+        }
+      }
+    }
+    
+    // Add parentage summary to results
+    results.parentageSummary = {
+      attempted: parentageUpdates.length,
+      updated: parentageSuccessCount,
+      errors: parentageErrorCount
+    };
   }
 }
 

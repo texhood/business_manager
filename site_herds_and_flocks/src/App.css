@@ -1704,6 +1704,17 @@ tr.clickable:hover { background: #f0f7eb; }
   color: #dc2626;
 }
 
+/* Muted text for secondary information */
+.text-muted {
+  color: #9ca3af;
+}
+
+/* Actions column in tables */
+.actions-col {
+  width: 100px;
+  text-align: right;
+}
+
 /* Status Filter Bar */
 .status-filter-bar {
   display: flex;
