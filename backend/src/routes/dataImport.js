@@ -209,6 +209,23 @@ const importConfigs = {
     `
   },
 
+  // Sale Tickets (flattened format - one row per line item, grouped by ticket_number)
+  sale_tickets: {
+    label: 'Sale Tickets',
+    category: 'Livestock',
+    columns: [
+      'ticket_number', 'sale_date', 'sold_to', 'buyer_contact', 'ticket_notes',
+      'ear_tag', 'animal_name', 'animal_type', 'breed', 'head_count', 
+      'weight_lbs', 'price_per_lb', 'price_per_head', 'line_total', 'item_notes',
+      'fee_type', 'fee_description', 'fee_amount',
+      'payment_received', 'payment_date', 'payment_reference'
+    ],
+    required: ['ticket_number', 'sale_date', 'sold_to'],
+    notes: 'Each row is a line item. Rows with same ticket_number are grouped into one ticket. Include fee rows with fee_type filled in.',
+    preprocess: true,
+    customImport: true
+  },
+
   // Product Categories
   categories: {
     label: 'Product Categories',
@@ -512,6 +529,17 @@ router.get('/template/:type', (req, res) => {
       '20-001,Bessie,Cow,Breeders,Angus,Main Herd,Black,Hood Family Farms,2020-03-15,,,North Pasture,Active,Foundation cow,,',
       '24-105,,Calf,For Sale,Angus x Hereford,Spring 2024,Black Baldy,Hood Family Farms,2024-04-10,,,South Pasture,Active,Spring calf,20-001,23-B01'
     ];
+  } else if (type === 'sale_tickets') {
+    // Sample sale ticket rows - grouped by ticket_number
+    sampleRows = [
+      '// Line items - rows with same ticket_number are grouped',
+      'ST-001,2024-06-15,Smith Ranch,john@smithranch.com,Spring sale,24-105,Black Baldy Calf,Calf,Angus x Hereford,1,550,2.50,,1375.00,Weaned heifer,,,,false,,',
+      'ST-001,2024-06-15,Smith Ranch,,,24-107,Red Calf,Calf,Hereford,1,525,2.50,,1312.50,Weaned bull,,,,,,',
+      '// Fee row for same ticket (fee_type filled in)',
+      'ST-001,2024-06-15,Smith Ranch,,,,,,,,,,,,Hauling Fee,Delivery to buyer,75.00,false,,',
+      '// Another ticket with payment received',
+      'ST-002,2024-06-20,Johnson Family,jane@jfarms.com,Cash sale,24-110,,Calf,Angus,1,600,,,1500.00,Price per head sale,,,,true,2024-06-20,Check #1234'
+    ];
   } else {
     // Default hint row
     const hintRow = config.columns.map(col => {
@@ -693,6 +721,8 @@ router.post('/execute/:type', upload.single('file'), async (req, res) => {
         await importJournalEntries(client, records, tenantId, lookups, results);
       } else if (type === 'animals') {
         await importAnimals(client, records, tenantId, lookups, results);
+      } else if (type === 'sale_tickets') {
+        await importSaleTickets(client, records, tenantId, lookups, results);
       }
     } else {
       // Standard import
@@ -1179,6 +1209,241 @@ async function importAnimals(client, records, tenantId, lookups, results) {
   }
 }
 
+/**
+ * Import sale tickets with grouped line items and fees
+ * CSV format is flattened - each row is a line item or fee
+ * Rows with the same ticket_number are grouped into one sale ticket
+ */
+async function importSaleTickets(client, records, tenantId, lookups, results) {
+  const getValue = (record, key) => record[key] === '' ? null : record[key];
+  
+  // Group records by ticket_number
+  const ticketsMap = new Map();
+  
+  records.forEach((record, index) => {
+    const rowNum = index + 2;
+    const ticketNum = record.ticket_number;
+    
+    // Skip comment rows and template rows
+    if (!ticketNum || ticketNum === 'REQUIRED' || ticketNum.startsWith('//')) {
+      results.skipped.push({ row: rowNum, reason: 'Template/sample row or comment' });
+      return;
+    }
+
+    if (!ticketsMap.has(ticketNum)) {
+      ticketsMap.set(ticketNum, {
+        header: {
+          ticket_number: record.ticket_number,
+          sale_date: parseDate(record.sale_date),
+          sold_to: record.sold_to,
+          buyer_contact: getValue(record, 'buyer_contact'),
+          notes: getValue(record, 'ticket_notes'),
+          payment_received: record.payment_received === 'true' || record.payment_received === '1',
+          payment_date: parseDate(record.payment_date),
+          payment_reference: getValue(record, 'payment_reference')
+        },
+        items: [],
+        fees: [],
+        rows: []
+      });
+    }
+    
+    const ticket = ticketsMap.get(ticketNum);
+    ticket.rows.push(rowNum);
+    
+    // Determine if this is a fee row or an item row
+    if (getValue(record, 'fee_type')) {
+      // Fee row
+      ticket.fees.push({
+        fee_type: record.fee_type,
+        description: getValue(record, 'fee_description'),
+        amount: parseCurrency(record.fee_amount) || 0
+      });
+    } else if (getValue(record, 'ear_tag') || getValue(record, 'animal_name') || getValue(record, 'line_total')) {
+      // Item row
+      ticket.items.push({
+        ear_tag: getValue(record, 'ear_tag'),
+        animal_name: getValue(record, 'animal_name'),
+        animal_type: getValue(record, 'animal_type'),
+        breed: getValue(record, 'breed'),
+        head_count: parseInt(record.head_count) || 1,
+        weight_lbs: parseCurrency(record.weight_lbs),
+        price_per_lb: parseCurrency(record.price_per_lb),
+        price_per_head: parseCurrency(record.price_per_head),
+        line_total: parseCurrency(record.line_total),
+        notes: getValue(record, 'item_notes')
+      });
+    }
+  });
+
+  // Process each grouped ticket
+  for (const [ticketNum, ticketData] of ticketsMap) {
+    try {
+      const { header, items, fees, rows } = ticketData;
+
+      // Validate ticket has items or fees
+      if (items.length === 0 && fees.length === 0) {
+        results.errors.push({ row: rows.join(', '), error: `Ticket ${ticketNum} has no items or fees` });
+        continue;
+      }
+
+      // Validate required header fields
+      if (!header.sale_date || !header.sold_to) {
+        results.errors.push({ row: rows.join(', '), error: `Ticket ${ticketNum} missing sale_date or sold_to` });
+        continue;
+      }
+
+      // Lookup or create buyer
+      let buyerId = lookups.buyers?.[header.sold_to.toLowerCase().trim()] || null;
+      if (!buyerId) {
+        // Create buyer on the fly
+        const buyerResult = await client.query(
+          `INSERT INTO buyers (tenant_id, name, is_active)
+           VALUES ($1, $2, true)
+           ON CONFLICT (tenant_id, name) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id`,
+          [tenantId, header.sold_to.trim()]
+        );
+        if (buyerResult.rows.length > 0) {
+          buyerId = buyerResult.rows[0].id;
+          lookups.buyers[header.sold_to.toLowerCase().trim()] = buyerId;
+        }
+      }
+
+      // Calculate totals
+      const itemsSubtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
+      const feesTotal = fees.reduce((sum, fee) => sum + (fee.amount || 0), 0);
+      const totalAmount = itemsSubtotal + feesTotal;
+      const totalHeadCount = items.reduce((sum, item) => sum + (item.head_count || 0), 0);
+      const totalWeight = items.reduce((sum, item) => {
+        if (item.weight_lbs && item.head_count) {
+          return sum + (item.weight_lbs * item.head_count);
+        }
+        return sum + (item.weight_lbs || 0);
+      }, 0);
+
+      // Insert sale ticket header
+      const ticketResult = await client.query(`
+        INSERT INTO sale_tickets (
+          tenant_id, ticket_number, sale_date, buyer_id, buyer_contact,
+          head_count, total_weight, total_amount, payment_received, payment_date, 
+          payment_reference, notes, status
+        )
+        VALUES ($1, $2, $3::date, $4, $5, $6, $7::numeric, $8::numeric, $9, $10::date, $11, $12, 'completed')
+        ON CONFLICT (tenant_id, ticket_number) DO UPDATE SET
+          sale_date = EXCLUDED.sale_date,
+          buyer_id = EXCLUDED.buyer_id,
+          buyer_contact = EXCLUDED.buyer_contact,
+          head_count = EXCLUDED.head_count,
+          total_weight = EXCLUDED.total_weight,
+          total_amount = EXCLUDED.total_amount,
+          payment_received = EXCLUDED.payment_received,
+          payment_date = EXCLUDED.payment_date,
+          payment_reference = EXCLUDED.payment_reference,
+          notes = EXCLUDED.notes
+        RETURNING id, ticket_number
+      `, [
+        tenantId,
+        header.ticket_number,
+        header.sale_date,
+        buyerId,
+        header.buyer_contact,
+        totalHeadCount,
+        totalWeight,
+        totalAmount,
+        header.payment_received,
+        header.payment_date,
+        header.payment_reference,
+        header.notes
+      ]);
+
+      const saleTicketId = ticketResult.rows[0].id;
+
+      // Delete existing items and fees for this ticket (for upsert behavior)
+      await client.query('DELETE FROM sale_ticket_items WHERE sale_ticket_id = $1', [saleTicketId]);
+      await client.query('DELETE FROM sale_ticket_fees WHERE sale_ticket_id = $1', [saleTicketId]);
+
+      // Insert line items
+      for (const item of items) {
+        // Lookup animal by ear_tag
+        let animalId = null;
+        if (item.ear_tag) {
+          animalId = lookups.animals?.[item.ear_tag.toLowerCase().trim()] || null;
+        }
+
+        // Lookup animal type
+        const animalTypeId = item.animal_type 
+          ? lookups.animal_types?.[item.animal_type.toLowerCase().trim()] || null
+          : null;
+
+        // Lookup breed
+        const breedId = item.breed
+          ? lookups.breeds?.[item.breed.toLowerCase().trim()] || null
+          : null;
+
+        await client.query(`
+          INSERT INTO sale_ticket_items (
+            sale_ticket_id, animal_id, animal_description, animal_type_id, breed_id,
+            head_count, weight_lbs, price_per_lb, price_per_head, line_total, notes
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7::numeric, $8::numeric, $9::numeric, $10::numeric, $11)
+        `, [
+          saleTicketId,
+          animalId,
+          item.animal_name || item.ear_tag || 'Animal',
+          animalTypeId,
+          breedId,
+          item.head_count || 1,
+          item.weight_lbs,
+          item.price_per_lb,
+          item.price_per_head,
+          item.line_total,
+          item.notes
+        ]);
+
+        // Update animal status to 'Sold' if linked
+        if (animalId) {
+          await client.query(
+            `UPDATE animals SET status = 'Sold', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [animalId]
+          );
+        }
+      }
+
+      // Insert fees
+      for (const fee of fees) {
+        // Lookup fee type
+        const feeTypeId = lookups.fee_types?.[fee.fee_type.toLowerCase().trim()] || null;
+
+        await client.query(`
+          INSERT INTO sale_ticket_fees (
+            sale_ticket_id, fee_type_id, description, amount
+          )
+          VALUES ($1, $2, $3, $4::numeric)
+        `, [
+          saleTicketId,
+          feeTypeId,
+          fee.description || fee.fee_type,
+          fee.amount
+        ]);
+      }
+
+      results.success.push({ 
+        row: rows.join(', '), 
+        record: { 
+          ticket_number: header.ticket_number, 
+          items: items.length, 
+          fees: fees.length,
+          total: totalAmount
+        }
+      });
+
+    } catch (err) {
+      results.errors.push({ row: ticketData.rows.join(', '), error: err.message });
+    }
+  }
+}
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -1307,6 +1572,28 @@ async function buildLookups(client, type, tenantId) {
     // Load classes by name for default class
     const classes = await client.query('SELECT id, name FROM classes');
     lookups.classes = Object.fromEntries(classes.rows.map(r => [r.name.toLowerCase(), r.id]));
+  }
+
+  if (type === 'sale_tickets') {
+    // Load animals by ear_tag for linking sale items
+    const animals = await client.query('SELECT id, ear_tag FROM animals WHERE tenant_id = $1', [tenantId]);
+    lookups.animals = Object.fromEntries(animals.rows.map(r => [r.ear_tag.toLowerCase().trim(), r.id]));
+
+    // Load animal types
+    const animalTypes = await client.query('SELECT id, name FROM animal_types WHERE tenant_id = $1', [tenantId]);
+    lookups.animal_types = Object.fromEntries(animalTypes.rows.map(r => [r.name.toLowerCase(), r.id]));
+
+    // Load breeds
+    const breeds = await client.query('SELECT id, name FROM breeds WHERE tenant_id = $1', [tenantId]);
+    lookups.breeds = Object.fromEntries(breeds.rows.map(r => [r.name.toLowerCase(), r.id]));
+
+    // Load buyers
+    const buyers = await client.query('SELECT id, name FROM buyers WHERE tenant_id = $1', [tenantId]);
+    lookups.buyers = Object.fromEntries(buyers.rows.map(r => [r.name.toLowerCase(), r.id]));
+
+    // Load sale fee types
+    const feeTypes = await client.query('SELECT id, name FROM sale_fee_types WHERE tenant_id = $1', [tenantId]);
+    lookups.fee_types = Object.fromEntries(feeTypes.rows.map(r => [r.name.toLowerCase(), r.id]));
   }
 
   return lookups;
