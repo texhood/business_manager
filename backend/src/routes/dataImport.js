@@ -535,11 +535,17 @@ router.post('/validate/:type', upload.single('file'), async (req, res) => {
   }
 
   try {
-    const fileContent = req.file.buffer.toString('utf-8');
+    // Strip BOM (Byte Order Mark) if present - Excel adds this to CSV files
+    let fileContent = req.file.buffer.toString('utf-8');
+    if (fileContent.charCodeAt(0) === 0xFEFF) {
+      fileContent = fileContent.slice(1);
+    }
+    
     const records = csv.parse(fileContent, {
       columns: true,
       skip_empty_lines: true,
-      trim: true
+      trim: true,
+      bom: true  // Also enable built-in BOM handling
     });
 
     const errors = [];
@@ -644,11 +650,17 @@ router.post('/execute/:type', upload.single('file'), async (req, res) => {
   const client = await pool.connect();
 
   try {
-    const fileContent = req.file.buffer.toString('utf-8');
+    // Strip BOM (Byte Order Mark) if present - Excel adds this to CSV files
+    let fileContent = req.file.buffer.toString('utf-8');
+    if (fileContent.charCodeAt(0) === 0xFEFF) {
+      fileContent = fileContent.slice(1);
+    }
+    
     const records = csv.parse(fileContent, {
       columns: true,
       skip_empty_lines: true,
-      trim: true
+      trim: true,
+      bom: true  // Also enable built-in BOM handling
     });
 
     await client.query('BEGIN');
