@@ -239,8 +239,8 @@ const importConfigs = {
     insertQuery: `
       INSERT INTO tags (tenant_id, name, slug)
       VALUES ($1, $2, $3)
-      ON CONFLICT (name) DO UPDATE SET
-        slug = EXCLUDED.slug
+      ON CONFLICT (tenant_id, slug) DO UPDATE SET
+        name = EXCLUDED.name
       RETURNING id, name
     `
   },
