@@ -144,7 +144,8 @@ function App() {
     console.log('lookupTenantBySlug: Looking up tenant by slug:', slug);
     
     try {
-      const response = await fetch(`${API_URL}/api/v1/tenants/by-slug/${slug}`);
+      // API_URL already includes /api/v1, so just append the endpoint
+      const response = await fetch(`${API_URL}/tenants/by-slug/${slug}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -171,7 +172,8 @@ function App() {
     
     try {
       // Use the public branding endpoint (no auth required)
-      const response = await fetch(`${API_URL}/api/v1/tenants/${tenantId}/branding`);
+      // API_URL already includes /api/v1, so just append the endpoint
+      const response = await fetch(`${API_URL}/tenants/${tenantId}/branding`);
       
       console.log('loadTenantBranding: Response status', response.status);
       
