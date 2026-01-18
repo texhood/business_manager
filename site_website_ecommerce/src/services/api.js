@@ -5,7 +5,25 @@
 
 import { getTenantFromSubdomain } from './tenant';
 
-const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
+// Determine API URL based on environment
+// In production (Vercel), we need the full Railway URL
+// In development, we use the proxy
+const getApiUrl = () => {
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // Production: use Railway backend
+  const hostname = window.location.hostname;
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    return 'https://business-manager-production.up.railway.app/api/v1';
+  }
+  
+  // Development: use proxy
+  return '/api/v1';
+};
+
+const API_URL = getApiUrl();
 
 /**
  * Get default headers including tenant header
