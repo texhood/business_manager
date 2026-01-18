@@ -691,9 +691,15 @@ router.post('/execute/:type', upload.single('file'), async (req, res) => {
         const rowNum = i + 2;
 
         try {
-          // Skip template rows
+          // Skip template rows and human-readable header rows
           if (config.required?.some(field => record[field] === 'REQUIRED')) {
             results.skipped.push({ row: rowNum, reason: 'Template/sample row' });
+            continue;
+          }
+          
+          // Skip rows that look like human-readable column labels (e.g., "Ear Tag" for ear_tag)
+          if (isLabelRow(record, config.columns)) {
+            results.skipped.push({ row: rowNum, reason: 'Human-readable header row' });
             continue;
           }
 
@@ -1006,6 +1012,77 @@ async function importJournalEntries(client, records, tenantId, lookups, results)
 // HELPER FUNCTIONS
 // ============================================================================
 
+/**
+ * Detect if a row looks like a human-readable header row
+ * e.g., "Ear Tag" instead of actual ear tag data like "20-279"
+ */
+function isLabelRow(record, columns) {
+  // Common patterns that indicate a label row
+  const labelPatterns = [
+    /^[A-Z][a-z]+ [A-Z][a-z]+$/, // "Ear Tag", "Birth Date"
+    /^[A-Z][a-z]+$/,              // "Name", "Breed", "Status"
+  ];
+  
+  // Check if multiple columns have label-like values
+  let labelLikeCount = 0;
+  for (const col of columns) {
+    const value = record[col];
+    if (value) {
+      // Check for exact matches to common header labels
+      const lowerValue = value.toLowerCase().trim();
+      const headerLabels = ['ear tag', 'name', 'animal type', 'breed', 'color markings', 
+                           'birth date', 'purchase date', 'purchase price', 'status',
+                           'ownership', 'owner', 'category', 'notes', 'description'];
+      if (headerLabels.includes(lowerValue)) {
+        labelLikeCount++;
+      }
+    }
+  }
+  
+  // If 3+ columns look like headers, skip this row
+  return labelLikeCount >= 3;
+}
+
+/**
+ * Parse date from various formats (MM-DD-YYYY, MM/DD/YYYY, YYYY-MM-DD)
+ */
+function parseDate(value) {
+  if (!value || value.trim() === '') return null;
+  
+  const trimmed = value.trim();
+  
+  // Check for MM-DD-YYYY or MM/DD/YYYY format
+  const mdyMatch = trimmed.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if (mdyMatch) {
+    const [, month, day, year] = mdyMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  
+  // Check for YYYY-MM-DD format (already correct)
+  const ymdMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (ymdMatch) {
+    return trimmed;
+  }
+  
+  // Return as-is and let PostgreSQL try to parse it
+  return trimmed;
+}
+
+/**
+ * Parse currency value (remove $, commas, etc.)
+ */
+function parseCurrency(value) {
+  if (!value || value.trim() === '') return null;
+  
+  // Remove $, commas, and whitespace
+  const cleaned = value.replace(/[$,\s]/g, '').trim();
+  
+  if (cleaned === '') return null;
+  
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
 async function buildLookups(client, type, tenantId) {
   const lookups = {};
 
@@ -1102,16 +1179,16 @@ function buildParams(type, record, tenantId, lookups, config) {
         tenantId,
         record.ear_tag,
         getValue('name'),
-        lookups.animal_types?.[record.animal_type?.toLowerCase()] || null,
-        lookups.animal_categories?.[record.category?.toLowerCase()] || null,
-        lookups.breeds?.[record.breed?.toLowerCase()] || null,
-        lookups.herds_flocks?.[record.herd_name?.toLowerCase()] || null,
+        lookups.animal_types?.[record.animal_type?.toLowerCase()?.trim()] || null,
+        lookups.animal_categories?.[record.category?.toLowerCase()?.trim()] || null,
+        lookups.breeds?.[record.breed?.toLowerCase()?.trim()] || null,
+        lookups.herds_flocks?.[record.herd_name?.toLowerCase()?.trim()] || null,
         getValue('color_markings'),
-        lookups.animal_owners?.[record.owner?.toLowerCase()] || null,
-        getValue('birth_date'),
-        getValue('purchase_date'),
-        getValue('purchase_price'),
-        lookups.pastures?.[record.pasture?.toLowerCase()] || null,
+        lookups.animal_owners?.[record.owner?.toLowerCase()?.trim()] || null,
+        parseDate(record.birth_date),
+        parseDate(record.purchase_date),
+        parseCurrency(record.purchase_price),
+        lookups.pastures?.[record.pasture?.toLowerCase()?.trim()] || null,
         getValue('status'),
         getValue('notes')
       ];
