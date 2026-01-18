@@ -1238,9 +1238,10 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
           sold_to: record.sold_to,
           buyer_contact: getValue(record, 'buyer_contact'),
           notes: getValue(record, 'ticket_notes'),
-          payment_received: record.payment_received === 'true' || record.payment_received === '1',
-          payment_date: parseDate(record.payment_date),
-          payment_reference: getValue(record, 'payment_reference')
+          // Parse payment info from the CSV
+          // payment_received contains the net amount, fee_amount contains fees
+          net_received: parseCurrency(record.payment_received) || 0,
+          fee_amount: parseCurrency(record.fee_amount) || 0
         },
         items: [],
         fees: [],
@@ -1252,7 +1253,9 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
     ticket.rows.push(rowNum);
     
     // Determine if this is a fee row or an item row
-    if (getValue(record, 'fee_type')) {
+    // In legacy data, fee_type might be "Aggregate" meaning no individual animals
+    const feeType = getValue(record, 'fee_type');
+    if (feeType && feeType.toLowerCase() !== 'aggregate') {
       // Fee row
       ticket.fees.push({
         fee_type: record.fee_type,
@@ -1260,7 +1263,7 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
         amount: parseCurrency(record.fee_amount) || 0
       });
     } else if (getValue(record, 'ear_tag') || getValue(record, 'animal_name') || getValue(record, 'line_total')) {
-      // Item row
+      // Item row (individual animal)
       ticket.items.push({
         ear_tag: getValue(record, 'ear_tag'),
         animal_name: getValue(record, 'animal_name'),
@@ -1274,6 +1277,7 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
         notes: getValue(record, 'item_notes')
       });
     }
+    // For "Aggregate" fee_type with no items, it's just a summary ticket - that's okay
   });
 
   // Process each grouped ticket
@@ -1281,79 +1285,53 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
     try {
       const { header, items, fees, rows } = ticketData;
 
-      // Validate ticket has items or fees
-      if (items.length === 0 && fees.length === 0) {
-        results.errors.push({ row: rows.join(', '), error: `Ticket ${ticketNum} has no items or fees` });
-        continue;
-      }
-
       // Validate required header fields
       if (!header.sale_date || !header.sold_to) {
         results.errors.push({ row: rows.join(', '), error: `Ticket ${ticketNum} missing sale_date or sold_to` });
         continue;
       }
 
-      // Lookup or create buyer
-      let buyerId = lookups.buyers?.[header.sold_to.toLowerCase().trim()] || null;
-      if (!buyerId) {
-        // Create buyer on the fly
-        const buyerResult = await client.query(
-          `INSERT INTO buyers (tenant_id, name, is_active)
-           VALUES ($1, $2, true)
-           ON CONFLICT (tenant_id, name) DO UPDATE SET name = EXCLUDED.name
-           RETURNING id`,
-          [tenantId, header.sold_to.trim()]
-        );
-        if (buyerResult.rows.length > 0) {
-          buyerId = buyerResult.rows[0].id;
-          lookups.buyers[header.sold_to.toLowerCase().trim()] = buyerId;
-        }
+      // Calculate totals
+      // For legacy aggregate data, use the payment_received and fee_amount from header
+      let grossAmount, totalFees, netAmount;
+      
+      if (items.length > 0) {
+        // Calculate from line items
+        grossAmount = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
+        totalFees = fees.reduce((sum, fee) => sum + (fee.amount || 0), 0);
+        netAmount = grossAmount - totalFees;
+      } else {
+        // Legacy aggregate data - use header values
+        // net_received is the net, fee_amount is the fees
+        netAmount = header.net_received;
+        totalFees = header.fee_amount;
+        grossAmount = netAmount + totalFees;
       }
 
-      // Calculate totals
-      const itemsSubtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
-      const feesTotal = fees.reduce((sum, fee) => sum + (fee.amount || 0), 0);
-      const totalAmount = itemsSubtotal + feesTotal;
-      const totalHeadCount = items.reduce((sum, item) => sum + (item.head_count || 0), 0);
-      const totalWeight = items.reduce((sum, item) => {
-        if (item.weight_lbs && item.head_count) {
-          return sum + (item.weight_lbs * item.head_count);
-        }
-        return sum + (item.weight_lbs || 0);
-      }, 0);
+      // Determine sale type from notes
+      const saleType = header.notes?.toLowerCase().includes('auction') ? 'auction' : 
+                       header.notes?.toLowerCase().includes('private') ? 'private' : 'auction';
 
-      // Insert sale ticket header
+      // Insert sale ticket header (using actual schema columns)
+      // Note: No unique constraint on ticket_number, so just INSERT
       const ticketResult = await client.query(`
         INSERT INTO sale_tickets (
-          tenant_id, ticket_number, sale_date, buyer_id, buyer_contact,
-          head_count, total_weight, total_amount, payment_received, payment_date, 
-          payment_reference, notes, status
+          tenant_id, ticket_number, sale_date, buyer_name, buyer_contact,
+          sale_location, sale_type, gross_amount, total_fees, net_amount, notes
         )
-        VALUES ($1, $2, $3::date, $4, $5, $6, $7::numeric, $8::numeric, $9, $10::date, $11, $12, 'completed')
-        ON CONFLICT (tenant_id, ticket_number) DO UPDATE SET
-          sale_date = EXCLUDED.sale_date,
-          buyer_id = EXCLUDED.buyer_id,
-          buyer_contact = EXCLUDED.buyer_contact,
-          head_count = EXCLUDED.head_count,
-          total_weight = EXCLUDED.total_weight,
-          total_amount = EXCLUDED.total_amount,
-          payment_received = EXCLUDED.payment_received,
-          payment_date = EXCLUDED.payment_date,
-          payment_reference = EXCLUDED.payment_reference,
-          notes = EXCLUDED.notes
+        VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8::numeric, $9::numeric, $10::numeric, $11)
         RETURNING id, ticket_number
       `, [
         tenantId,
         header.ticket_number,
         header.sale_date,
-        buyerId,
+        header.sold_to,  // buyer_name
         header.buyer_contact,
-        totalHeadCount,
-        totalWeight,
-        totalAmount,
-        header.payment_received,
-        header.payment_date,
-        header.payment_reference,
+        header.sold_to,  // sale_location (use buyer as location for auctions)
+        saleType,
+        grossAmount,
+        totalFees,
+        netAmount,
         header.notes
       ]);
 
@@ -1363,7 +1341,7 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
       await client.query('DELETE FROM sale_ticket_items WHERE sale_ticket_id = $1', [saleTicketId]);
       await client.query('DELETE FROM sale_ticket_fees WHERE sale_ticket_id = $1', [saleTicketId]);
 
-      // Insert line items
+      // Insert line items (if any)
       for (const item of items) {
         // Lookup animal by ear_tag
         let animalId = null;
@@ -1371,29 +1349,19 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
           animalId = lookups.animals?.[item.ear_tag.toLowerCase().trim()] || null;
         }
 
-        // Lookup animal type
-        const animalTypeId = item.animal_type 
-          ? lookups.animal_types?.[item.animal_type.toLowerCase().trim()] || null
-          : null;
-
-        // Lookup breed
-        const breedId = item.breed
-          ? lookups.breeds?.[item.breed.toLowerCase().trim()] || null
-          : null;
-
         await client.query(`
           INSERT INTO sale_ticket_items (
-            sale_ticket_id, animal_id, animal_description, animal_type_id, breed_id,
-            head_count, weight_lbs, price_per_lb, price_per_head, line_total, notes
+            tenant_id, sale_ticket_id, animal_id, ear_tag, animal_name, animal_type,
+            weight_lbs, price_per_lb, head_price, line_total, notes
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7::numeric, $8::numeric, $9::numeric, $10::numeric, $11)
         `, [
+          tenantId,
           saleTicketId,
           animalId,
+          item.ear_tag,
           item.animal_name || item.ear_tag || 'Animal',
-          animalTypeId,
-          breedId,
-          item.head_count || 1,
+          item.animal_type,
           item.weight_lbs,
           item.price_per_lb,
           item.price_per_head,
@@ -1410,21 +1378,36 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
         }
       }
 
-      // Insert fees
-      for (const fee of fees) {
-        // Lookup fee type
-        const feeTypeId = lookups.fee_types?.[fee.fee_type.toLowerCase().trim()] || null;
+      // Insert fees (if any explicit fees, or create one for legacy aggregate data)
+      if (fees.length > 0) {
+        for (const fee of fees) {
+          const feeTypeId = lookups.fee_types?.[fee.fee_type.toLowerCase().trim()] || null;
 
+          await client.query(`
+            INSERT INTO sale_ticket_fees (
+              tenant_id, sale_ticket_id, fee_type_id, fee_name, amount, notes
+            )
+            VALUES ($1, $2, $3, $4, $5::numeric, $6)
+          `, [
+            tenantId,
+            saleTicketId,
+            feeTypeId,
+            fee.fee_type,
+            fee.amount,
+            fee.description
+          ]);
+        }
+      } else if (totalFees > 0) {
+        // Legacy data - create a single "Auction Fees" entry
         await client.query(`
           INSERT INTO sale_ticket_fees (
-            sale_ticket_id, fee_type_id, description, amount
+            tenant_id, sale_ticket_id, fee_type_id, fee_name, amount, notes
           )
-          VALUES ($1, $2, $3, $4::numeric)
+          VALUES ($1, $2, NULL, 'Auction Fees', $3::numeric, 'Imported aggregate fees')
         `, [
+          tenantId,
           saleTicketId,
-          feeTypeId,
-          fee.description || fee.fee_type,
-          fee.amount
+          totalFees
         ]);
       }
 
@@ -1433,8 +1416,10 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
         record: { 
           ticket_number: header.ticket_number, 
           items: items.length, 
-          fees: fees.length,
-          total: totalAmount
+          fees: fees.length > 0 ? fees.length : (totalFees > 0 ? 1 : 0),
+          gross: grossAmount,
+          fees: totalFees,
+          net: netAmount
         }
       });
 
