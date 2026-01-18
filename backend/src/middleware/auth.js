@@ -33,9 +33,9 @@ const authenticate = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    // Get user from database
+    // Get user from database (including tenant_id for multi-tenant support)
     const result = await db.query(
-      'SELECT id, email, name, role, is_farm_member, is_active FROM accounts WHERE id = $1',
+      'SELECT id, email, name, role, tenant_id, is_farm_member, is_active FROM accounts WHERE id = $1',
       [decoded.id]
     );
 
@@ -76,7 +76,7 @@ const optionalAuth = async (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
 
     const result = await db.query(
-      'SELECT id, email, name, role, is_farm_member, is_active FROM accounts WHERE id = $1',
+      'SELECT id, email, name, role, tenant_id, is_farm_member, is_active FROM accounts WHERE id = $1',
       [decoded.id]
     );
 
@@ -142,6 +142,7 @@ const generateToken = (user) => {
       id: user.id,
       email: user.email,
       role: user.role,
+      tenant_id: user.tenant_id,
     },
     JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }

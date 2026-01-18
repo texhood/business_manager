@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../../config/database');
 const multer = require('multer');
+const { authenticate, requireStaff } = require('../middleware/auth');
 const csv = require('csv-parse/sync');
 
 // Configure multer for file uploads
@@ -433,6 +434,10 @@ const importConfigs = {
 // ROUTES
 // ============================================================================
 
+// All data import routes require authentication and staff role
+router.use(authenticate);
+router.use(requireStaff);
+
 // Get list of available import types
 router.get('/types', async (req, res) => {
   try {
@@ -618,7 +623,14 @@ router.post('/validate/:type', upload.single('file'), async (req, res) => {
 // Execute import
 router.post('/execute/:type', upload.single('file'), async (req, res) => {
   const { type } = req.params;
-  const tenantId = req.body.tenant_id || '00000000-0000-0000-0000-000000000001';
+  // Get tenant from authenticated user, fall back to body param for super_admin
+  const tenantId = req.user.tenant_id || req.body.tenant_id;
+  
+  if (!tenantId) {
+    return res.status(400).json({ error: 'No tenant context. User must belong to a tenant or provide tenant_id.' });
+  }
+  
+  console.log(`[DataImport] Importing ${type} for tenant ${tenantId} by user ${req.user.email}`);
   const config = importConfigs[type];
 
   if (!config) {
