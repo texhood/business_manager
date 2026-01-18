@@ -85,6 +85,39 @@ function applyBrandColor(hexColor) {
 }
 
 // ============================================================================
+// HELPER: Extract tenant slug from subdomain
+// ============================================================================
+function getTenantSlugFromSubdomain() {
+  const hostname = window.location.hostname;
+  
+  // Handle localhost development
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return null;
+  }
+  
+  // Pattern: {tenant-slug}.{app}.hoodfamilyfarms.com or {tenant-slug}.hoodfamilyfarms.com
+  const domainParts = hostname.split('.');
+  
+  // Need at least: tenant.app.domain.com (4 parts) or tenant.domain.com (3 parts with known domain)
+  if (domainParts.length >= 3) {
+    const potentialSlug = domainParts[0];
+    
+    // Reserved subdomains that are NOT tenant slugs
+    const reservedSubdomains = [
+      'www', 'api', 'office', 'pos', 'kds', 'herds', 'onboard', 
+      'app', 'admin', 'mail', 'smtp', 'ftp', 'cdn', 'static',
+      'dev', 'staging', 'test', 'demo'
+    ];
+    
+    if (!reservedSubdomains.includes(potentialSlug.toLowerCase())) {
+      return potentialSlug;
+    }
+  }
+  
+  return null;
+}
+
+// ============================================================================
 // MAIN APP COMPONENT
 // ============================================================================
 
@@ -102,6 +135,31 @@ function App() {
   const [expandedSections, setExpandedSections] = useState(['foodTrailer']); // Default expanded
   const [tenant, setTenant] = useState(null);
 
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+
+  // Lookup tenant ID by slug (public, no auth required)
+  const lookupTenantBySlug = async (slug) => {
+    if (!slug) return null;
+    
+    console.log('lookupTenantBySlug: Looking up tenant by slug:', slug);
+    
+    try {
+      const response = await fetch(`${API_URL}/api/v1/tenants/by-slug/${slug}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('lookupTenantBySlug: Found tenant:', data);
+        return data.data || data;
+      } else {
+        console.error('lookupTenantBySlug: Tenant not found for slug:', slug);
+      }
+    } catch (err) {
+      console.error('lookupTenantBySlug: Error looking up tenant:', err);
+    }
+    
+    return null;
+  };
+
   // Fetch tenant branding (public, no auth required)
   const loadTenantBranding = async (tenantId) => {
     if (!tenantId) {
@@ -113,7 +171,7 @@ function App() {
     
     try {
       // Use the public branding endpoint (no auth required)
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3000'}/api/v1/tenants/${tenantId}/branding`);
+      const response = await fetch(`${API_URL}/api/v1/tenants/${tenantId}/branding`);
       
       console.log('loadTenantBranding: Response status', response.status);
       
@@ -145,7 +203,15 @@ function App() {
     const init = async () => {
       console.log('App init starting...');
       
-      // Check for tenant ID override in URL
+      // ========================================
+      // Step 1: Extract tenant slug from subdomain
+      // ========================================
+      const subdomainSlug = getTenantSlugFromSubdomain();
+      console.log('Subdomain tenant slug:', subdomainSlug);
+      
+      // ========================================
+      // Step 2: Check for tenant ID override in URL query params
+      // ========================================
       const urlParams = new URLSearchParams(window.location.search);
       let urlTenantId = urlParams.get('tenant');
       
@@ -160,7 +226,24 @@ function App() {
         localStorage.setItem('tenant_id_override', urlTenantId);
       }
       
-      // Determine tenant ID to use (URL > stored override > user's tenant)
+      // ========================================
+      // Step 3: Look up tenant ID from subdomain slug if needed
+      // ========================================
+      let subdomainTenantId = null;
+      if (subdomainSlug && !urlTenantId) {
+        const tenantData = await lookupTenantBySlug(subdomainSlug);
+        if (tenantData && tenantData.id) {
+          subdomainTenantId = tenantData.id;
+          console.log('Resolved subdomain slug to tenant ID:', subdomainTenantId);
+          // Store it for future use
+          localStorage.setItem('tenant_id_override', subdomainTenantId);
+        }
+      }
+      
+      // ========================================
+      // Step 4: Determine final tenant ID to use
+      // Priority: URL param > subdomain > stored override > user's tenant
+      // ========================================
       const storedUser = authService.getCurrentUser();
       let storedOverride = localStorage.getItem('tenant_id_override');
       
@@ -170,18 +253,23 @@ function App() {
         localStorage.setItem('tenant_id_override', storedOverride);
       }
       
-      const tenantIdToLoad = urlTenantId || storedOverride || storedUser?.tenant_id;
+      const tenantIdToLoad = urlTenantId || subdomainTenantId || storedOverride || storedUser?.tenant_id;
       
       console.log('Stored user:', storedUser);
       console.log('Stored override:', storedOverride);
-      console.log('Tenant ID to load:', tenantIdToLoad);
+      console.log('Subdomain tenant ID:', subdomainTenantId);
+      console.log('Final tenant ID to load:', tenantIdToLoad);
       
-      // Load tenant branding FIRST (public, no auth needed)
+      // ========================================
+      // Step 5: Load tenant branding (public, no auth needed)
+      // ========================================
       if (tenantIdToLoad) {
         await loadTenantBranding(tenantIdToLoad);
       }
       
-      // Then handle user session
+      // ========================================
+      // Step 6: Handle user session
+      // ========================================
       if (storedUser) {
         setUser(storedUser);
         loadData();

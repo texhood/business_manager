@@ -13,6 +13,39 @@ const logger = require('../utils/logger');
 const pool = db.pool || db;
 
 /**
+ * GET /tenants/by-slug/:slug - Get tenant by slug (PUBLIC - for subdomain resolution)
+ * Used by frontend to resolve tenant slug from subdomain to tenant ID
+ * Returns only non-sensitive branding info
+ */
+router.get('/by-slug/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+
+    logger.info(`Looking up tenant by slug: ${slug}`);
+
+    const result = await pool.query(`
+      SELECT id, slug, name, logo_url, primary_color
+      FROM tenants
+      WHERE slug = $1 AND is_active = true
+    `, [slug]);
+
+    if (result.rows.length === 0) {
+      logger.warn(`Tenant not found for slug: ${slug}`);
+      return res.status(404).json({ success: false, message: 'Tenant not found' });
+    }
+
+    logger.info(`Found tenant for slug ${slug}: ${result.rows[0].id}`);
+    res.json({
+      success: true,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    logger.error('Error looking up tenant by slug:', error);
+    res.status(500).json({ success: false, message: 'Failed to lookup tenant' });
+  }
+});
+
+/**
  * GET /tenants/:id/branding - Get tenant branding (PUBLIC - no auth required)
  * Returns only non-sensitive branding info
  */
