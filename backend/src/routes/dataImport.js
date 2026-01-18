@@ -1312,23 +1312,21 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
       const saleType = header.notes?.toLowerCase().includes('auction') ? 'auction' : 
                        header.notes?.toLowerCase().includes('private') ? 'private' : 'auction';
 
-      // Insert sale ticket header (using actual schema columns)
-      // Note: No unique constraint on ticket_number, so just INSERT
+      // Insert sale ticket header (using actual schema columns from herdsFlocks.js)
+      // Columns: tenant_id, ticket_number, sale_date, sold_to, buyer_contact, notes, gross_amount, total_fees, net_amount
       const ticketResult = await client.query(`
         INSERT INTO sale_tickets (
-          tenant_id, ticket_number, sale_date, buyer_name, buyer_contact,
-          sale_location, sale_type, gross_amount, total_fees, net_amount, notes
+          tenant_id, ticket_number, sale_date, sold_to, buyer_contact,
+          gross_amount, total_fees, net_amount, notes
         )
-        VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8::numeric, $9::numeric, $10::numeric, $11)
+        VALUES ($1, $2, $3::date, $4, $5, $6::numeric, $7::numeric, $8::numeric, $9)
         RETURNING id, ticket_number
       `, [
         tenantId,
         header.ticket_number,
         header.sale_date,
-        header.sold_to,  // buyer_name
+        header.sold_to,
         header.buyer_contact,
-        header.sold_to,  // sale_location (use buyer as location for auctions)
-        saleType,
         grossAmount,
         totalFees,
         netAmount,
@@ -1352,9 +1350,9 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
         await client.query(`
           INSERT INTO sale_ticket_items (
             tenant_id, sale_ticket_id, animal_id, ear_tag, animal_name, animal_type,
-            weight_lbs, price_per_lb, head_price, line_total, notes
+            breed, head_count, weight_lbs, price_per_lb, price_per_head, line_total, notes
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7::numeric, $8::numeric, $9::numeric, $10::numeric, $11)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::numeric, $10::numeric, $11::numeric, $12::numeric, $13)
         `, [
           tenantId,
           saleTicketId,
@@ -1362,6 +1360,8 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
           item.ear_tag,
           item.animal_name || item.ear_tag || 'Animal',
           item.animal_type,
+          item.breed,
+          item.head_count || 1,
           item.weight_lbs,
           item.price_per_lb,
           item.price_per_head,
@@ -1379,31 +1379,29 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
       }
 
       // Insert fees (if any explicit fees, or create one for legacy aggregate data)
+      // Columns from herdsFlocks.js: tenant_id, sale_ticket_id, fee_type, description, amount
       if (fees.length > 0) {
         for (const fee of fees) {
-          const feeTypeId = lookups.fee_types?.[fee.fee_type.toLowerCase().trim()] || null;
-
           await client.query(`
             INSERT INTO sale_ticket_fees (
-              tenant_id, sale_ticket_id, fee_type_id, fee_name, amount, notes
+              tenant_id, sale_ticket_id, fee_type, description, amount
             )
-            VALUES ($1, $2, $3, $4, $5::numeric, $6)
+            VALUES ($1, $2, $3, $4, $5::numeric)
           `, [
             tenantId,
             saleTicketId,
-            feeTypeId,
             fee.fee_type,
-            fee.amount,
-            fee.description
+            fee.description,
+            fee.amount
           ]);
         }
       } else if (totalFees > 0) {
         // Legacy data - create a single "Auction Fees" entry
         await client.query(`
           INSERT INTO sale_ticket_fees (
-            tenant_id, sale_ticket_id, fee_type_id, fee_name, amount, notes
+            tenant_id, sale_ticket_id, fee_type, description, amount
           )
-          VALUES ($1, $2, NULL, 'Auction Fees', $3::numeric, 'Imported aggregate fees')
+          VALUES ($1, $2, 'Auction Fees', 'Imported aggregate fees', $3::numeric)
         `, [
           tenantId,
           saleTicketId,
