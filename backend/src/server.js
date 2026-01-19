@@ -87,11 +87,13 @@ const productionPatterns = [
   /^https:\/\/[a-z0-9-]+\.rpos\.hoodfamilyfarms\.com$/,     // {tenant}.rpos.hoodfamilyfarms.com
   /^https:\/\/[a-z0-9-]+\.kitchen\.hoodfamilyfarms\.com$/,  // {tenant}.kitchen.hoodfamilyfarms.com
   /^https:\/\/[a-z0-9-]+\.pos\.hoodfamilyfarms\.com$/,      // {tenant}.pos.hoodfamilyfarms.com
+  /^https:\/\/[a-z0-9-]+\.alt\.hoodfamilyfarms\.com$/,      // {tenant}.alt.hoodfamilyfarms.com (ecommerce)
   /^https:\/\/office\.hoodfamilyfarms\.com$/,               // Base app domains
   /^https:\/\/herds\.hoodfamilyfarms\.com$/,
   /^https:\/\/rpos\.hoodfamilyfarms\.com$/,
   /^https:\/\/kitchen\.hoodfamilyfarms\.com$/,
   /^https:\/\/pos\.hoodfamilyfarms\.com$/,
+  /^https:\/\/alt\.hoodfamilyfarms\.com$/,
   /^https:\/\/signup\.hoodfamilyfarms\.com$/,
   /^https:\/\/api\.hoodfamilyfarms\.com$/,
   /^https:\/\/hoodfamilyfarms\.com$/,                        // Root domain
