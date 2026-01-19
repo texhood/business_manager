@@ -370,19 +370,19 @@ router.get('/orders', authenticate, requireStaff, asyncHandler(async (req, res) 
   if (date) {
     paramCount++;
     params.push(date);
-    queryText += ` AND DATE(o.created_at) = $${paramCount}`;
+    queryText += ' AND DATE(o.created_at) = $' + paramCount;
   } else if (start_date && end_date) {
     paramCount++;
     params.push(start_date);
-    queryText += ` AND DATE(o.created_at) >= $${paramCount}`;
+    queryText += ' AND DATE(o.created_at) >= $' + paramCount;
     paramCount++;
     params.push(end_date);
-    queryText += ` AND DATE(o.created_at) <= $${paramCount}`;
+    queryText += ' AND DATE(o.created_at) <= $' + paramCount;
   }
 
   paramCount++;
   params.push(parseInt(limit));
-  queryText += ` ORDER BY o.created_at DESC LIMIT $${paramCount}`;
+  queryText += ' ORDER BY o.created_at DESC LIMIT $' + paramCount;
 
   const result = await db.query(queryText, params);
 
@@ -431,21 +431,31 @@ router.get('/orders/:orderId', authenticate, requireStaff, asyncHandler(async (r
 /**
  * GET /terminal/layouts
  * Get available POS layouts for this tenant
+ * Returns empty array if pos_layouts table doesn't exist yet
  */
 router.get('/layouts', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const tenantId = req.user.tenant_id;
 
-  const result = await db.query(`
-    SELECT id, name, description, is_default, grid_columns
-    FROM pos_layouts
-    WHERE tenant_id = $1 AND is_active = true
-    ORDER BY is_default DESC, name
-  `, [tenantId]);
+  try {
+    const result = await db.query(`
+      SELECT id, name, description, is_default, grid_columns
+      FROM pos_layouts
+      WHERE tenant_id = $1 AND is_active = true
+      ORDER BY is_default DESC, name
+    `, [tenantId]);
 
-  res.json({
-    status: 'success',
-    data: result.rows
-  });
+    res.json({
+      status: 'success',
+      data: result.rows
+    });
+  } catch (err) {
+    // Table may not exist yet
+    logger.info('pos_layouts table not available', { error: err.message });
+    res.json({
+      status: 'success',
+      data: []
+    });
+  }
 }));
 
 // ============================================================================
@@ -463,9 +473,11 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
   const { layout_id, category_id, search } = req.query;
   const tenantId = req.user.tenant_id;
 
-  // Determine which layout to use (with graceful fallback if layouts table doesn't exist)
+  // Try to use layouts if available, but fall back gracefully
   let effectiveLayoutId = layout_id || null;
+  let useLayouts = false;
   
+  // Check if layouts table exists and get default layout if needed
   if (!effectiveLayoutId) {
     try {
       const defaultLayout = await db.query(`
@@ -476,22 +488,20 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
       
       if (defaultLayout.rows.length > 0) {
         effectiveLayoutId = defaultLayout.rows[0].id;
+        useLayouts = true;
       }
     } catch (err) {
-      // pos_layouts table may not exist yet - fall back to showing all items
-      logger.info('pos_layouts table not available, falling back to all items', { error: err.message });
-      effectiveLayoutId = null;
+      // pos_layouts table doesn't exist yet - that's fine
+      logger.info('pos_layouts table not available, using all active items');
     }
+  } else {
+    useLayouts = true;
   }
 
-  let queryText;
-  let params;
-  let paramCount;
-
-  if (effectiveLayoutId) {
-    // Get items from the specified layout
+  // If we have a layout ID, try to use it
+  if (useLayouts && effectiveLayoutId) {
     try {
-      queryText = `
+      let queryText = `
         SELECT 
           i.id, i.name, i.description, i.sku,
           i.price, i.member_price, i.cost,
@@ -512,19 +522,19 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
           AND pl.tenant_id = $2
           AND i.status = 'active'
       `;
-      params = [effectiveLayoutId, tenantId];
-      paramCount = 2;
+      const params = [effectiveLayoutId, tenantId];
+      let paramCount = 2;
 
       if (category_id) {
         paramCount++;
         params.push(category_id);
-        queryText += ` AND i.category_id = ${paramCount}`;
+        queryText += ' AND i.category_id = $' + paramCount;
       }
 
       if (search) {
         paramCount++;
         params.push('%' + search + '%');
-        queryText += ` AND (i.name ILIKE ${paramCount} OR i.sku ILIKE ${paramCount})`;
+        queryText += ' AND (i.name ILIKE $' + paramCount + ' OR i.sku ILIKE $' + paramCount + ')';
       }
 
       queryText += ' ORDER BY li.display_order, i.name';
@@ -537,14 +547,13 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
         layout_id: effectiveLayoutId
       });
     } catch (err) {
-      // Layout query failed - fall back to all items
+      // Layout query failed - fall through to fallback
       logger.warn('Layout query failed, falling back to all items', { error: err.message });
-      effectiveLayoutId = null;
     }
   }
 
-  // Fallback: No layout or layout query failed, return all active items
-  queryText = `
+  // Fallback: Return all active items (no layout)
+  let queryText = `
     SELECT 
       i.id, i.name, i.description, i.sku,
       i.price, i.member_price, i.cost,
@@ -561,19 +570,19 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
     LEFT JOIN categories c ON i.category_id = c.id
     WHERE i.status = 'active' AND i.tenant_id = $1
   `;
-  params = [tenantId];
-  paramCount = 1;
+  const params = [tenantId];
+  let paramCount = 1;
 
   if (category_id) {
     paramCount++;
     params.push(category_id);
-    queryText += ` AND i.category_id = ${paramCount}`;
+    queryText += ' AND i.category_id = $' + paramCount;
   }
 
   if (search) {
     paramCount++;
     params.push('%' + search + '%');
-    queryText += ` AND (i.name ILIKE ${paramCount} OR i.sku ILIKE ${paramCount})`;
+    queryText += ' AND (i.name ILIKE $' + paramCount + ' OR i.sku ILIKE $' + paramCount + ')';
   }
 
   queryText += ' ORDER BY c.name NULLS LAST, i.name';
@@ -629,14 +638,14 @@ router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res)
   if (date) {
     paramCount++;
     params.push(date);
-    dateFilter = `DATE(created_at) = $${paramCount}`;
+    dateFilter = 'DATE(created_at) = $' + paramCount;
   } else if (start_date && end_date) {
     paramCount++;
     params.push(start_date);
     const startParam = paramCount;
     paramCount++;
     params.push(end_date);
-    dateFilter = `DATE(created_at) BETWEEN $${startParam} AND $${paramCount}`;
+    dateFilter = 'DATE(created_at) BETWEEN $' + startParam + ' AND $' + paramCount;
   }
 
   const result = await db.query(`
