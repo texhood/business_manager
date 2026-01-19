@@ -84,13 +84,17 @@ function POS() {
 
   // Fetch products
   const fetchProducts = useCallback(async () => {
+    console.log('[POS] Fetching products with layout_id:', currentLayoutId);
     try {
       const params = new URLSearchParams();
       if (currentLayoutId) params.append('layout_id', currentLayoutId);
       if (selectedCategory) params.append('category_id', selectedCategory);
       if (debouncedSearch) params.append('search', debouncedSearch);
 
-      const response = await fetch(`${API_URL}/terminal/products?${params}`, {
+      const url = `${API_URL}/terminal/products?${params}`;
+      console.log('[POS] Fetching:', url);
+      
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -98,15 +102,20 @@ function POS() {
 
       if (response.ok) {
         const data = await response.json();
-        setProducts(data.data);
+        console.log('[POS] Products received:', data.data?.length, 'items, layout_id:', data.layout_id);
+        setProducts(data.data || []);
         
         // Update layout info from response
         if (data.layout_id && !currentLayoutId) {
           setCurrentLayoutId(data.layout_id);
         }
+      } else {
+        console.error('[POS] Products fetch failed:', response.status);
+        setProducts([]);
       }
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error('[POS] Error fetching products:', error);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -144,11 +153,12 @@ function POS() {
 
   // Handle layout selection
   const handleSelectLayout = (layoutId) => {
+    setShowLayoutSettings(false);
+    setProducts([]); // Clear products while loading
+    setLoading(true);
     setCurrentLayoutId(layoutId);
     const layout = layouts.find(l => l.id === layoutId);
     setCurrentLayoutName(layout?.name || null);
-    setShowLayoutSettings(false);
-    setLoading(true);
   };
 
   // Handle edit layout
@@ -169,12 +179,25 @@ function POS() {
   const handleLayoutEditorSave = async (layoutId) => {
     setShowLayoutEditor(false);
     setEditingLayout(null);
-    await fetchLayouts();
-    setCurrentLayoutId(layoutId);
-    const layout = layouts.find(l => l.id === layoutId);
-    setCurrentLayoutName(layout?.name || 'Custom Layout');
     setLoading(true);
-    fetchProducts();
+    
+    // Fetch updated layouts list
+    try {
+      const response = await fetch(`${API_URL}/pos-layouts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setLayouts(data.data);
+        const layout = data.data.find(l => l.id === layoutId);
+        setCurrentLayoutName(layout?.name || 'Layout');
+      }
+    } catch (e) {
+      console.error('Failed to fetch layouts:', e);
+    }
+    
+    // Set the layout ID - useEffect will trigger fetchProducts
+    setCurrentLayoutId(layoutId);
   };
 
   // Handle layout editor cancel
@@ -406,6 +429,7 @@ function POS() {
 
       {showLayoutSettings && (
         <LayoutSettingsModal
+          key={Date.now()} // Force remount to refresh data
           currentLayoutId={currentLayoutId}
           onSelectLayout={handleSelectLayout}
           onEditLayout={handleEditLayout}

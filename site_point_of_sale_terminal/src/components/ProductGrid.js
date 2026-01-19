@@ -73,7 +73,7 @@ function ProductGrid({ products, loading }) {
                 📦
               </div>
             )}
-            <div className="product-name">{product.name}</div>
+            <div className="product-name">{product.display_name || product.name}</div>
             <div className="product-price">{formatPrice(product.price)}</div>
             {stockStatus && (
               <div className={`product-stock ${stockStatus.className}`}>

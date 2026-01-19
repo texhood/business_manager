@@ -501,6 +501,8 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
   // If we have a layout ID, try to use it
   if (useLayouts && effectiveLayoutId) {
     try {
+      logger.info('Fetching products for layout', { layout_id: effectiveLayoutId, tenant_id: tenantId });
+      
       let queryText = `
         SELECT 
           i.id, i.name, i.description, i.sku,
@@ -515,7 +517,7 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
           COALESCE(li.display_name, i.name) as display_name,
           li.display_color
         FROM pos_layout_items li
-        JOIN items i ON li.item_id = i.id
+        JOIN items i ON li.item_id = i.id AND i.tenant_id = $2
         LEFT JOIN categories c ON i.category_id = c.id
         JOIN pos_layouts pl ON li.layout_id = pl.id
         WHERE li.layout_id = $1 
@@ -540,6 +542,8 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
       queryText += ' ORDER BY li.display_order, i.name';
 
       const result = await db.query(queryText, params);
+      
+      logger.info('Layout products query result', { layout_id: effectiveLayoutId, count: result.rows.length });
 
       return res.json({
         status: 'success',
