@@ -21,7 +21,7 @@ function RestaurantPOS() {
   const { isConnected, reader, connectionStatus } = useTerminal();
   
   // Track ready orders for notification
-  const [prevReadyOrderIds, setPrevReadyOrderIds] = useState(new Set());
+  const prevReadyOrderIdsRef = useRef(new Set());
   const [soundEnabled, setSoundEnabled] = useState(true);
   const readyAudioRef = useRef(null);
 
@@ -106,20 +106,20 @@ function RestaurantPOS() {
         );
         
         // Find orders that just became ready
-        const newlyReady = [...currentReadyIds].filter(id => !prevReadyOrderIds.has(id));
+        const newlyReady = [...currentReadyIds].filter(id => !prevReadyOrderIdsRef.current.has(id));
         
-        if (newlyReady.length > 0 && prevReadyOrderIds.size > 0) {
+        if (newlyReady.length > 0 && prevReadyOrderIdsRef.current.size > 0) {
           // Only play sound if this isn't the initial load
           playReadySound();
         }
         
-        setPrevReadyOrderIds(currentReadyIds);
+        prevReadyOrderIdsRef.current = currentReadyIds;
         setOrders(newOrders);
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
-  }, [token, prevReadyOrderIds, playReadySound]);
+  }, [token, playReadySound]);
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
