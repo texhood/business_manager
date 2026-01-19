@@ -371,7 +371,7 @@ const importConfigs = {
     preprocess: true,
     insertQuery: `
       INSERT INTO vendors (tenant_id, name, display_name, contact_name, email, phone, address_line1, address_line2, city, state, postal_code, country, website, tax_id, payment_terms, notes, default_expense_account_id, default_class_id, is_active)
-      VALUES ($1, $2, COALESCE($3, $2), $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12, 'USA'), $13, $14, $15, $16, $17, $18, COALESCE($19::boolean, true))
+      VALUES ($1, $2, COALESCE($3::varchar, $2::varchar), $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12, 'USA'), $13, $14, $15, $16, $17, $18, COALESCE($19::boolean, true))
       ON CONFLICT (tenant_id, name) DO UPDATE SET
         display_name = EXCLUDED.display_name,
         contact_name = EXCLUDED.contact_name,
@@ -442,9 +442,27 @@ const importConfigs = {
     required: ['name'],
     insertQuery: `
       INSERT INTO modifications (tenant_id, name, display_name, price_adjustment, category, sort_order, is_active)
-      VALUES ($1, $2, COALESCE($3, $2), COALESCE($4::numeric, 0), COALESCE($5, 'general'), COALESCE($6::integer, 0), COALESCE($7::boolean, true))
+      VALUES ($1, $2, COALESCE($3::varchar, $2::varchar), COALESCE($4::numeric, 0), COALESCE($5::varchar, 'general'), COALESCE($6::integer, 0), COALESCE($7::boolean, true))
       RETURNING id, name
     `
+  },
+
+  // ============================================================================
+  // CONTENT
+  // ============================================================================
+
+  // Blog Posts
+  blog_posts: {
+    label: 'Blog Posts',
+    category: 'Content',
+    columns: ['title', 'slug', 'excerpt', 'content', 'featured_image', 'author_name', 'status', 'published_at', 'tags', 'meta_title', 'meta_description'],
+    required: ['title', 'content'],
+    validations: {
+      status: ['draft', 'published', 'archived']
+    },
+    notes: 'Tags should be comma-separated (e.g., "farm life, recipes, news"). Status defaults to draft. Slug auto-generated from title if not provided.',
+    preprocess: false,
+    customImport: true
   }
 };
 
@@ -470,7 +488,7 @@ router.get('/types', async (req, res) => {
     }));
 
     // Group by category with specific order
-    const categoryOrder = ['Livestock Reference', 'Livestock', 'Inventory', 'Accounting', 'Operations', 'Food Service'];
+    const categoryOrder = ['Livestock Reference', 'Livestock', 'Inventory', 'Accounting', 'Operations', 'Food Service', 'Content'];
     const grouped = {};
     
     categoryOrder.forEach(cat => {
@@ -539,6 +557,12 @@ router.get('/template/:type', (req, res) => {
       'ST-001,2024-06-15,Smith Ranch,,,,,,,,,,,,Hauling Fee,Delivery to buyer,75.00,false,,',
       '// Another ticket with payment received',
       'ST-002,2024-06-20,Johnson Family,jane@jfarms.com,Cash sale,24-110,,Calf,Angus,1,600,,,1500.00,Price per head sale,,,,true,2024-06-20,Check #1234'
+    ];
+  } else if (type === 'blog_posts') {
+    // Sample blog post rows
+    sampleRows = [
+      '"Spring Calving Season Update",spring-calving-2024,"Our herd welcomed 15 new calves this spring!","<p>Spring has arrived at Hood Family Farms...</p>",https://example.com/images/calves.jpg,Robin Hood,published,2024-03-15,"farm life, livestock, cattle",Spring Calving Season | Hood Family Farms,New calves born this spring at our farm',
+      '"Farm-Fresh Recipes: Lamb Chops",lamb-chop-recipe,"Simple and delicious lamb chop recipe","<p>Nothing beats farm-fresh lamb...</p>",,Robin Hood,draft,,"recipes, lamb",Lamb Chop Recipe,Easy lamb chop recipe from our farm'
     ];
   } else {
     // Default hint row
@@ -723,6 +747,8 @@ router.post('/execute/:type', upload.single('file'), async (req, res) => {
         await importAnimals(client, records, tenantId, lookups, results);
       } else if (type === 'sale_tickets') {
         await importSaleTickets(client, records, tenantId, lookups, results);
+      } else if (type === 'blog_posts') {
+        await importBlogPosts(client, records, tenantId, results);
       }
     } else {
       // Standard import
@@ -1423,6 +1449,196 @@ async function importSaleTickets(client, records, tenantId, lookups, results) {
 
     } catch (err) {
       results.errors.push({ row: ticketData.rows.join(', '), error: err.message });
+    }
+  }
+}
+
+/**
+ * Import blog posts with slug generation and tag parsing
+ * Features:
+ * 1. Auto-generates slugs from titles if not provided
+ * 2. Converts comma-separated tags to PostgreSQL array format
+ * 3. Auto-sets published_at for published status
+ * 4. Upserts based on slug (updates existing posts)
+ * 5. Tenant-aware with tenant_id column
+ */
+async function importBlogPosts(client, records, tenantId, results) {
+  const getValue = (record, key) => record[key] === '' ? null : record[key];
+  
+  /**
+   * Generate URL-friendly slug from title
+   */
+  const generateSlug = (title) => {
+    return title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')  // Replace non-alphanumeric with hyphens
+      .replace(/^-+|-+$/g, '')       // Trim leading/trailing hyphens
+      .substring(0, 200);            // Limit length
+  };
+  
+  /**
+   * Parse comma-separated tags into array
+   * Handles quoted strings and trims whitespace
+   */
+  const parseTags = (tagsString) => {
+    if (!tagsString || tagsString.trim() === '') {
+      return null;
+    }
+    
+    // Split by comma, trim each tag, filter empty
+    const tags = tagsString
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0);
+    
+    return tags.length > 0 ? tags : null;
+  };
+  
+  // Track slugs we've used in this import to ensure uniqueness within this tenant
+  const usedSlugs = new Set();
+  
+  // Load existing slugs for this tenant only (per-tenant uniqueness)
+  const existingSlugsResult = await client.query(
+    'SELECT slug FROM blog_posts WHERE tenant_id = $1',
+    [tenantId]
+  );
+  existingSlugsResult.rows.forEach(row => usedSlugs.add(row.slug));
+  
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    const rowNum = i + 2;
+    
+    try {
+      // Skip template/sample rows
+      if (record.title === 'REQUIRED' || record.content === 'REQUIRED') {
+        results.skipped.push({ row: rowNum, reason: 'Template/sample row' });
+        continue;
+      }
+      
+      // Skip rows that look like human-readable column labels
+      const titleLower = (record.title || '').toLowerCase().trim();
+      if (titleLower === 'title' || titleLower === 'post title') {
+        results.skipped.push({ row: rowNum, reason: 'Human-readable header row' });
+        continue;
+      }
+      
+      // Validate required fields
+      if (!record.title || record.title.trim() === '') {
+        results.errors.push({ row: rowNum, error: 'Missing required field: title' });
+        continue;
+      }
+      
+      if (!record.content || record.content.trim() === '') {
+        results.errors.push({ row: rowNum, error: 'Missing required field: content' });
+        continue;
+      }
+      
+      // 1. Generate or use provided slug
+      let slug = getValue(record, 'slug');
+      if (!slug) {
+        slug = generateSlug(record.title);
+      }
+      
+      // Ensure slug uniqueness within this tenant
+      let baseSlug = slug;
+      let slugCounter = 1;
+      while (usedSlugs.has(slug)) {
+        // Slug exists for this tenant - append counter to make unique
+        slug = `${baseSlug}-${slugCounter++}`;
+      }
+      usedSlugs.add(slug);
+      
+      // 2. Parse tags from comma-separated string to array
+      const tags = parseTags(getValue(record, 'tags'));
+      
+      // 3. Validate and normalize status
+      let status = getValue(record, 'status') || 'draft';
+      status = status.toLowerCase().trim();
+      if (!['draft', 'published', 'archived'].includes(status)) {
+        results.errors.push({ 
+          row: rowNum, 
+          error: `Invalid status: "${record.status}". Must be draft, published, or archived.` 
+        });
+        continue;
+      }
+      
+      // 4. Handle published_at date logic
+      let publishedAt = null;
+      const providedPublishedAt = parseDate(getValue(record, 'published_at'));
+      
+      if (status === 'published') {
+        // Use provided date or current timestamp for published posts
+        publishedAt = providedPublishedAt || new Date().toISOString();
+      } else if (providedPublishedAt) {
+        // Keep provided date even for draft/archived (for scheduling)
+        publishedAt = providedPublishedAt;
+      }
+      
+      // Prepare other fields
+      const title = record.title.trim();
+      const excerpt = getValue(record, 'excerpt');
+      const content = record.content;
+      const featuredImage = getValue(record, 'featured_image');
+      const authorName = getValue(record, 'author_name');
+      const metaTitle = getValue(record, 'meta_title') || title;
+      const metaDescription = getValue(record, 'meta_description') || excerpt;
+      
+      // 5. Insert/upsert into blog_posts table with tenant_id
+      // Uses composite unique constraint (tenant_id, slug) for per-tenant uniqueness
+      const insertQuery = `
+        INSERT INTO blog_posts (
+          tenant_id, slug, title, excerpt, content, featured_image, author_name,
+          status, published_at, tags, meta_title, meta_description
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamp, $10::text[], $11, $12)
+        ON CONFLICT (tenant_id, slug) DO UPDATE SET
+          title = EXCLUDED.title,
+          excerpt = EXCLUDED.excerpt,
+          content = EXCLUDED.content,
+          featured_image = EXCLUDED.featured_image,
+          author_name = EXCLUDED.author_name,
+          status = EXCLUDED.status,
+          published_at = COALESCE(EXCLUDED.published_at, blog_posts.published_at),
+          tags = EXCLUDED.tags,
+          meta_title = EXCLUDED.meta_title,
+          meta_description = EXCLUDED.meta_description,
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING id, slug, title, status
+      `;
+      
+      const params = [
+        tenantId,
+        slug,
+        title,
+        excerpt,
+        content,
+        featuredImage,
+        authorName,
+        status,
+        publishedAt,
+        tags,
+        metaTitle,
+        metaDescription
+      ];
+      
+      const result = await client.query(insertQuery, params);
+      
+      if (result.rows.length > 0) {
+        const post = result.rows[0];
+        results.success.push({ 
+          row: rowNum, 
+          record: {
+            id: post.id,
+            slug: post.slug,
+            title: post.title,
+            status: post.status,
+            tags: tags ? tags.length : 0
+          }
+        });
+      }
+      
+    } catch (err) {
+      results.errors.push({ row: rowNum, error: err.message });
     }
   }
 }
