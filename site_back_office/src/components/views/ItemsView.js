@@ -1,9 +1,10 @@
 /**
  * ItemsView Component
  * Full CRUD for products and inventory management
+ * Tabbed interface by status with full item loading
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Icons } from '../common/Icons';
 import { formatCurrency } from '../../utils/formatters';
 import { itemsService, categoriesService, tagsService } from '../../services/api';
@@ -23,7 +24,7 @@ const ItemsView = () => {
   const [typeFilter, setTypeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [stockFilter, setStockFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'active', 'inactive', 'draft'
   const [message, setMessage] = useState(null);
   
   // Modal state
@@ -63,7 +64,7 @@ const ItemsView = () => {
     setLoading(true);
     try {
       const [itemsRes, catsRes, tagsRes] = await Promise.all([
-        itemsService.getAll({ include_all_statuses: 'true' }),
+        itemsService.getAll({ include_all_statuses: 'true', limit: 10000 }),
         categoriesService.getAll(true),
         tagsService.getAll(),
       ]);
@@ -89,20 +90,37 @@ const ItemsView = () => {
     }
   }, [message]);
 
-  const filtered = items.filter(item => {
-    const matchSearch = !search || 
-      item.name?.toLowerCase().includes(search.toLowerCase()) || 
-      item.sku?.toLowerCase().includes(search.toLowerCase()) ||
-      item.description?.toLowerCase().includes(search.toLowerCase());
-    const matchType = !typeFilter || item.item_type === typeFilter;
-    const matchCategory = !categoryFilter || String(item.category_id) === categoryFilter;
-    const matchStock = !stockFilter || 
-      (stockFilter === 'in' && item.stock_status === 'in') ||
-      (stockFilter === 'low' && item.stock_status === 'low') ||
-      (stockFilter === 'out' && item.stock_status === 'out');
-    const matchStatus = !statusFilter || item.status === statusFilter;
-    return matchSearch && matchType && matchCategory && matchStock && matchStatus;
-  });
+  // Count items by status
+  const statusCounts = useMemo(() => ({
+    all: items.length,
+    active: items.filter(i => i.status === 'active').length,
+    inactive: items.filter(i => i.status === 'inactive').length,
+    draft: items.filter(i => i.status === 'draft').length,
+  }), [items]);
+
+  // Filter items based on active tab and other filters
+  const filtered = useMemo(() => {
+    return items.filter(item => {
+      // Status tab filter
+      const matchTab = activeTab === 'all' || item.status === activeTab;
+      
+      // Search filter
+      const matchSearch = !search || 
+        item.name?.toLowerCase().includes(search.toLowerCase()) || 
+        item.sku?.toLowerCase().includes(search.toLowerCase()) ||
+        item.description?.toLowerCase().includes(search.toLowerCase());
+      
+      // Other filters
+      const matchType = !typeFilter || item.item_type === typeFilter;
+      const matchCategory = !categoryFilter || String(item.category_id) === categoryFilter;
+      const matchStock = !stockFilter || 
+        (stockFilter === 'in' && item.stock_status === 'in') ||
+        (stockFilter === 'low' && item.stock_status === 'low') ||
+        (stockFilter === 'out' && item.stock_status === 'out');
+      
+      return matchTab && matchSearch && matchType && matchCategory && matchStock;
+    });
+  }, [items, activeTab, search, typeFilter, categoryFilter, stockFilter]);
 
   const resetForm = () => {
     setForm({
@@ -263,19 +281,37 @@ const ItemsView = () => {
     return <span className="badge badge-green">In Stock</span>;
   };
 
-  // Count items by status
-  const statusCounts = {
-    active: items.filter(i => i.status === 'active').length,
-    inactive: items.filter(i => i.status === 'inactive').length,
-    draft: items.filter(i => i.status === 'draft').length,
-  };
+  // Tab styles
+  const tabStyle = (tabName) => ({
+    padding: '12px 24px',
+    border: 'none',
+    borderBottom: activeTab === tabName ? '3px solid #2d5016' : '3px solid transparent',
+    background: activeTab === tabName ? '#f0f7eb' : 'transparent',
+    color: activeTab === tabName ? '#2d5016' : '#666',
+    fontWeight: activeTab === tabName ? 600 : 400,
+    cursor: 'pointer',
+    fontSize: '0.95rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    transition: 'all 0.2s',
+  });
+
+  const countBadgeStyle = (tabName) => ({
+    background: activeTab === tabName ? '#2d5016' : '#e0e0e0',
+    color: activeTab === tabName ? 'white' : '#666',
+    padding: '2px 8px',
+    borderRadius: 12,
+    fontSize: '0.8rem',
+    fontWeight: 500,
+  });
 
   return (
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1>Items</h1>
-          <p className="subtitle">Manage products and inventory</p>
+          <p className="subtitle">Manage products and inventory ({items.length} total)</p>
         </div>
         <button className="btn btn-primary" onClick={openCreateModal}>
           <Icons.Plus /> Add Item
@@ -294,48 +330,37 @@ const ItemsView = () => {
         </div>
       )}
 
-      {/* Status Summary Cards */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-        <div 
-          style={{ 
-            flex: 1, background: statusFilter === 'active' ? '#c8e6c9' : '#e8f5e9', 
-            padding: 16, borderRadius: 8, cursor: 'pointer',
-            border: statusFilter === 'active' ? '2px solid #2e7d32' : '2px solid transparent'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'active' ? '' : 'active')}
-        >
-          <div style={{ fontSize: 12, color: '#2e7d32', textTransform: 'uppercase', marginBottom: 4 }}>Active</div>
-          <div style={{ fontSize: 24, fontWeight: 600, color: '#2e7d32' }}>{statusCounts.active}</div>
-          <div style={{ fontSize: 11, color: '#666' }}>Visible & available</div>
-        </div>
-        <div 
-          style={{ 
-            flex: 1, background: statusFilter === 'draft' ? '#fff3cd' : '#fff8e1', 
-            padding: 16, borderRadius: 8, cursor: 'pointer',
-            border: statusFilter === 'draft' ? '2px solid #f57c00' : '2px solid transparent'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'draft' ? '' : 'draft')}
-        >
-          <div style={{ fontSize: 12, color: '#f57c00', textTransform: 'uppercase', marginBottom: 4 }}>Draft</div>
-          <div style={{ fontSize: 24, fontWeight: 600, color: '#f57c00' }}>{statusCounts.draft}</div>
-          <div style={{ fontSize: 11, color: '#666' }}>Work in progress</div>
-        </div>
-        <div 
-          style={{ 
-            flex: 1, background: statusFilter === 'inactive' ? '#ffcdd2' : '#ffebee', 
-            padding: 16, borderRadius: 8, cursor: 'pointer',
-            border: statusFilter === 'inactive' ? '2px solid #c62828' : '2px solid transparent'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'inactive' ? '' : 'inactive')}
-        >
-          <div style={{ fontSize: 12, color: '#c62828', textTransform: 'uppercase', marginBottom: 4 }}>Inactive</div>
-          <div style={{ fontSize: 24, fontWeight: 600, color: '#c62828' }}>{statusCounts.inactive}</div>
-          <div style={{ fontSize: 11, color: '#666' }}>Hidden & disabled</div>
-        </div>
+      {/* Status Tabs */}
+      <div style={{ 
+        display: 'flex', 
+        borderBottom: '1px solid #ddd', 
+        marginBottom: 20,
+        background: 'white',
+        borderRadius: '8px 8px 0 0',
+      }}>
+        <button style={tabStyle('all')} onClick={() => setActiveTab('all')}>
+          All Items
+          <span style={countBadgeStyle('all')}>{statusCounts.all}</span>
+        </button>
+        <button style={tabStyle('active')} onClick={() => setActiveTab('active')}>
+          <span style={{ color: activeTab === 'active' ? '#2e7d32' : '#2e7d32' }}>●</span>
+          Active
+          <span style={countBadgeStyle('active')}>{statusCounts.active}</span>
+        </button>
+        <button style={tabStyle('draft')} onClick={() => setActiveTab('draft')}>
+          <span style={{ color: activeTab === 'draft' ? '#f57c00' : '#f57c00' }}>●</span>
+          Draft
+          <span style={countBadgeStyle('draft')}>{statusCounts.draft}</span>
+        </button>
+        <button style={tabStyle('inactive')} onClick={() => setActiveTab('inactive')}>
+          <span style={{ color: activeTab === 'inactive' ? '#c62828' : '#c62828' }}>●</span>
+          Inactive
+          <span style={countBadgeStyle('inactive')}>{statusCounts.inactive}</span>
+        </button>
       </div>
 
       {/* Filters Row */}
-      <div className="toolbar" style={{ flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+      <div className="toolbar" style={{ flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div className="search-box">
           <Icons.Search />
           <input 
@@ -367,24 +392,38 @@ const ItemsView = () => {
           <option value="out">Out of Stock</option>
         </select>
 
-        {statusFilter && (
-          <button className="btn btn-secondary" onClick={() => setStatusFilter('')}>
-            <Icons.X /> Clear Status Filter
+        {(search || typeFilter || categoryFilter || stockFilter) && (
+          <button 
+            className="btn btn-secondary" 
+            onClick={() => {
+              setSearch('');
+              setTypeFilter('');
+              setCategoryFilter('');
+              setStockFilter('');
+            }}
+          >
+            <Icons.X /> Clear Filters
           </button>
         )}
       </div>
 
+      {/* Results Summary */}
+      <div style={{ marginBottom: 12, color: '#666', fontSize: '0.9rem' }}>
+        Showing {filtered.length} of {statusCounts[activeTab]} {activeTab === 'all' ? 'items' : `${activeTab} items`}
+        {(search || typeFilter || categoryFilter || stockFilter) && ' (filtered)'}
+      </div>
+
       {/* Items Table */}
       <div className="card">
-        <div className="table-container">
+        <div className="table-container" style={{ maxHeight: 'calc(100vh - 380px)', overflowY: 'auto' }}>
           <table>
-            <thead>
+            <thead style={{ position: 'sticky', top: 0, background: 'white', zIndex: 1 }}>
               <tr>
                 <th>SKU</th>
                 <th>Name</th>
                 <th>Category</th>
                 <th>Type</th>
-                <th>Status</th>
+                {activeTab === 'all' && <th>Status</th>}
                 <th style={{ textAlign: 'right' }}>Price</th>
                 <th style={{ textAlign: 'right' }}>Qty</th>
                 <th>Stock</th>
@@ -394,20 +433,20 @@ const ItemsView = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="9" style={{ textAlign: 'center', padding: 40 }}>
-                    <Icons.Loader /> Loading...
+                  <td colSpan={activeTab === 'all' ? 9 : 8} style={{ textAlign: 'center', padding: 40 }}>
+                    <Icons.Loader /> Loading items...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="9" style={{ textAlign: 'center', padding: 40, color: '#888' }}>
+                  <td colSpan={activeTab === 'all' ? 9 : 8} style={{ textAlign: 'center', padding: 40, color: '#888' }}>
                     No items found
                   </td>
                 </tr>
               ) : (
                 filtered.map(item => (
                   <tr key={item.id} style={{ opacity: item.status === 'inactive' ? 0.6 : 1 }}>
-                    <td style={{ fontFamily: 'monospace' }}>{item.sku}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{item.sku}</td>
                     <td>
                       <strong>{item.name}</strong>
                       {item.is_featured && <span className="badge badge-yellow" style={{ marginLeft: 8 }}>Featured</span>}
@@ -418,7 +457,7 @@ const ItemsView = () => {
                         {item.item_type}
                       </span>
                     </td>
-                    <td>{getStatusBadge(item.status)}</td>
+                    {activeTab === 'all' && <td>{getStatusBadge(item.status)}</td>}
                     <td style={{ textAlign: 'right' }}>{formatCurrency(item.price)}</td>
                     <td style={{ textAlign: 'right' }}>
                       {item.item_type === 'inventory' ? (
