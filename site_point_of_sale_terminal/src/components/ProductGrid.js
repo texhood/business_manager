@@ -68,7 +68,7 @@ function ProductGrid({ products, loading }) {
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'center',
-                fontSize: '2rem'
+                fontSize: '1.25rem'
               }}>
                 📦
               </div>
