@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useTerminal } from '../context/TerminalContext';
@@ -20,7 +20,24 @@ function POS() {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const searchTimeoutRef = useRef(null);
+
+  // Debounce search input
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]);
   
   const [showCashModal, setShowCashModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
@@ -33,7 +50,7 @@ function POS() {
     try {
       const params = new URLSearchParams();
       if (selectedCategory) params.append('category_id', selectedCategory);
-      if (searchQuery) params.append('search', searchQuery);
+      if (debouncedSearch) params.append('search', debouncedSearch);
 
       const response = await fetch(`${API_URL}/terminal/products?${params}`, {
         headers: {
@@ -50,7 +67,7 @@ function POS() {
     } finally {
       setLoading(false);
     }
-  }, [token, selectedCategory, searchQuery]);
+  }, [token, selectedCategory, debouncedSearch]);
 
   // Fetch categories
   const fetchCategories = useCallback(async () => {
