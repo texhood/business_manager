@@ -457,24 +457,30 @@ router.get('/layouts', authenticate, requireStaff, asyncHandler(async (req, res)
  * Get products for POS display based on layout
  * If layout_id provided, returns only items in that layout
  * If no layout_id, uses the tenant's default layout
- * Falls back to all active items if no layout exists
+ * Falls back to all active items if no layout exists or layouts feature not available
  */
 router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { layout_id, category_id, search } = req.query;
   const tenantId = req.user.tenant_id;
 
-  // Determine which layout to use
-  let effectiveLayoutId = layout_id;
+  // Determine which layout to use (with graceful fallback if layouts table doesn't exist)
+  let effectiveLayoutId = layout_id || null;
   
   if (!effectiveLayoutId) {
-    const defaultLayout = await db.query(`
-      SELECT id FROM pos_layouts 
-      WHERE tenant_id = $1 AND is_default = true AND is_active = true
-      LIMIT 1
-    `, [tenantId]);
-    
-    if (defaultLayout.rows.length > 0) {
-      effectiveLayoutId = defaultLayout.rows[0].id;
+    try {
+      const defaultLayout = await db.query(`
+        SELECT id FROM pos_layouts 
+        WHERE tenant_id = $1 AND is_default = true AND is_active = true
+        LIMIT 1
+      `, [tenantId]);
+      
+      if (defaultLayout.rows.length > 0) {
+        effectiveLayoutId = defaultLayout.rows[0].id;
+      }
+    } catch (err) {
+      // pos_layouts table may not exist yet - fall back to showing all items
+      logger.info('pos_layouts table not available, falling back to all items', { error: err.message });
+      effectiveLayoutId = null;
     }
   }
 
@@ -484,86 +490,100 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
 
   if (effectiveLayoutId) {
     // Get items from the specified layout
-    queryText = `
-      SELECT 
-        i.id, i.name, i.description, i.sku,
-        i.price, i.member_price, i.cost,
-        i.image_url, i.inventory_quantity, i.item_type,
-        i.low_stock_threshold,
-        i.stripe_product_id, i.stripe_price_id,
-        c.id as category_id, c.name as category_name,
-        li.display_order,
-        li.grid_row,
-        li.grid_column,
-        COALESCE(li.display_name, i.name) as display_name,
-        li.display_color
-      FROM pos_layout_items li
-      JOIN items i ON li.item_id = i.id
-      LEFT JOIN categories c ON i.category_id = c.id
-      JOIN pos_layouts pl ON li.layout_id = pl.id
-      WHERE li.layout_id = $1 
-        AND pl.tenant_id = $2
-        AND i.status = 'active'
-    `;
-    params = [effectiveLayoutId, tenantId];
-    paramCount = 2;
+    try {
+      queryText = `
+        SELECT 
+          i.id, i.name, i.description, i.sku,
+          i.price, i.member_price, i.cost,
+          i.image_url, i.inventory_quantity, i.item_type,
+          i.low_stock_threshold,
+          i.stripe_product_id, i.stripe_price_id,
+          c.id as category_id, c.name as category_name,
+          li.display_order,
+          li.grid_row,
+          li.grid_column,
+          COALESCE(li.display_name, i.name) as display_name,
+          li.display_color
+        FROM pos_layout_items li
+        JOIN items i ON li.item_id = i.id
+        LEFT JOIN categories c ON i.category_id = c.id
+        JOIN pos_layouts pl ON li.layout_id = pl.id
+        WHERE li.layout_id = $1 
+          AND pl.tenant_id = $2
+          AND i.status = 'active'
+      `;
+      params = [effectiveLayoutId, tenantId];
+      paramCount = 2;
 
-    if (category_id) {
-      paramCount++;
-      params.push(category_id);
-      queryText += ` AND i.category_id = $${paramCount}`;
+      if (category_id) {
+        paramCount++;
+        params.push(category_id);
+        queryText += ` AND i.category_id = ${paramCount}`;
+      }
+
+      if (search) {
+        paramCount++;
+        params.push('%' + search + '%');
+        queryText += ` AND (i.name ILIKE ${paramCount} OR i.sku ILIKE ${paramCount})`;
+      }
+
+      queryText += ' ORDER BY li.display_order, i.name';
+
+      const result = await db.query(queryText, params);
+
+      return res.json({
+        status: 'success',
+        data: result.rows,
+        layout_id: effectiveLayoutId
+      });
+    } catch (err) {
+      // Layout query failed - fall back to all items
+      logger.warn('Layout query failed, falling back to all items', { error: err.message });
+      effectiveLayoutId = null;
     }
-
-    if (search) {
-      paramCount++;
-      params.push('%' + search + '%');
-      queryText += ` AND (i.name ILIKE $${paramCount} OR i.sku ILIKE $${paramCount})`;
-    }
-
-    queryText += ' ORDER BY li.display_order, i.name';
-  } else {
-    // Fallback: No layout, return all active items
-    queryText = `
-      SELECT 
-        i.id, i.name, i.description, i.sku,
-        i.price, i.member_price, i.cost,
-        i.image_url, i.inventory_quantity, i.item_type,
-        i.low_stock_threshold,
-        i.stripe_product_id, i.stripe_price_id,
-        c.id as category_id, c.name as category_name,
-        0 as display_order,
-        NULL as grid_row,
-        NULL as grid_column,
-        i.name as display_name,
-        NULL as display_color
-      FROM items i
-      LEFT JOIN categories c ON i.category_id = c.id
-      WHERE i.status = 'active' AND i.tenant_id = $1
-    `;
-    params = [tenantId];
-    paramCount = 1;
-
-    if (category_id) {
-      paramCount++;
-      params.push(category_id);
-      queryText += ` AND i.category_id = $${paramCount}`;
-    }
-
-    if (search) {
-      paramCount++;
-      params.push('%' + search + '%');
-      queryText += ` AND (i.name ILIKE $${paramCount} OR i.sku ILIKE $${paramCount})`;
-    }
-
-    queryText += ' ORDER BY c.name NULLS LAST, i.name';
   }
+
+  // Fallback: No layout or layout query failed, return all active items
+  queryText = `
+    SELECT 
+      i.id, i.name, i.description, i.sku,
+      i.price, i.member_price, i.cost,
+      i.image_url, i.inventory_quantity, i.item_type,
+      i.low_stock_threshold,
+      i.stripe_product_id, i.stripe_price_id,
+      c.id as category_id, c.name as category_name,
+      0 as display_order,
+      NULL as grid_row,
+      NULL as grid_column,
+      i.name as display_name,
+      NULL as display_color
+    FROM items i
+    LEFT JOIN categories c ON i.category_id = c.id
+    WHERE i.status = 'active' AND i.tenant_id = $1
+  `;
+  params = [tenantId];
+  paramCount = 1;
+
+  if (category_id) {
+    paramCount++;
+    params.push(category_id);
+    queryText += ` AND i.category_id = ${paramCount}`;
+  }
+
+  if (search) {
+    paramCount++;
+    params.push('%' + search + '%');
+    queryText += ` AND (i.name ILIKE ${paramCount} OR i.sku ILIKE ${paramCount})`;
+  }
+
+  queryText += ' ORDER BY c.name NULLS LAST, i.name';
 
   const result = await db.query(queryText, params);
 
   res.json({
     status: 'success',
     data: result.rows,
-    layout_id: effectiveLayoutId || null
+    layout_id: null
   });
 }));
 
