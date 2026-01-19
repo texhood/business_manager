@@ -549,6 +549,41 @@ body {
   background: rgba(255,255,255,0.2);
 }
 
+/* Layout Selector */
+.layout-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: white;
+  padding: 6px 12px;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: var(--transition);
+}
+
+.layout-selector:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.layout-icon {
+  font-size: 1rem;
+}
+
+.layout-name-display {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-arrow {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
 /* ============================================================================
    Modal
    ============================================================================ */
