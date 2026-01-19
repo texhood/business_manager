@@ -47,6 +47,7 @@ const dataImportRouter = require('./routes/dataImport');
 const vendorsRouter = require('./routes/vendors');
 const adminRouter = require('./routes/admin');
 const tenantsRouter = require('./routes/tenants');
+const posLayoutsRouter = require('./routes/pos-layouts');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -227,6 +228,7 @@ app.use(`${API_PREFIX}/data-import`, dataImportRouter);
 app.use(`${API_PREFIX}/vendors`, vendorsRouter);
 app.use(`${API_PREFIX}/admin`, adminRouter);
 app.use(`${API_PREFIX}/tenants`, tenantsRouter);
+app.use(`${API_PREFIX}/pos-layouts`, posLayoutsRouter);
 
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {

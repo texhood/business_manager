@@ -159,7 +159,7 @@ router.post('/payment-intents', authenticate, requireStaff, asyncHandler(async (
   }
 
   const paymentIntent = await stripe.paymentIntents.create({
-    amount: Math.round(amount), // Amount in cents
+    amount: Math.round(amount),
     currency: 'usd',
     payment_method_types: ['card_present'],
     capture_method: 'automatic',
@@ -260,7 +260,7 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
     subtotal, 
     tax_amount, 
     total, 
-    payment_method, // 'card' or 'cash'
+    payment_method,
     payment_intent_id,
     cash_received,
     change_given,
@@ -271,13 +271,11 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
     throw new ApiError(400, 'Order must have at least one item');
   }
 
-  // Start transaction
   const client = await db.getClient();
   
   try {
     await client.query('BEGIN');
 
-    // Create the order
     const orderResult = await client.query(`
       INSERT INTO pos_orders (
         order_number, subtotal, tax_amount, total, 
@@ -304,7 +302,6 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
 
     const order = orderResult.rows[0];
 
-    // Insert order items
     for (const item of items) {
       await client.query(`
         INSERT INTO pos_order_items (
@@ -319,7 +316,6 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
         item.total_price
       ]);
 
-      // Optionally update inventory for inventory-type items
       if (item.item_id) {
         await client.query(`
           UPDATE items 
@@ -374,19 +370,19 @@ router.get('/orders', authenticate, requireStaff, asyncHandler(async (req, res) 
   if (date) {
     paramCount++;
     params.push(date);
-    queryText += ' AND DATE(o.created_at) = $' + paramCount;
+    queryText += ` AND DATE(o.created_at) = $${paramCount}`;
   } else if (start_date && end_date) {
     paramCount++;
     params.push(start_date);
-    queryText += ' AND DATE(o.created_at) >= $' + paramCount;
+    queryText += ` AND DATE(o.created_at) >= $${paramCount}`;
     paramCount++;
     params.push(end_date);
-    queryText += ' AND DATE(o.created_at) <= $' + paramCount;
+    queryText += ` AND DATE(o.created_at) <= $${paramCount}`;
   }
 
   paramCount++;
   params.push(parseInt(limit));
-  queryText += ' ORDER BY o.created_at DESC LIMIT $' + paramCount;
+  queryText += ` ORDER BY o.created_at DESC LIMIT $${paramCount}`;
 
   const result = await db.query(queryText, params);
 
@@ -429,51 +425,145 @@ router.get('/orders/:orderId', authenticate, requireStaff, asyncHandler(async (r
 }));
 
 // ============================================================================
+// LAYOUTS - Get available layouts for this terminal
+// ============================================================================
+
+/**
+ * GET /terminal/layouts
+ * Get available POS layouts for this tenant
+ */
+router.get('/layouts', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
+
+  const result = await db.query(`
+    SELECT id, name, description, is_default, grid_columns
+    FROM pos_layouts
+    WHERE tenant_id = $1 AND is_active = true
+    ORDER BY is_default DESC, name
+  `, [tenantId]);
+
+  res.json({
+    status: 'success',
+    data: result.rows
+  });
+}));
+
+// ============================================================================
 // PRODUCTS - Get items for POS display
 // ============================================================================
 
 /**
  * GET /terminal/products
- * Get all active products for POS display (tenant-scoped)
+ * Get products for POS display based on layout
+ * If layout_id provided, returns only items in that layout
+ * If no layout_id, uses the tenant's default layout
+ * Falls back to all active items if no layout exists
  */
 router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res) => {
-  const { category_id, search } = req.query;
+  const { layout_id, category_id, search } = req.query;
   const tenantId = req.user.tenant_id;
 
-  let queryText = `
-    SELECT 
-      i.id, i.name, i.description, i.sku,
-      i.price, i.member_price, i.cost,
-      i.image_url, i.inventory_quantity, i.item_type,
-      i.low_stock_threshold,
-      i.stripe_product_id, i.stripe_price_id,
-      c.id as category_id, c.name as category_name
-    FROM items i
-    LEFT JOIN categories c ON i.category_id = c.id
-    WHERE i.status = 'active' AND i.tenant_id = $1
-  `;
-  const params = [tenantId];
-  let paramCount = 1;
-
-  if (category_id) {
-    paramCount++;
-    params.push(category_id);
-    queryText += ' AND i.category_id = $' + paramCount;
+  // Determine which layout to use
+  let effectiveLayoutId = layout_id;
+  
+  if (!effectiveLayoutId) {
+    const defaultLayout = await db.query(`
+      SELECT id FROM pos_layouts 
+      WHERE tenant_id = $1 AND is_default = true AND is_active = true
+      LIMIT 1
+    `, [tenantId]);
+    
+    if (defaultLayout.rows.length > 0) {
+      effectiveLayoutId = defaultLayout.rows[0].id;
+    }
   }
 
-  if (search) {
-    paramCount++;
-    params.push('%' + search + '%');
-    queryText += ' AND (i.name ILIKE $' + paramCount + ' OR i.sku ILIKE $' + paramCount + ')';
-  }
+  let queryText;
+  let params;
+  let paramCount;
 
-  queryText += ' ORDER BY c.name NULLS LAST, i.name';
+  if (effectiveLayoutId) {
+    // Get items from the specified layout
+    queryText = `
+      SELECT 
+        i.id, i.name, i.description, i.sku,
+        i.price, i.member_price, i.cost,
+        i.image_url, i.inventory_quantity, i.item_type,
+        i.low_stock_threshold,
+        i.stripe_product_id, i.stripe_price_id,
+        c.id as category_id, c.name as category_name,
+        li.display_order,
+        li.grid_row,
+        li.grid_column,
+        COALESCE(li.display_name, i.name) as display_name,
+        li.display_color
+      FROM pos_layout_items li
+      JOIN items i ON li.item_id = i.id
+      LEFT JOIN categories c ON i.category_id = c.id
+      JOIN pos_layouts pl ON li.layout_id = pl.id
+      WHERE li.layout_id = $1 
+        AND pl.tenant_id = $2
+        AND i.status = 'active'
+    `;
+    params = [effectiveLayoutId, tenantId];
+    paramCount = 2;
+
+    if (category_id) {
+      paramCount++;
+      params.push(category_id);
+      queryText += ` AND i.category_id = $${paramCount}`;
+    }
+
+    if (search) {
+      paramCount++;
+      params.push('%' + search + '%');
+      queryText += ` AND (i.name ILIKE $${paramCount} OR i.sku ILIKE $${paramCount})`;
+    }
+
+    queryText += ' ORDER BY li.display_order, i.name';
+  } else {
+    // Fallback: No layout, return all active items
+    queryText = `
+      SELECT 
+        i.id, i.name, i.description, i.sku,
+        i.price, i.member_price, i.cost,
+        i.image_url, i.inventory_quantity, i.item_type,
+        i.low_stock_threshold,
+        i.stripe_product_id, i.stripe_price_id,
+        c.id as category_id, c.name as category_name,
+        0 as display_order,
+        NULL as grid_row,
+        NULL as grid_column,
+        i.name as display_name,
+        NULL as display_color
+      FROM items i
+      LEFT JOIN categories c ON i.category_id = c.id
+      WHERE i.status = 'active' AND i.tenant_id = $1
+    `;
+    params = [tenantId];
+    paramCount = 1;
+
+    if (category_id) {
+      paramCount++;
+      params.push(category_id);
+      queryText += ` AND i.category_id = $${paramCount}`;
+    }
+
+    if (search) {
+      paramCount++;
+      params.push('%' + search + '%');
+      queryText += ` AND (i.name ILIKE $${paramCount} OR i.sku ILIKE $${paramCount})`;
+    }
+
+    queryText += ' ORDER BY c.name NULLS LAST, i.name';
+  }
 
   const result = await db.query(queryText, params);
 
   res.json({
     status: 'success',
-    data: result.rows
+    data: result.rows,
+    layout_id: effectiveLayoutId || null
   });
 }));
 
@@ -512,7 +602,7 @@ router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res)
   const { date, start_date, end_date } = req.query;
   const tenantId = req.user.tenant_id;
 
-  let dateFilter = '';
+  let dateFilter = 'DATE(created_at) = CURRENT_DATE';
   const params = [tenantId];
   let paramCount = 1;
 
@@ -527,9 +617,6 @@ router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res)
     paramCount++;
     params.push(end_date);
     dateFilter = `DATE(created_at) BETWEEN $${startParam} AND $${paramCount}`;
-  } else {
-    // Default to today
-    dateFilter = 'DATE(created_at) = CURRENT_DATE';
   }
 
   const result = await db.query(`
@@ -552,7 +639,10 @@ router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res)
   });
 }));
 
-// Helper to generate order number (tenant-scoped)
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
 async function generateOrderNumber(client, tenantId) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   
