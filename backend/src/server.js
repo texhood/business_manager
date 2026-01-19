@@ -134,7 +134,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID'],
 }))
 
-// Rate limiting
+// Rate limiting - general limiter
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100, // limit each IP to 100 requests per windowMs
@@ -145,7 +145,25 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for auth routes (login, etc.)
+    return req.path.startsWith('/api/v1/auth');
+  }
 });
+
+// Higher rate limit for POS/KDS routes (they poll frequently)
+const posLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 120, // 120 requests per minute (allows 2 req/sec for polling)
+  message: {
+    status: 429,
+    error: 'Too many requests',
+    message: 'POS rate limit exceeded. Please try again shortly.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(limiter);
 
 // Body parsing
@@ -198,8 +216,8 @@ app.use(`${API_PREFIX}/blog`, blogRouter);
 app.use(`${API_PREFIX}/menus`, menusRouter);
 app.use(`${API_PREFIX}/events`, eventsRouter);
 app.use(`${API_PREFIX}/terminal`, terminalRouter);
-app.use(`${API_PREFIX}/restaurant-pos`, restaurantPosRouter);
-app.use(`${API_PREFIX}/kds`, kdsRouter);
+app.use(`${API_PREFIX}/restaurant-pos`, posLimiter, restaurantPosRouter);
+app.use(`${API_PREFIX}/kds`, posLimiter, kdsRouter);
 app.use(`${API_PREFIX}/modifications`, modificationsRouter);
 app.use(`${API_PREFIX}/media`, mediaRouter);
 app.use(`${API_PREFIX}/social`, socialRouter);
