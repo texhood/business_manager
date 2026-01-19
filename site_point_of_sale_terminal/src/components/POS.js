@@ -8,6 +8,8 @@ import CashPaymentModal from './CashPaymentModal';
 import CardPaymentModal from './CardPaymentModal';
 import OrderCompleteModal from './OrderCompleteModal';
 import ReaderModal from './ReaderModal';
+import LayoutSettingsModal from './LayoutSettingsModal';
+import LayoutEditor from './LayoutEditor';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
@@ -24,6 +26,22 @@ function POS() {
   const [loading, setLoading] = useState(true);
   const searchTimeoutRef = useRef(null);
 
+  // Layout state
+  const [currentLayoutId, setCurrentLayoutId] = useState(null);
+  const [currentLayoutName, setCurrentLayoutName] = useState(null);
+  const [layouts, setLayouts] = useState([]);
+  
+  // Modal states
+  const [showCashModal, setShowCashModal] = useState(false);
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [showOrderComplete, setShowOrderComplete] = useState(false);
+  const [showReaderModal, setShowReaderModal] = useState(false);
+  const [showLayoutSettings, setShowLayoutSettings] = useState(false);
+  const [showLayoutEditor, setShowLayoutEditor] = useState(false);
+  const [editingLayout, setEditingLayout] = useState(null);
+  
+  const [completedOrder, setCompletedOrder] = useState(null);
+
   // Debounce search input
   useEffect(() => {
     if (searchTimeoutRef.current) {
@@ -38,17 +56,37 @@ function POS() {
       }
     };
   }, [searchQuery]);
-  
-  const [showCashModal, setShowCashModal] = useState(false);
-  const [showCardModal, setShowCardModal] = useState(false);
-  const [showOrderComplete, setShowOrderComplete] = useState(false);
-  const [showReaderModal, setShowReaderModal] = useState(false);
-  const [completedOrder, setCompletedOrder] = useState(null);
+
+  // Fetch available layouts
+  const fetchLayouts = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/terminal/layouts`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setLayouts(data.data);
+        
+        // If no current layout selected, use default
+        if (!currentLayoutId && data.data.length > 0) {
+          const defaultLayout = data.data.find(l => l.is_default) || data.data[0];
+          if (defaultLayout) {
+            setCurrentLayoutId(defaultLayout.id);
+            setCurrentLayoutName(defaultLayout.name);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching layouts:', error);
+    }
+  }, [token, currentLayoutId]);
 
   // Fetch products
   const fetchProducts = useCallback(async () => {
     try {
       const params = new URLSearchParams();
+      if (currentLayoutId) params.append('layout_id', currentLayoutId);
       if (selectedCategory) params.append('category_id', selectedCategory);
       if (debouncedSearch) params.append('search', debouncedSearch);
 
@@ -61,13 +99,18 @@ function POS() {
       if (response.ok) {
         const data = await response.json();
         setProducts(data.data);
+        
+        // Update layout info from response
+        if (data.layout_id && !currentLayoutId) {
+          setCurrentLayoutId(data.layout_id);
+        }
       }
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
       setLoading(false);
     }
-  }, [token, selectedCategory, debouncedSearch]);
+  }, [token, currentLayoutId, selectedCategory, debouncedSearch]);
 
   // Fetch categories
   const fetchCategories = useCallback(async () => {
@@ -88,12 +131,57 @@ function POS() {
   }, [token]);
 
   useEffect(() => {
+    fetchLayouts();
+  }, [fetchLayouts]);
+
+  useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
+
+  // Handle layout selection
+  const handleSelectLayout = (layoutId) => {
+    setCurrentLayoutId(layoutId);
+    const layout = layouts.find(l => l.id === layoutId);
+    setCurrentLayoutName(layout?.name || null);
+    setShowLayoutSettings(false);
+    setLoading(true);
+  };
+
+  // Handle edit layout
+  const handleEditLayout = (layout) => {
+    setEditingLayout(layout);
+    setShowLayoutSettings(false);
+    setShowLayoutEditor(true);
+  };
+
+  // Handle create new layout
+  const handleCreateLayout = () => {
+    setEditingLayout(null);
+    setShowLayoutSettings(false);
+    setShowLayoutEditor(true);
+  };
+
+  // Handle layout editor save
+  const handleLayoutEditorSave = async (layoutId) => {
+    setShowLayoutEditor(false);
+    setEditingLayout(null);
+    await fetchLayouts();
+    setCurrentLayoutId(layoutId);
+    const layout = layouts.find(l => l.id === layoutId);
+    setCurrentLayoutName(layout?.name || 'Custom Layout');
+    setLoading(true);
+    fetchProducts();
+  };
+
+  // Handle layout editor cancel
+  const handleLayoutEditorCancel = () => {
+    setShowLayoutEditor(false);
+    setEditingLayout(null);
+  };
 
   // Record order to database
   const recordOrder = async (paymentMethod, paymentIntentId = null, cashReceived = null, changeGiven = null) => {
@@ -185,6 +273,17 @@ function POS() {
     }
   };
 
+  // Show layout editor full screen
+  if (showLayoutEditor) {
+    return (
+      <LayoutEditor
+        layout={editingLayout}
+        onSave={handleLayoutEditorSave}
+        onCancel={handleLayoutEditorCancel}
+      />
+    );
+  }
+
   return (
     <>
       {/* Header */}
@@ -192,6 +291,19 @@ function POS() {
         <h1>🌱 Hood Family Farms POS</h1>
         
         <div className="pos-header-right">
+          {/* Layout Selector */}
+          <button 
+            className="layout-selector"
+            onClick={() => setShowLayoutSettings(true)}
+            title="Manage layouts"
+          >
+            <span className="layout-icon">📋</span>
+            <span className="layout-name-display">
+              {currentLayoutName || 'All Items'}
+            </span>
+            <span className="layout-arrow">▼</span>
+          </button>
+          
           <button 
             className="reader-status"
             onClick={() => setShowReaderModal(true)}
@@ -290,6 +402,16 @@ function POS() {
 
       {showReaderModal && (
         <ReaderModal onClose={() => setShowReaderModal(false)} />
+      )}
+
+      {showLayoutSettings && (
+        <LayoutSettingsModal
+          currentLayoutId={currentLayoutId}
+          onSelectLayout={handleSelectLayout}
+          onEditLayout={handleEditLayout}
+          onCreateLayout={handleCreateLayout}
+          onClose={() => setShowLayoutSettings(false)}
+        />
       )}
     </>
   );
