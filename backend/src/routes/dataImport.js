@@ -447,6 +447,54 @@ const importConfigs = {
     `
   },
 
+  // Menus (container for menu sections and items)
+  menus: {
+    label: 'Menus',
+    category: 'Food Service',
+    columns: ['name', 'slug', 'description', 'season', 'menu_type', 'status', 'is_featured'],
+    required: ['name', 'slug'],
+    validations: {
+      season: ['spring', 'summer', 'fall', 'winter', 'all'],
+      menu_type: ['food_trailer', 'catering', 'special_event'],
+      status: ['draft', 'active', 'archived']
+    },
+    insertQuery: `
+      INSERT INTO menus (tenant_id, name, slug, description, season, menu_type, status, is_featured)
+      VALUES ($1, $2, $3, $4, COALESCE($5, 'all'), COALESCE($6, 'food_trailer'), COALESCE($7, 'draft'), COALESCE($8::boolean, false))
+      ON CONFLICT (tenant_id, slug) DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        season = EXCLUDED.season,
+        menu_type = EXCLUDED.menu_type,
+        status = EXCLUDED.status,
+        is_featured = EXCLUDED.is_featured,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING id, slug, name
+    `
+  },
+
+  // Menu Sections (groups of items within a menu)
+  menu_sections: {
+    label: 'Menu Sections',
+    category: 'Food Service',
+    columns: ['menu_slug', 'name', 'description', 'sort_order', 'show_prices', 'columns'],
+    required: ['menu_slug', 'name'],
+    notes: 'Links to menus by slug. Import menus first.',
+    preprocess: true,
+    customImport: true
+  },
+
+  // Menu Section Items (links menu items to sections)
+  menu_section_items: {
+    label: 'Menu Section Items',
+    category: 'Food Service',
+    columns: ['menu_slug', 'section_name', 'menu_item_name', 'menu_item_id', 'override_price', 'override_description', 'sort_order', 'is_available'],
+    required: ['menu_slug', 'section_name', 'menu_item_name'],
+    notes: 'Links menu items to sections. Import menus, menu_sections, and menu_items first. Use menu_item_id (UUID) or menu_item_name for lookup.',
+    preprocess: true,
+    customImport: true
+  },
+
   // ============================================================================
   // CONTENT
   // ============================================================================
@@ -749,6 +797,10 @@ router.post('/execute/:type', upload.single('file'), async (req, res) => {
         await importSaleTickets(client, records, tenantId, lookups, results);
       } else if (type === 'blog_posts') {
         await importBlogPosts(client, records, tenantId, results);
+      } else if (type === 'menu_sections') {
+        await importMenuSections(client, records, tenantId, lookups, results);
+      } else if (type === 'menu_section_items') {
+        await importMenuSectionItems(client, records, tenantId, lookups, results);
       }
     } else {
       // Standard import
@@ -1643,6 +1695,199 @@ async function importBlogPosts(client, records, tenantId, results) {
   }
 }
 
+/**
+ * Import menu sections with menu lookup by slug
+ * Links sections to menus using the menu_slug column in CSV
+ */
+async function importMenuSections(client, records, tenantId, lookups, results) {
+  const getValue = (record, key) => record[key] === '' ? null : record[key];
+  
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    const rowNum = i + 2;
+    
+    try {
+      // Skip template/sample rows
+      if (record.menu_slug === 'REQUIRED' || record.name === 'REQUIRED') {
+        results.skipped.push({ row: rowNum, reason: 'Template/sample row' });
+        continue;
+      }
+      
+      // Validate required fields
+      if (!record.menu_slug || record.menu_slug.trim() === '') {
+        results.errors.push({ row: rowNum, error: 'Missing required field: menu_slug' });
+        continue;
+      }
+      
+      if (!record.name || record.name.trim() === '') {
+        results.errors.push({ row: rowNum, error: 'Missing required field: name' });
+        continue;
+      }
+      
+      // Lookup menu_id by slug
+      const menuId = lookups.menus?.[record.menu_slug.toLowerCase().trim()];
+      if (!menuId) {
+        results.errors.push({ row: rowNum, error: `Menu not found: ${record.menu_slug}. Import menus first.` });
+        continue;
+      }
+      
+      // Check if section already exists
+      const existingSection = await client.query(
+        'SELECT id FROM menu_sections WHERE menu_id = $1 AND name = $2',
+        [menuId, record.name.trim()]
+      );
+      
+      let result;
+      if (existingSection.rows.length > 0) {
+        // Update existing section
+        result = await client.query(`
+          UPDATE menu_sections SET
+            description = $2,
+            sort_order = COALESCE($3::integer, sort_order),
+            show_prices = COALESCE($4::boolean, show_prices),
+            columns = COALESCE($5::integer, columns),
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+          RETURNING id, name
+        `, [
+          existingSection.rows[0].id,
+          getValue(record, 'description'),
+          getValue(record, 'sort_order'),
+          getValue(record, 'show_prices'),
+          getValue(record, 'columns')
+        ]);
+      } else {
+        // Insert new section
+        result = await client.query(`
+          INSERT INTO menu_sections (
+            menu_id, name, description, sort_order, show_prices, columns
+          )
+          VALUES ($1, $2, $3, COALESCE($4::integer, 0), COALESCE($5::boolean, true), COALESCE($6::integer, 1))
+          RETURNING id, name
+        `, [
+          menuId,
+          record.name.trim(),
+          getValue(record, 'description'),
+          getValue(record, 'sort_order'),
+          getValue(record, 'show_prices'),
+          getValue(record, 'columns')
+        ]);
+      }
+      
+      if (result.rows.length > 0) {
+        results.success.push({ 
+          row: rowNum, 
+          record: {
+            id: result.rows[0].id,
+            name: result.rows[0].name,
+            menu_slug: record.menu_slug
+          }
+        });
+      }
+      
+    } catch (err) {
+      results.errors.push({ row: rowNum, error: err.message });
+    }
+  }
+}
+
+/**
+ * Import menu section items - links menu items to sections
+ * Uses menu_slug + section_name to lookup section_id
+ * Uses menu_item_name or menu_item_id to lookup menu_item_id
+ */
+async function importMenuSectionItems(client, records, tenantId, lookups, results) {
+  const getValue = (record, key) => record[key] === '' ? null : record[key];
+  
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    const rowNum = i + 2;
+    
+    try {
+      // Skip template/sample rows
+      if (record.menu_slug === 'REQUIRED' || record.section_name === 'REQUIRED') {
+        results.skipped.push({ row: rowNum, reason: 'Template/sample row' });
+        continue;
+      }
+      
+      // Validate required fields
+      if (!record.menu_slug || record.menu_slug.trim() === '') {
+        results.errors.push({ row: rowNum, error: 'Missing required field: menu_slug' });
+        continue;
+      }
+      
+      if (!record.section_name || record.section_name.trim() === '') {
+        results.errors.push({ row: rowNum, error: 'Missing required field: section_name' });
+        continue;
+      }
+      
+      if (!record.menu_item_name || record.menu_item_name.trim() === '') {
+        results.errors.push({ row: rowNum, error: 'Missing required field: menu_item_name' });
+        continue;
+      }
+      
+      // Lookup section_id by (menu_slug, section_name)
+      const sectionKey = `${record.menu_slug.toLowerCase().trim()}|${record.section_name.toLowerCase().trim()}`;
+      const sectionId = lookups.sections?.[sectionKey];
+      if (!sectionId) {
+        results.errors.push({ row: rowNum, error: `Section not found: ${record.section_name} in menu ${record.menu_slug}. Import menu_sections first.` });
+        continue;
+      }
+      
+      // Lookup menu_item_id - prefer provided UUID, fall back to name lookup
+      let menuItemId = getValue(record, 'menu_item_id');
+      if (!menuItemId) {
+        menuItemId = lookups.menu_items?.[record.menu_item_name.toLowerCase().trim()];
+      }
+      
+      if (!menuItemId) {
+        results.errors.push({ row: rowNum, error: `Menu item not found: ${record.menu_item_name}. Import menu_items first.` });
+        continue;
+      }
+      
+      // Insert menu section item
+      const insertQuery = `
+        INSERT INTO menu_section_items (
+          section_id, menu_item_id, override_price, override_description, sort_order, is_available
+        )
+        VALUES ($1, $2, $3::numeric, $4, COALESCE($5::integer, 0), COALESCE($6::boolean, true))
+        ON CONFLICT (section_id, menu_item_id) DO UPDATE SET
+          override_price = EXCLUDED.override_price,
+          override_description = EXCLUDED.override_description,
+          sort_order = EXCLUDED.sort_order,
+          is_available = EXCLUDED.is_available
+        RETURNING id
+      `;
+      
+      const params = [
+        sectionId,
+        menuItemId,
+        getValue(record, 'override_price'),
+        getValue(record, 'override_description'),
+        getValue(record, 'sort_order'),
+        getValue(record, 'is_available')
+      ];
+      
+      const result = await client.query(insertQuery, params);
+      
+      if (result.rows.length > 0) {
+        results.success.push({ 
+          row: rowNum, 
+          record: {
+            id: result.rows[0].id,
+            menu_item_name: record.menu_item_name,
+            section_name: record.section_name,
+            menu_slug: record.menu_slug
+          }
+        });
+      }
+      
+    } catch (err) {
+      results.errors.push({ row: rowNum, error: err.message });
+    }
+  }
+}
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -1771,6 +2016,35 @@ async function buildLookups(client, type, tenantId) {
     // Load classes by name for default class
     const classes = await client.query('SELECT id, name FROM classes');
     lookups.classes = Object.fromEntries(classes.rows.map(r => [r.name.toLowerCase(), r.id]));
+  }
+
+  if (type === 'menu_sections') {
+    // Load menus by slug for linking sections
+    const menusResult = await client.query('SELECT id, slug FROM menus WHERE tenant_id = $1', [tenantId]);
+    lookups.menus = Object.fromEntries(menusResult.rows.map(r => [r.slug.toLowerCase(), r.id]));
+  }
+
+  if (type === 'menu_section_items') {
+    // Load menus by slug
+    const menusResult = await client.query('SELECT id, slug FROM menus WHERE tenant_id = $1', [tenantId]);
+    lookups.menus = Object.fromEntries(menusResult.rows.map(r => [r.slug.toLowerCase(), r.id]));
+
+    // Load menu sections by composite key (menu_id + name)
+    const sectionsResult = await client.query(`
+      SELECT ms.id, ms.name, m.slug as menu_slug
+      FROM menu_sections ms
+      JOIN menus m ON ms.menu_id = m.id
+      WHERE m.tenant_id = $1
+    `, [tenantId]);
+    lookups.sections = {};
+    sectionsResult.rows.forEach(r => {
+      const key = `${r.menu_slug.toLowerCase()}|${r.name.toLowerCase()}`;
+      lookups.sections[key] = r.id;
+    });
+
+    // Load menu items by name for lookup
+    const itemsResult = await client.query('SELECT id, name FROM menu_items WHERE tenant_id = $1', [tenantId]);
+    lookups.menu_items = Object.fromEntries(itemsResult.rows.map(r => [r.name.toLowerCase(), r.id]));
   }
 
   if (type === 'sale_tickets') {
