@@ -2198,6 +2198,10 @@ function buildParams(type, record, tenantId, lookups, config) {
       return [tenantId, record.name, getValue('display_name'), getValue('price_adjustment'),
               getValue('category'), getValue('sort_order'), getValue('is_active')];
 
+    case 'menus':
+      return [tenantId, record.name, record.slug, getValue('description'),
+              getValue('season'), getValue('menu_type'), getValue('status'), getValue('is_featured')];
+
     default:
       throw new Error(`Unknown import type: ${type}`);
   }
