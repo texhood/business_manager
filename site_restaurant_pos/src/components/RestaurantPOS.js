@@ -137,20 +137,31 @@ function RestaurantPOS() {
     }
   }, [token]);
 
-  // Initial load
+  // Use refs to avoid useEffect dependencies on callbacks
+  const fetchMenusRef = useRef(fetchMenus);
+  const fetchOrdersRef = useRef(fetchOrders);
+  const fetchStatsRef = useRef(fetchStats);
+  
   useEffect(() => {
-    fetchMenus();
-    fetchOrders();
-    fetchStats();
+    fetchMenusRef.current = fetchMenus;
+    fetchOrdersRef.current = fetchOrders;
+    fetchStatsRef.current = fetchStats;
+  });
+
+  // Initial load - only runs once on mount
+  useEffect(() => {
+    fetchMenusRef.current();
+    fetchOrdersRef.current();
+    fetchStatsRef.current();
 
     // Poll for order updates
     const interval = setInterval(() => {
-      fetchOrders();
-      fetchStats();
+      fetchOrdersRef.current();
+      fetchStatsRef.current();
     }, ORDER_POLL_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [fetchMenus, fetchOrders, fetchStats]);
+  }, []); // Empty deps - only run on mount
 
   // Fetch menu when selected
   useEffect(() => {
