@@ -283,13 +283,13 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
         order_number, subtotal, tax_amount, total, 
         payment_method, payment_intent_id, 
         cash_received, change_given, notes,
-        status, created_by
+        status, created_by, tenant_id
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, 'completed', $10
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, 'completed', $10, $11
       )
       RETURNING *
     `, [
-      await generateOrderNumber(client),
+      await generateOrderNumber(client, req.user.tenant_id),
       subtotal,
       tax_amount || 0,
       total,
@@ -298,7 +298,8 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
       cash_received,
       change_given,
       notes,
-      req.user.id
+      req.user.id,
+      req.user.tenant_id
     ]);
 
     const order = orderResult.rows[0];
@@ -324,8 +325,8 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
           UPDATE items 
           SET inventory_quantity = inventory_quantity - $1,
               updated_at = CURRENT_TIMESTAMP
-          WHERE id = $2 AND item_type = 'inventory'
-        `, [item.quantity, item.item_id]);
+          WHERE id = $2 AND item_type = 'inventory' AND tenant_id = $3
+        `, [item.quantity, item.item_id, req.user.tenant_id]);
       }
     }
 
@@ -336,7 +337,8 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
       orderNumber: order.order_number,
       total,
       paymentMethod: payment_method,
-      createdBy: req.user.id 
+      createdBy: req.user.id,
+      tenantId: req.user.tenant_id
     });
 
     res.status(201).json({
@@ -354,19 +356,20 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
 
 /**
  * GET /terminal/orders
- * List orders with optional date filtering
+ * List orders with optional date filtering (tenant-scoped)
  */
 router.get('/orders', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { date, start_date, end_date, limit = 50 } = req.query;
+  const tenantId = req.user.tenant_id;
 
   let queryText = `
     SELECT o.*, a.name as cashier_name
     FROM pos_orders o
     LEFT JOIN accounts a ON o.created_by = a.id
-    WHERE 1=1
+    WHERE o.tenant_id = $1
   `;
-  const params = [];
-  let paramCount = 0;
+  const params = [tenantId];
+  let paramCount = 1;
 
   if (date) {
     paramCount++;
@@ -395,17 +398,18 @@ router.get('/orders', authenticate, requireStaff, asyncHandler(async (req, res) 
 
 /**
  * GET /terminal/orders/:orderId
- * Get a single order with items
+ * Get a single order with items (tenant-scoped)
  */
 router.get('/orders/:orderId', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { orderId } = req.params;
+  const tenantId = req.user.tenant_id;
 
   const orderResult = await db.query(`
     SELECT o.*, a.name as cashier_name
     FROM pos_orders o
     LEFT JOIN accounts a ON o.created_by = a.id
-    WHERE o.id = $1
-  `, [orderId]);
+    WHERE o.id = $1 AND o.tenant_id = $2
+  `, [orderId, tenantId]);
 
   if (orderResult.rows.length === 0) {
     throw new ApiError(404, 'Order not found');
@@ -430,10 +434,11 @@ router.get('/orders/:orderId', authenticate, requireStaff, asyncHandler(async (r
 
 /**
  * GET /terminal/products
- * Get all active products for POS display
+ * Get all active products for POS display (tenant-scoped)
  */
 router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { category_id, search } = req.query;
+  const tenantId = req.user.tenant_id;
 
   let queryText = `
     SELECT 
@@ -445,10 +450,10 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
       c.id as category_id, c.name as category_name
     FROM items i
     LEFT JOIN categories c ON i.category_id = c.id
-    WHERE i.is_active = true
+    WHERE i.status = 'active' AND i.tenant_id = $1
   `;
-  const params = [];
-  let paramCount = 0;
+  const params = [tenantId];
+  let paramCount = 1;
 
   if (category_id) {
     paramCount++;
@@ -474,17 +479,20 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
 
 /**
  * GET /terminal/categories
- * Get all categories for filtering
+ * Get all categories for filtering (tenant-scoped)
  */
 router.get('/categories', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
+  
   const result = await db.query(`
     SELECT c.id, c.name, COUNT(i.id) as item_count
     FROM categories c
-    LEFT JOIN items i ON c.id = i.category_id AND i.is_active = true
+    LEFT JOIN items i ON c.id = i.category_id AND i.status = 'active' AND i.tenant_id = $1
+    WHERE c.tenant_id = $1
     GROUP BY c.id, c.name
     HAVING COUNT(i.id) > 0
     ORDER BY c.name
-  `);
+  `, [tenantId]);
 
   res.json({
     status: 'success',
@@ -498,20 +506,27 @@ router.get('/categories', authenticate, requireStaff, asyncHandler(async (req, r
 
 /**
  * GET /terminal/summary
- * Get sales summary for a date range
+ * Get sales summary for a date range (tenant-scoped)
  */
 router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { date, start_date, end_date } = req.query;
+  const tenantId = req.user.tenant_id;
 
   let dateFilter = '';
-  const params = [];
+  const params = [tenantId];
+  let paramCount = 1;
 
   if (date) {
+    paramCount++;
     params.push(date);
-    dateFilter = 'DATE(created_at) = $1';
+    dateFilter = `DATE(created_at) = $${paramCount}`;
   } else if (start_date && end_date) {
-    params.push(start_date, end_date);
-    dateFilter = 'DATE(created_at) BETWEEN $1 AND $2';
+    paramCount++;
+    params.push(start_date);
+    const startParam = paramCount;
+    paramCount++;
+    params.push(end_date);
+    dateFilter = `DATE(created_at) BETWEEN $${startParam} AND $${paramCount}`;
   } else {
     // Default to today
     dateFilter = 'DATE(created_at) = CURRENT_DATE';
@@ -528,7 +543,7 @@ router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res)
       SUM(CASE WHEN payment_method = 'card' THEN 1 ELSE 0 END) as card_count,
       SUM(CASE WHEN payment_method = 'cash' THEN 1 ELSE 0 END) as cash_count
     FROM pos_orders
-    WHERE status = 'completed' AND ${dateFilter}
+    WHERE tenant_id = $1 AND status = 'completed' AND ${dateFilter}
   `, params);
 
   res.json({
@@ -537,15 +552,15 @@ router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res)
   });
 }));
 
-// Helper to generate order number
-async function generateOrderNumber(client) {
+// Helper to generate order number (tenant-scoped)
+async function generateOrderNumber(client, tenantId) {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   
   const result = await client.query(`
     SELECT order_number FROM pos_orders 
-    WHERE order_number LIKE $1 
+    WHERE order_number LIKE $1 AND tenant_id = $2
     ORDER BY order_number DESC LIMIT 1
-  `, [today + '%']);
+  `, [today + '%', tenantId]);
 
   if (result.rows.length === 0) {
     return today + '-001';
