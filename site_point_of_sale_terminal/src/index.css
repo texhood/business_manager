@@ -180,6 +180,7 @@ body {
   flex-direction: column;
   height: 120px;
   overflow: hidden;
+  position: relative;
 }
 
 .product-card:hover {
@@ -216,7 +217,7 @@ body {
 .product-name {
   font-weight: 600;
   font-size: 0.8rem;
-  margin-bottom: 2px;
+  margin-bottom: 20px;
   line-height: 1.25;
   flex: 1;
   overflow: hidden;
@@ -230,9 +231,10 @@ body {
   color: var(--primary);
   font-weight: 700;
   font-size: 1rem;
-  flex-shrink: 0;
-  margin-top: auto;
-  background: transparent;
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  background: none;
   line-height: 1;
 }
 
