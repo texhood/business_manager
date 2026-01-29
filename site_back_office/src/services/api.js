@@ -913,4 +913,98 @@ export const vendorsService = {
   },
 };
 
+// ============================================================================
+// REPORT BUILDER (Custom Reports)
+// ============================================================================
+
+export const reportBuilderService = {
+  // Get available operators for each data type
+  getOperators: async () => {
+    const response = await api.get('/report-builder/operators');
+    return response.data;
+  },
+
+  // Get all available record types (tables/views)
+  getRecords: async () => {
+    const response = await api.get('/report-builder/records');
+    return response.data;
+  },
+
+  // Get details about a specific record type
+  getRecord: async (recordName) => {
+    const response = await api.get(`/report-builder/records/${recordName}`);
+    return response.data;
+  },
+
+  // Get field definitions for a record type
+  getFields: async (recordName) => {
+    const response = await api.get(`/report-builder/records/${recordName}/fields`);
+    return response.data;
+  },
+
+  // Execute preview query
+  preview: async (data) => {
+    const response = await api.post('/report-builder/preview', data);
+    return response.data;
+  },
+
+  // Get all saved reports
+  getReports: async (params = {}) => {
+    const response = await api.get('/report-builder/reports', { params });
+    return response.data;
+  },
+
+  // Get a specific saved report
+  getReport: async (id) => {
+    const response = await api.get(`/report-builder/reports/${id}`);
+    return response.data;
+  },
+
+  // Save a new report
+  saveReport: async (data) => {
+    const response = await api.post('/report-builder/reports', data);
+    return response.data;
+  },
+
+  // Update an existing report
+  updateReport: async (id, data) => {
+    const response = await api.put(`/report-builder/reports/${id}`, data);
+    return response.data;
+  },
+
+  // Delete a report
+  deleteReport: async (id) => {
+    const response = await api.delete(`/report-builder/reports/${id}`);
+    return response.data;
+  },
+
+  // Run a saved report
+  runReport: async (id, params = {}) => {
+    const response = await api.post(`/report-builder/reports/${id}/run`, params);
+    return response.data;
+  },
+
+  // Toggle favorite
+  toggleFavorite: async (id) => {
+    const response = await api.post(`/report-builder/reports/${id}/favorite`);
+    return response.data;
+  },
+
+  // Export saved report to CSV
+  exportReport: async (id) => {
+    const response = await api.get(`/report-builder/reports/${id}/export?format=csv`, {
+      responseType: 'blob'
+    });
+    return response;
+  },
+
+  // Export preview to CSV
+  exportPreview: async (data) => {
+    const response = await api.post('/report-builder/preview/export', { ...data, format: 'csv' }, {
+      responseType: 'blob'
+    });
+    return response;
+  },
+};
+
 export default api;

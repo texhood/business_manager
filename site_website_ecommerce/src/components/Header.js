@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useSite } from '../context/SiteContext';
 import './Header.css';
 
 function Header() {
@@ -8,6 +9,7 @@ function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
   const { getCartCount, isCartOpen } = useCart();
+  const site = useSite();
 
   const cartCount = getCartCount();
 
@@ -28,12 +30,47 @@ function Header() {
     setIsMenuOpen(!isMenuOpen);
   };
 
+  // Build navigation items - combine CMS pages with functional pages
+  const buildNavigation = () => {
+    // Static functional pages that always appear
+    const functionalPages = [
+      { path: '/shopping', label: 'Shop', order: 10 },
+      { path: '/cart', label: 'Cart', order: 98, hideInNav: true },
+      { path: '/account/login', label: 'Login', order: 99 },
+    ];
+
+    // CMS-managed pages from site context
+    const cmsPages = site.navigation.map(nav => ({
+      path: nav.path,
+      label: nav.label,
+      type: nav.type,
+      order: nav.type === 'home' ? 0 : 
+             nav.type === 'about' ? 2 : 
+             nav.type === 'contact' ? 20 : 
+             nav.type === 'faq' ? 21 : 5
+    }));
+
+    // Combine and sort
+    const allPages = [...cmsPages, ...functionalPages.filter(p => !p.hideInNav)];
+    return allPages.sort((a, b) => a.order - b.order);
+  };
+
+  const navItems = buildNavigation();
+  
+  // Split into primary and secondary nav
+  const primaryNav = navItems.slice(0, Math.ceil(navItems.length / 2));
+  const secondaryNav = navItems.slice(Math.ceil(navItems.length / 2));
+
   return (
     <header className={`header ${isScrolled ? 'scrolled' : ''}`}>
       <div className="header-container">
         {/* Logo */}
         <Link to="/" className="logo">
-          <span className="logo-text">Hood Family Farms</span>
+          {site.logoUrl ? (
+            <img src={site.logoUrl} alt={site.siteName} className="logo-image" />
+          ) : (
+            <span className="logo-text">{site.siteName || 'Hood Family Farms'}</span>
+          )}
         </Link>
 
         {/* Mobile Menu Toggle */}
@@ -50,44 +87,29 @@ function Header() {
         {/* Navigation */}
         <nav className={`main-nav ${isMenuOpen ? 'open' : ''}`}>
           <ul className="nav-list primary-nav">
-            <li>
-              <Link to="/farm-to-fork-food-trailer" className={location.pathname === '/farm-to-fork-food-trailer' ? 'active' : ''}>
-                Farm to Fork Food Trailer
-              </Link>
-            </li>
-            <li>
-              <Link to="/" className={location.pathname === '/' ? 'active' : ''}>
-                Home
-              </Link>
-            </li>
-            <li>
-              <Link to="/blog" className={location.pathname === '/blog' ? 'active' : ''}>
-                Blog
-              </Link>
-            </li>
-            <li>
-              <Link to="/shopping" className={location.pathname.includes('/shopping') ? 'active' : ''}>
-                Shop
-              </Link>
-            </li>
+            {primaryNav.map((item, index) => (
+              <li key={index}>
+                <Link 
+                  to={item.path} 
+                  className={location.pathname === item.path ? 'active' : ''}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            ))}
           </ul>
 
           <ul className="nav-list secondary-nav">
-            <li>
-              <Link to="/account/login" className={location.pathname === '/account/login' ? 'active' : ''}>
-                Login
-              </Link>
-            </li>
-            <li>
-              <Link to="/gallery" className={location.pathname === '/gallery' ? 'active' : ''}>
-                Gallery
-              </Link>
-            </li>
-            <li>
-              <Link to="/frequently-asked-questions" className={location.pathname === '/frequently-asked-questions' ? 'active' : ''}>
-                FAQ
-              </Link>
-            </li>
+            {secondaryNav.map((item, index) => (
+              <li key={index}>
+                <Link 
+                  to={item.path} 
+                  className={location.pathname === item.path ? 'active' : ''}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            ))}
           </ul>
         </nav>
 
@@ -105,11 +127,13 @@ function Header() {
       </div>
 
       {/* Tagline Banner */}
-      <div className="tagline-banner">
-        <div className="container">
-          <p>bringing clean, fresh, sustainably raised food to our local community</p>
+      {site.tagline && (
+        <div className="tagline-banner">
+          <div className="container">
+            <p>{site.tagline}</p>
+          </div>
         </div>
-      </div>
+      )}
     </header>
   );
 }

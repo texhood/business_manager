@@ -42,12 +42,15 @@ const modificationsRouter = require('./routes/modifications');
 const mediaRouter = require('./routes/media');
 const socialRouter = require('./routes/social');
 const siteDesignerRouter = require('./routes/siteDesigner');
+const siteBuilderRouter = require('./routes/siteBuilder');
 const herdsFlocksRouter = require('./routes/herdsFlocks');
 const dataImportRouter = require('./routes/dataImport');
 const vendorsRouter = require('./routes/vendors');
 const adminRouter = require('./routes/admin');
 const tenantsRouter = require('./routes/tenants');
 const posLayoutsRouter = require('./routes/pos-layouts');
+const sitePublicRouter = require('./routes/sitePublic');
+const reportBuilderRouter = require('./routes/reportBuilder');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -223,12 +226,15 @@ app.use(`${API_PREFIX}/modifications`, modificationsRouter);
 app.use(`${API_PREFIX}/media`, mediaRouter);
 app.use(`${API_PREFIX}/social`, socialRouter);
 app.use(`${API_PREFIX}/site-designer`, siteDesignerRouter);
+app.use(`${API_PREFIX}/site-builder`, siteBuilderRouter);
 app.use(`${API_PREFIX}/herds-flocks`, herdsFlocksRouter);
 app.use(`${API_PREFIX}/data-import`, dataImportRouter);
 app.use(`${API_PREFIX}/vendors`, vendorsRouter);
 app.use(`${API_PREFIX}/admin`, adminRouter);
 app.use(`${API_PREFIX}/tenants`, tenantsRouter);
 app.use(`${API_PREFIX}/pos-layouts`, posLayoutsRouter);
+app.use(`${API_PREFIX}/site-public`, sitePublicRouter);
+app.use(`${API_PREFIX}/report-builder`, reportBuilderRouter);
 
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {
@@ -248,6 +254,7 @@ app.get(`${API_PREFIX}`, (req, res) => {
       orders: `${API_PREFIX}/orders`,
       reports: `${API_PREFIX}/reports`,
       accounting: `${API_PREFIX}/accounting`,
+      reportBuilder: `${API_PREFIX}/report-builder`,
     },
     documentation: 'https://docs.hoodfamilyfarms.com/api',
   });

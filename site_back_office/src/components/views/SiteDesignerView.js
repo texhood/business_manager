@@ -61,14 +61,22 @@ const ThemeSelector = ({ themes, currentThemeId, onSelect }) => {
 // SITE SETTINGS MODAL
 // ============================================================================
 
-const SiteSettingsModal = ({ settings, onSave, onClose }) => {
+const SiteSettingsModal = ({ settings, themes, onSave, onClose }) => {
+  // Get default colors from selected theme
+  const selectedTheme = themes?.find(t => t.id === settings?.theme_id);
+  const themeColors = selectedTheme?.default_colors || {};
+  const themeFonts = selectedTheme?.default_fonts || {};
+
   const [form, setForm] = useState({
     site_name: settings?.site_name || '',
     tagline: settings?.tagline || '',
     logo_url: settings?.logo_url || '',
     favicon_url: settings?.favicon_url || '',
+    color_overrides: settings?.color_overrides || {},
+    font_overrides: settings?.font_overrides || {},
     contact_info: settings?.contact_info || { phone: '', email: '', address: '' },
     social_links: settings?.social_links || { facebook: '', instagram: '', twitter: '', linkedin: '' },
+    business_hours: settings?.business_hours || [],
     default_seo_title: settings?.default_seo_title || '',
     default_seo_description: settings?.default_seo_description || ''
   });
@@ -80,6 +88,28 @@ const SiteSettingsModal = ({ settings, onSave, onClose }) => {
     setSaving(true);
     await onSave(form);
     setSaving(false);
+  };
+
+  const updateColorOverride = (colorKey, value) => {
+    setForm(prev => ({
+      ...prev,
+      color_overrides: { ...prev.color_overrides, [colorKey]: value }
+    }));
+  };
+
+  const clearColorOverride = (colorKey) => {
+    setForm(prev => {
+      const newOverrides = { ...prev.color_overrides };
+      delete newOverrides[colorKey];
+      return { ...prev, color_overrides: newOverrides };
+    });
+  };
+
+  const updateFontOverride = (fontKey, value) => {
+    setForm(prev => ({
+      ...prev,
+      font_overrides: { ...prev.font_overrides, [fontKey]: value }
+    }));
   };
 
   const updateContactInfo = (field, value) => {
@@ -96,6 +126,46 @@ const SiteSettingsModal = ({ settings, onSave, onClose }) => {
     }));
   };
 
+  const addBusinessHour = () => {
+    setForm(prev => ({
+      ...prev,
+      business_hours: [...prev.business_hours, { day: '', hours: '' }]
+    }));
+  };
+
+  const updateBusinessHour = (index, field, value) => {
+    setForm(prev => ({
+      ...prev,
+      business_hours: prev.business_hours.map((item, i) => 
+        i === index ? { ...item, [field]: value } : item
+      )
+    }));
+  };
+
+  const removeBusinessHour = (index) => {
+    setForm(prev => ({
+      ...prev,
+      business_hours: prev.business_hours.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Color configuration with labels
+  const colorFields = [
+    { key: 'primary', label: 'Primary Color', hint: 'Main brand color (buttons, links, headers)' },
+    { key: 'secondary', label: 'Secondary Color', hint: 'Supporting color for accents' },
+    { key: 'accent', label: 'Accent Color', hint: 'Highlight color for CTAs and emphasis' },
+    { key: 'background', label: 'Background', hint: 'Main page background' },
+    { key: 'backgroundAlt', label: 'Alt Background', hint: 'Alternate sections background' },
+    { key: 'text', label: 'Text Color', hint: 'Primary text color' },
+    { key: 'textLight', label: 'Light Text', hint: 'Secondary/muted text' },
+  ];
+
+  // Font options
+  const fontOptions = [
+    'Playfair Display', 'Open Sans', 'Inter', 'Roboto', 'Lato', 
+    'Montserrat', 'Merriweather', 'Source Sans Pro', 'Georgia', 'Arial'
+  ];
+
   return (
     <Modal isOpen={true} title="Site Settings" onClose={onClose} size="lg">
       <form onSubmit={handleSubmit} className="site-settings-form">
@@ -109,10 +179,24 @@ const SiteSettingsModal = ({ settings, onSave, onClose }) => {
           </button>
           <button 
             type="button"
+            className={`tab-btn ${activeTab === 'branding' ? 'active' : ''}`}
+            onClick={() => setActiveTab('branding')}
+          >
+            Branding
+          </button>
+          <button 
+            type="button"
             className={`tab-btn ${activeTab === 'contact' ? 'active' : ''}`}
             onClick={() => setActiveTab('contact')}
           >
             Contact
+          </button>
+          <button 
+            type="button"
+            className={`tab-btn ${activeTab === 'hours' ? 'active' : ''}`}
+            onClick={() => setActiveTab('hours')}
+          >
+            Hours
           </button>
           <button 
             type="button"
@@ -159,6 +243,7 @@ const SiteSettingsModal = ({ settings, onSave, onClose }) => {
                   onChange={(e) => setForm({ ...form, logo_url: e.target.value })}
                   placeholder="/uploads/logo.png"
                 />
+                <span className="form-hint">Upload via Media Library, then paste URL here</span>
               </div>
               <div className="form-group">
                 <label>Favicon URL</label>
@@ -168,6 +253,73 @@ const SiteSettingsModal = ({ settings, onSave, onClose }) => {
                   onChange={(e) => setForm({ ...form, favicon_url: e.target.value })}
                   placeholder="/uploads/favicon.ico"
                 />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'branding' && (
+            <div className="settings-section">
+              <h4>Colors</h4>
+              <p className="section-hint">Override theme defaults. Leave blank to use theme colors.</p>
+              
+              <div className="color-grid">
+                {colorFields.map(({ key, label, hint }) => (
+                  <div key={key} className="form-group color-field">
+                    <label>{label}</label>
+                    <div className="color-input-group">
+                      <input
+                        type="color"
+                        value={form.color_overrides[key] || themeColors[key] || '#ffffff'}
+                        onChange={(e) => updateColorOverride(key, e.target.value)}
+                        className="color-picker"
+                      />
+                      <input
+                        type="text"
+                        value={form.color_overrides[key] || ''}
+                        onChange={(e) => updateColorOverride(key, e.target.value)}
+                        placeholder={themeColors[key] || 'Theme default'}
+                        className="color-text"
+                      />
+                      {form.color_overrides[key] && (
+                        <button 
+                          type="button" 
+                          className="btn-icon btn-clear"
+                          onClick={() => clearColorOverride(key)}
+                          title="Reset to theme default"
+                        >
+                          <Icons.X />
+                        </button>
+                      )}
+                    </div>
+                    <span className="form-hint">{hint}</span>
+                  </div>
+                ))}
+              </div>
+
+              <h4 style={{ marginTop: '1.5rem' }}>Fonts</h4>
+              <div className="form-group">
+                <label>Heading Font</label>
+                <select
+                  value={form.font_overrides.heading || ''}
+                  onChange={(e) => updateFontOverride('heading', e.target.value)}
+                >
+                  <option value="">Theme default ({themeFonts.heading || 'Not set'})</option>
+                  {fontOptions.map(font => (
+                    <option key={font} value={font}>{font}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Body Font</label>
+                <select
+                  value={form.font_overrides.body || ''}
+                  onChange={(e) => updateFontOverride('body', e.target.value)}
+                >
+                  <option value="">Theme default ({themeFonts.body || 'Not set'})</option>
+                  {fontOptions.map(font => (
+                    <option key={font} value={font}>{font}</option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
@@ -201,6 +353,48 @@ const SiteSettingsModal = ({ settings, onSave, onClose }) => {
                   rows={3}
                 />
               </div>
+            </div>
+          )}
+
+          {activeTab === 'hours' && (
+            <div className="settings-section">
+              <p className="section-hint">Add business hours, delivery schedules, or availability information.</p>
+              
+              <div className="business-hours-list">
+                {form.business_hours.map((item, index) => (
+                  <div key={index} className="business-hour-row">
+                    <input
+                      type="text"
+                      value={item.day}
+                      onChange={(e) => updateBusinessHour(index, 'day', e.target.value)}
+                      placeholder="Day or Label (e.g., Monday, Delivery - Tyler)"
+                      className="hour-day"
+                    />
+                    <input
+                      type="text"
+                      value={item.hours}
+                      onChange={(e) => updateBusinessHour(index, 'hours', e.target.value)}
+                      placeholder="Hours (e.g., 9am - 5pm, By appointment)"
+                      className="hour-time"
+                    />
+                    <button 
+                      type="button" 
+                      className="btn-icon btn-danger"
+                      onClick={() => removeBusinessHour(index)}
+                    >
+                      <Icons.Trash />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              
+              <button 
+                type="button" 
+                className="btn btn-secondary btn-sm"
+                onClick={addBusinessHour}
+              >
+                <Icons.Plus /> Add Hours Entry
+              </button>
             </div>
           )}
 
@@ -1031,6 +1225,7 @@ const SiteDesignerView = () => {
       {showSettings && (
         <SiteSettingsModal
           settings={settings}
+          themes={themes}
           onSave={handleSaveSettings}
           onClose={() => setShowSettings(false)}
         />

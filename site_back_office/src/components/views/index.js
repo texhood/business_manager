@@ -21,4 +21,6 @@ export { default as MediaLibraryView } from './MediaLibraryView';
 export { default as BlogManagementView } from './BlogManagementView';
 export { default as SocialMediaView } from './SocialMediaView';
 export { default as SiteDesignerView } from './SiteDesignerView';
+export { default as SiteBuilderView } from './SiteBuilderView';
 export { default as DataImportView } from './DataImportView';
+export { default as ReportBuilderView } from './ReportBuilderView';

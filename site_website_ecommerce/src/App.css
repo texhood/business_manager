@@ -1,3 +1,72 @@
+/* ============================================================================
+   CSS Variables - Default Theme Colors
+   These are overridden by SiteContext based on tenant settings
+   ============================================================================ */
+
+:root {
+  /* Default Farm Fresh theme colors */
+  --color-primary: #4a6741;
+  --color-secondary: #8b7355;
+  --color-accent: #d4a574;
+  --color-background: #fdfbf7;
+  --color-background-alt: #f5f1eb;
+  --color-text: #333333;
+  --color-text-light: #666666;
+  --color-border: #e0d5c7;
+  
+  /* Default fonts */
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --font-body: 'Open Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ============================================================================
+   Base Styles
+   ============================================================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--color-text);
+  background-color: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ============================================================================
+   App Layout
+   ============================================================================ */
+
 /* App Layout */
 .app {
   display: flex;

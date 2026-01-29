@@ -7,7 +7,7 @@ import React from 'react';
 import { Icons } from '../common/Icons';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
-const DashboardView = ({ accounts, items, transactions }) => {
+const DashboardView = ({ accounts, items, transactions, tenant }) => {
   const farmMembers = accounts.filter(a => a.is_farm_member).length;
   const totalCustomers = accounts.filter(a => a.role === 'customer').length;
   const lowStockItems = items.filter(i => i.item_type === 'inventory' && i.inventory_quantity <= 5 && i.inventory_quantity > 0).length;
@@ -23,7 +23,7 @@ const DashboardView = ({ accounts, items, transactions }) => {
     <div className="dashboard">
       <div className="page-header">
         <h1>Dashboard</h1>
-        <p className="subtitle">Welcome back to Hood Family Farms</p>
+        <p className="subtitle">Welcome back{tenant?.name ? ` to ${tenant.name}` : ''}</p>
       </div>
       
       <div className="stats-grid">

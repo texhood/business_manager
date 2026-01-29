@@ -869,3 +869,156 @@
     gap: 16px;
   }
 }
+
+/* ============================================================================
+   BRANDING TAB - COLORS & FONTS
+   ============================================================================ */
+
+.settings-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 1rem;
+  color: #333;
+}
+
+.settings-section .section-hint {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.color-field {
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.color-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-picker {
+  width: 44px;
+  height: 38px;
+  padding: 2px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.color-picker::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+.color-text {
+  flex: 1;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 13px;
+}
+
+.btn-clear {
+  padding: 6px;
+  color: #999;
+}
+
+.btn-clear:hover {
+  color: #dc3545;
+  background: #fee;
+}
+
+/* ============================================================================
+   BUSINESS HOURS TAB
+   ============================================================================ */
+
+.business-hours-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.business-hour-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.hour-day {
+  flex: 1.2;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.hour-time {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.hour-day:focus,
+.hour-time:focus {
+  outline: none;
+  border-color: #4a6741;
+}
+
+.business-hour-row .btn-icon {
+  flex-shrink: 0;
+}
+
+/* Empty hours state */
+.business-hours-list:empty::after {
+  content: 'No hours added yet. Click below to add.';
+  display: block;
+  padding: 20px;
+  text-align: center;
+  color: #999;
+  background: #fafafa;
+  border: 1px dashed #ddd;
+  border-radius: 8px;
+}
+
+/* ============================================================================
+   SETTINGS TABS RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 640px) {
+  .settings-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .tab-btn {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  
+  .color-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .business-hour-row {
+    flex-wrap: wrap;
+  }
+  
+  .hour-day,
+  .hour-time {
+    flex: none;
+    width: 100%;
+  }
+}

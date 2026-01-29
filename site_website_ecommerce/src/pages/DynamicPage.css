@@ -1,0 +1,79 @@
+/**
+ * Dynamic Page Styles
+ */
+
+.dynamic-page {
+  min-height: 60vh;
+}
+
+/* Loading State */
+.dynamic-page--loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.loading-spinner {
+  text-align: center;
+  color: var(--color-textLight, #666);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 16px;
+  border: 3px solid var(--color-border, #e0e0e0);
+  border-top-color: var(--color-primary, #4a6741);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error State */
+.dynamic-page--error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.error-message h1 {
+  margin: 0 0 16px;
+  font-family: var(--font-heading, 'Playfair Display', serif);
+  font-size: 2rem;
+  color: var(--color-text, #333);
+}
+
+.error-message p {
+  margin: 0;
+  color: var(--color-textLight, #666);
+  font-size: 1.125rem;
+}
+
+/* Empty State */
+.dynamic-page--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.empty-message h1 {
+  margin: 0 0 16px;
+  font-family: var(--font-heading, 'Playfair Display', serif);
+  font-size: 2rem;
+  color: var(--color-text, #333);
+}
+
+.empty-message p {
+  margin: 0;
+  color: var(--color-textLight, #666);
+}

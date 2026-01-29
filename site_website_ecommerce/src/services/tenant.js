@@ -25,7 +25,7 @@ export const getTenantFromSubdomain = () => {
   // Development: localhost uses query param or default
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     const params = new URLSearchParams(window.location.search);
-    return params.get('tenant') || 'hood';
+    return params.get('tenant') || 'cr-hood-solutions';
   }
   
   // Production: extract tenant from subdomain
@@ -52,7 +52,7 @@ export const getTenantFromSubdomain = () => {
   }
   
   // Fallback: no tenant detected, use default
-  return 'hood';
+  return 'cr-hood-solutions';
 };
 
 /**

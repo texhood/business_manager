@@ -1,0 +1,95 @@
+# Git Commit Commands for Site Builder and Report Builder Features
+# Run these commands from C:\Sandbox\business_manager
+
+# 1. Check current status
+git status
+
+# 2. Add all changes
+git add -A
+
+# 3. Commit with comprehensive message
+git commit -m "feat: Add Site Builder templates and Report Builder system
+
+SITE BUILDER ENHANCEMENTS
+=========================
+New Database Schema:
+- site_templates: Reusable page templates with slug, preview image, type
+- template_zones: Editable regions within templates with block constraints
+- site_assets: Media library for uploaded files with tags, folders, metadata
+- site_pages: Added template_id FK and is_homepage flag columns
+- site_page_details: View joining pages with template information
+
+Frontend Updates:
+- SiteBuilderView component for visual page editing
+- Template selection and zone-based content editing
+- Media library integration
+
+REPORT BUILDER SYSTEM (CattleMax-style)
+=======================================
+New Database Schema:
+- report_record_definitions: 30 record types across 5 categories
+  * Livestock (9): animals, herds, weights, notes, breeding, medical, etc.
+  * Pastures (7): pastures, rotations, conditions, water, rainfall, etc.
+  * Financial (6): transactions, accounts, journals, bank accounts, vendors
+  * Restaurant (4): menu items, orders, order items, menus
+  * Customers (4): accounts, customers, memberships, orders
+- report_field_definitions: Column metadata with data types, filtering, sorting
+- custom_reports: User-saved report configurations with constraints/sorting
+- report_run_history: Audit log for report executions
+
+Backend API (14 endpoints at /api/v1/report-builder):
+- GET /operators - Available filter operators by data type
+- GET /records - Available record types grouped by category
+- GET /records/:recordName/fields - Field definitions with operators
+- POST /preview - Execute report query with pagination
+- POST /export - Export results to CSV
+- CRUD for saved reports with favorites and run tracking
+
+Frontend Components:
+- ReportBuilderView: Main component with two-tab interface
+- RecordSelector: Dropdown with category grouping and search
+- FieldPicker: Checkbox list with select all/none/defaults
+- ConstraintBuilder: Dynamic filter conditions with operators
+- SortConfigurator: Multi-level sort configuration
+- PreviewTable: Paginated results with formatting
+- SavedReportsPanel: Load, delete, favorite saved reports
+
+UI/UX Features:
+- Category color coding (Livestock green, Financial blue, etc.)
+- Live preview with 50 rows per page pagination
+- CSV export with proper headers
+- Favorite reports for quick access
+- Run count and last run tracking
+
+BUG FIXES
+=========
+- Fixed missing Icons (ChevronLeft, Save) causing render errors
+- Fixed oversized SVG icons in Report Builder header (constrained to 16-28px)
+- Fixed proxy configuration (localhost:3000 not 3001)
+- Fixed .env REACT_APP_API_URL configuration
+- Removed unused 'operators' state variable
+
+FILES CHANGED
+=============
+Backend:
+- migrations/040_report_builder.sql (schema + seed data)
+- migrations/041_site_builder_and_report_builder.sql (Railway migration)
+- src/routes/reportBuilder.js (14 API endpoints)
+- src/server.js (route registration)
+
+Frontend:
+- src/components/views/ReportBuilderView.js (~1100 lines)
+- src/components/views/ReportBuilderView.css (~900 lines)
+- src/components/common/Icons.js (added ChevronLeft, Save)
+- src/services/api.js (reportBuilderService)
+- src/App.js (navigation integration)
+- .env (API URL configuration)
+- package.json (proxy fix)
+
+Migration: Run 041_site_builder_and_report_builder.sql on Railway"
+
+# 4. Push to remote
+git push origin main
+
+# 5. Verify the commit
+git log -1 --stat

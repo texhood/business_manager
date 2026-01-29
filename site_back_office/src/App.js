@@ -33,7 +33,9 @@ import {
   BlogManagementView,
   SocialMediaView,
   SiteDesignerView,
+  SiteBuilderView,
   DataImportView,
+  ReportBuilderView,
 } from './components/views';
 import ModificationsManager from './components/views/ModificationsManager';
 import BlogPreviewView from './components/views/BlogPreviewView';
@@ -135,7 +137,7 @@ function App() {
   const [expandedSections, setExpandedSections] = useState(['foodTrailer']); // Default expanded
   const [tenant, setTenant] = useState(null);
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+  const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
   // Lookup tenant ID by slug (public, no auth required)
   const lookupTenantBySlug = async (slug) => {
@@ -232,10 +234,11 @@ function App() {
       // Step 3: Look up tenant ID from subdomain slug if needed
       // ========================================
       let subdomainTenantId = null;
+      let subdomainTenantData = null;
       if (subdomainSlug && !urlTenantId) {
-        const tenantData = await lookupTenantBySlug(subdomainSlug);
-        if (tenantData && tenantData.id) {
-          subdomainTenantId = tenantData.id;
+        subdomainTenantData = await lookupTenantBySlug(subdomainSlug);
+        if (subdomainTenantData && subdomainTenantData.id) {
+          subdomainTenantId = subdomainTenantData.id;
           console.log('Resolved subdomain slug to tenant ID:', subdomainTenantId);
           // Store it for future use
           localStorage.setItem('tenant_id_override', subdomainTenantId);
@@ -265,7 +268,15 @@ function App() {
       // ========================================
       // Step 5: Load tenant branding (public, no auth needed)
       // ========================================
-      if (tenantIdToLoad) {
+      if (subdomainTenantData && subdomainTenantData.id === tenantIdToLoad) {
+        // We already have tenant data from subdomain lookup - use it directly
+        console.log('Using tenant data from subdomain lookup');
+        setTenant(subdomainTenantData);
+        if (subdomainTenantData.primary_color) {
+          console.log('Applying color from subdomain lookup:', subdomainTenantData.primary_color);
+          applyBrandColor(subdomainTenantData.primary_color);
+        }
+      } else if (tenantIdToLoad) {
         await loadTenantBranding(tenantIdToLoad);
       }
       
@@ -424,7 +435,8 @@ function App() {
       icon: Icons.Image,
       isSection: true,
       children: [
-        { id: 'siteDesigner', label: 'Site Designer', icon: Icons.Layout },
+        { id: 'siteDesigner', label: 'Site Settings', icon: Icons.Settings },
+        { id: 'siteBuilder', label: 'Site Builder', icon: Icons.Layout },
         { id: 'mediaLibrary', label: 'Media Library', icon: Icons.Image },
         { id: 'blogPosts', label: 'Blog Posts', icon: Icons.FileText },
         { id: 'socialMedia', label: 'Social Media', icon: Icons.TrendingUp },
@@ -445,14 +457,15 @@ function App() {
     // Other items
     { id: 'accounts', label: 'Customers', icon: Icons.Users },
     { id: 'deliveryZones', label: 'Delivery Zones', icon: Icons.MapPin },
-    { id: 'reports', label: 'Reports', icon: Icons.BarChart },
+    { id: 'reports', label: 'Financial Reports', icon: Icons.BarChart },
+    { id: 'reportBuilder', label: 'Report Builder', icon: Icons.FileText },
   ];
 
   // Render current view
   const renderView = () => {
     switch (currentView) {
       case 'dashboard':
-        return <DashboardView accounts={accounts} items={items} transactions={transactions} />;
+        return <DashboardView accounts={accounts} items={items} transactions={transactions} tenant={tenant} />;
       case 'accounts':
         return <AccountsView accounts={accounts} loading={dataLoading} onRefresh={loadData} />;
       case 'items':
@@ -489,10 +502,14 @@ function App() {
         return <BlogPreviewView postId={previewPostId} onBack={handleBackFromPreview} />;
       case 'socialMedia':
         return <SocialMediaView />;
+      case 'siteBuilder':
+        return <SiteBuilderView />;
       case 'siteDesigner':
         return <SiteDesignerView />;
       case 'dataImport':
         return <DataImportView />;
+      case 'reportBuilder':
+        return <ReportBuilderView />;
       default:
         return <DashboardView accounts={accounts} items={items} transactions={transactions} />;
     }
