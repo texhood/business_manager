@@ -109,9 +109,19 @@ const requireRole = (...roles) => {
 };
 
 /**
- * Require admin role
+ * Require admin role (tenant admin or super admin)
  */
-const requireAdmin = requireRole('admin');
+const requireAdmin = requireRole('admin', 'tenant_admin', 'super_admin');
+
+/**
+ * Require super admin role (platform-level admin)
+ */
+const requireSuperAdmin = requireRole('super_admin');
+
+/**
+ * Require tenant admin role (can manage their own tenant)
+ */
+const requireTenantAdmin = requireRole('tenant_admin', 'super_admin');
 
 /**
  * Require admin or staff role
@@ -165,6 +175,8 @@ module.exports = {
   optionalAuth,
   requireRole,
   requireAdmin,
+  requireSuperAdmin,
+  requireTenantAdmin,
   requireStaff,
   requireMember,
   generateToken,

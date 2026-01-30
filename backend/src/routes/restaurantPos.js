@@ -22,6 +22,67 @@ const getTenantId = (req) => {
   return req.user?.tenant_id || DEFAULT_TENANT_ID;
 };
 
+// ============================================================================
+// STRIPE CONNECT HELPERS
+// ============================================================================
+
+/**
+ * Get tenant's Stripe Connect account ID
+ * Returns null if tenant doesn't have Connect set up (falls back to platform)
+ */
+async function getTenantStripeAccount(tenantId, requireActive = true) {
+  const result = await db.query(`
+    SELECT 
+      stripe_account_id, 
+      stripe_charges_enabled,
+      stripe_account_status,
+      name
+    FROM tenants WHERE id = $1
+  `, [tenantId]);
+  
+  if (result.rows.length === 0) {
+    return null;
+  }
+  
+  const tenant = result.rows[0];
+  
+  if (!tenant.stripe_account_id) {
+    return null;
+  }
+  
+  if (requireActive && !tenant.stripe_charges_enabled) {
+    logger.warn('Tenant Connect account not fully active', { 
+      tenantId, 
+      status: tenant.stripe_account_status 
+    });
+    return null;
+  }
+  
+  return tenant.stripe_account_id;
+}
+
+/**
+ * Get the platform application fee percentage from settings
+ */
+async function getPlatformFeePercent() {
+  try {
+    const result = await db.query(
+      "SELECT value FROM platform_settings WHERE key = 'stripe_connect_fee_percent'"
+    );
+    return result.rows.length > 0 ? parseFloat(result.rows[0].value) : 2.5;
+  } catch (error) {
+    return 2.5;
+  }
+}
+
+/**
+ * Calculate application fee from amount
+ */
+async function calculateApplicationFee(amount) {
+  const feePercent = await getPlatformFeePercent();
+  return Math.round(amount * (feePercent / 100));
+}
+
 // Valid order statuses
 const ORDER_STATUSES = ['entered', 'in_process', 'done', 'complete', 'cancelled'];
 
@@ -501,6 +562,7 @@ router.post('/orders/:orderId/pay', authenticate, requireStaff, asyncHandler(asy
 /**
  * POST /restaurant-pos/payment-intents
  * Create a Stripe payment intent for card payment
+ * Uses Stripe Connect if tenant has a connected account
  */
 router.post('/payment-intents', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { amount, order_id } = req.body;
@@ -510,7 +572,10 @@ router.post('/payment-intents', authenticate, requireStaff, asyncHandler(async (
     throw new ApiError(400, 'Amount must be at least 50 cents');
   }
 
-  const paymentIntent = await stripe.paymentIntents.create({
+  // Check if tenant has Connect enabled
+  const stripeAccountId = await getTenantStripeAccount(tenantId, true);
+  
+  const paymentIntentData = {
     amount: Math.round(amount),
     currency: 'usd',
     payment_method_types: ['card_present'],
@@ -522,7 +587,36 @@ router.post('/payment-intents', authenticate, requireStaff, asyncHandler(async (
       order_id,
       created_by: req.user.id
     }
-  });
+  };
+
+  let paymentIntent;
+  let applicationFee = 0;
+
+  if (stripeAccountId) {
+    // Use Connect with application fee
+    applicationFee = await calculateApplicationFee(amount);
+    paymentIntentData.application_fee_amount = applicationFee;
+    
+    paymentIntent = await stripe.paymentIntents.create(
+      paymentIntentData,
+      { stripeAccount: stripeAccountId }
+    );
+    
+    logger.info('Payment intent created on connected account', {
+      paymentIntentId: paymentIntent.id,
+      stripeAccountId,
+      applicationFee,
+      tenantId
+    });
+  } else {
+    // Fall back to platform account (legacy mode)
+    paymentIntent = await stripe.paymentIntents.create(paymentIntentData);
+    
+    logger.info('Payment intent created on platform account (Connect not enabled)', {
+      paymentIntentId: paymentIntent.id,
+      tenantId
+    });
+  }
 
   res.status(201).json({
     status: 'success',
@@ -530,7 +624,9 @@ router.post('/payment-intents', authenticate, requireStaff, asyncHandler(async (
       id: paymentIntent.id,
       client_secret: paymentIntent.client_secret,
       amount: paymentIntent.amount,
-      status: paymentIntent.status
+      status: paymentIntent.status,
+      application_fee_amount: applicationFee,
+      connected_account: !!stripeAccountId
     }
   });
 }));
@@ -542,44 +638,84 @@ router.post('/payment-intents', authenticate, requireStaff, asyncHandler(async (
 /**
  * POST /restaurant-pos/connection-token
  * Generate connection token for Stripe Terminal
+ * Uses connected account if available
  */
 router.post('/connection-token', authenticate, requireStaff, asyncHandler(async (req, res) => {
-  const connectionToken = await stripe.terminal.connectionTokens.create();
+  const tenantId = getTenantId(req);
+  const stripeAccountId = await getTenantStripeAccount(tenantId, false);
+  
+  let connectionToken;
+  
+  if (stripeAccountId) {
+    connectionToken = await stripe.terminal.connectionTokens.create(
+      {},
+      { stripeAccount: stripeAccountId }
+    );
+  } else {
+    connectionToken = await stripe.terminal.connectionTokens.create();
+  }
 
   res.json({
     status: 'success',
-    secret: connectionToken.secret
+    secret: connectionToken.secret,
+    connected_account: !!stripeAccountId
   });
 }));
 
 /**
  * GET /restaurant-pos/readers
- * List available card readers
+ * List available card readers (from connected account if available)
  */
 router.get('/readers', authenticate, requireStaff, asyncHandler(async (req, res) => {
-  const readers = await stripe.terminal.readers.list({ limit: 100 });
+  const tenantId = getTenantId(req);
+  const stripeAccountId = await getTenantStripeAccount(tenantId, false);
+  
+  let readers;
+  
+  if (stripeAccountId) {
+    readers = await stripe.terminal.readers.list(
+      { limit: 100 },
+      { stripeAccount: stripeAccountId }
+    );
+  } else {
+    readers = await stripe.terminal.readers.list({ limit: 100 });
+  }
 
   res.json({
     status: 'success',
-    data: readers.data
+    data: readers.data,
+    connected_account: !!stripeAccountId
   });
 }));
 
 /**
  * POST /restaurant-pos/payment-intents/:paymentIntentId/process
- * Process payment on reader
+ * Process payment on reader (uses connected account if available)
  */
 router.post('/payment-intents/:paymentIntentId/process', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { paymentIntentId } = req.params;
   const { readerId } = req.body;
+  const tenantId = getTenantId(req);
 
   if (!readerId) {
     throw new ApiError(400, 'readerId is required');
   }
 
-  const reader = await stripe.terminal.readers.processPaymentIntent(readerId, {
-    payment_intent: paymentIntentId
-  });
+  const stripeAccountId = await getTenantStripeAccount(tenantId, true);
+  
+  let reader;
+  
+  if (stripeAccountId) {
+    reader = await stripe.terminal.readers.processPaymentIntent(
+      readerId,
+      { payment_intent: paymentIntentId },
+      { stripeAccount: stripeAccountId }
+    );
+  } else {
+    reader = await stripe.terminal.readers.processPaymentIntent(readerId, {
+      payment_intent: paymentIntentId
+    });
+  }
 
   res.json({
     status: 'success',

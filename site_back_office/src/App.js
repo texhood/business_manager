@@ -37,6 +37,7 @@ import {
   DataImportView,
   ReportBuilderView,
   BrandingAssetsView,
+  StripeConnectView,
 } from './components/views';
 import ModificationsManager from './components/views/ModificationsManager';
 import BlogPreviewView from './components/views/BlogPreviewView';
@@ -452,6 +453,7 @@ function App() {
       icon: Icons.Settings,
       isSection: true,
       children: [
+        { id: 'stripeConnect', label: 'Stripe Connect', icon: Icons.CreditCard },
         { id: 'dataImport', label: 'Data Import', icon: Icons.Upload },
       ],
     },
@@ -512,6 +514,8 @@ function App() {
         return <BrandingAssetsView />;
       case 'dataImport':
         return <DataImportView />;
+      case 'stripeConnect':
+        return <StripeConnectView />;
       case 'reportBuilder':
         return <ReportBuilderView />;
       default:

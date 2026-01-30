@@ -1007,4 +1007,61 @@ export const reportBuilderService = {
   },
 };
 
+// ============================================================================
+// STRIPE CONNECT
+// ============================================================================
+
+export const connectService = {
+  // Get current account status
+  getStatus: async () => {
+    const response = await api.get('/connect/accounts/status');
+    return response.data.data;
+  },
+
+  // Create a connected account
+  createAccount: async () => {
+    const response = await api.post('/connect/accounts');
+    return response.data.data;
+  },
+
+  // Get onboarding link
+  getOnboardingLink: async (returnUrl, refreshUrl) => {
+    const response = await api.post('/connect/accounts/onboarding-link', {
+      return_url: returnUrl,
+      refresh_url: refreshUrl,
+    });
+    return response.data.data;
+  },
+
+  // Get login link for Stripe Express dashboard
+  getLoginLink: async () => {
+    const response = await api.post('/connect/accounts/login-link');
+    return response.data.data;
+  },
+
+  // Platform admin: Get all connected accounts
+  getAllAccounts: async (params = {}) => {
+    const response = await api.get('/connect/platform/accounts', { params });
+    return response.data;
+  },
+
+  // Platform admin: Get fee summary
+  getFees: async (params = {}) => {
+    const response = await api.get('/connect/platform/fees', { params });
+    return response.data.data;
+  },
+
+  // Platform admin: Get settings
+  getSettings: async () => {
+    const response = await api.get('/connect/platform/settings');
+    return response.data.data;
+  },
+
+  // Platform admin: Update settings
+  updateSetting: async (key, value) => {
+    const response = await api.put('/connect/platform/settings', { key, value });
+    return response.data;
+  },
+};
+
 export default api;

@@ -3,19 +3,388 @@
  * Step-by-step tenant creation and configuration
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { Icons } from '../common/Icons';
-import { onboardingService } from '../../services/api';
+import { onboardingService, subscriptionsService } from '../../services/api';
+
+// Load Stripe
+const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
 
 const WIZARD_STEPS = [
   { id: 'tenant', label: 'Tenant Info', icon: Icons.Building },
   { id: 'admin', label: 'Admin User', icon: Icons.Users },
+  { id: 'subscription', label: 'Subscription', icon: Icons.CreditCard },
   { id: 'business', label: 'Business Config', icon: Icons.Settings },
   { id: 'accounts', label: 'Chart of Accounts', icon: Icons.BookOpen },
   { id: 'integrations', label: 'Integrations', icon: Icons.Link },
   { id: 'data', label: 'Sample Data', icon: Icons.Database },
 ];
+
+// ============================================================================
+// SUBSCRIPTION STEP COMPONENT (wrapped in Elements)
+// ============================================================================
+
+const SubscriptionStepInner = ({ 
+  plans, 
+  selectedPlan, 
+  setSelectedPlan, 
+  billingInterval,
+  setBillingInterval,
+  paymentOption,
+  setPaymentOption,
+  tenantId,
+  adminEmail,
+  tenantName,
+  onSetupIntentCreated,
+  error,
+  setError
+}) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [cardComplete, setCardComplete] = useState(false);
+  const [setupIntentSecret, setSetupIntentSecret] = useState(null);
+  const [creatingSetupIntent, setCreatingSetupIntent] = useState(false);
+
+  // Create setup intent when user chooses to pay now
+  useEffect(() => {
+    const createSetupIntent = async () => {
+      if (paymentOption === 'pay_now' && tenantId && !setupIntentSecret) {
+        setCreatingSetupIntent(true);
+        try {
+          const result = await subscriptionsService.createSetupIntent(
+            tenantId,
+            adminEmail,
+            tenantName
+          );
+          setSetupIntentSecret(result.data.client_secret);
+          onSetupIntentCreated(result.data.client_secret);
+        } catch (err) {
+          setError('Failed to initialize payment form. Please try again.');
+        } finally {
+          setCreatingSetupIntent(false);
+        }
+      }
+    };
+
+    createSetupIntent();
+  }, [paymentOption, tenantId, adminEmail, tenantName, setupIntentSecret, setError, onSetupIntentCreated]);
+
+  const formatPrice = (cents) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(cents / 100);
+  };
+
+  const calculateSavings = (plan) => {
+    if (!plan.price_yearly || !plan.price_monthly) return null;
+    const annualIfMonthly = plan.price_monthly * 12;
+    const savings = annualIfMonthly - plan.price_yearly;
+    if (savings <= 0) return null;
+    return Math.round((savings / annualIfMonthly) * 100);
+  };
+
+  return (
+    <div>
+      <h2 style={{ marginBottom: '8px' }}>Choose a Plan</h2>
+      <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
+        Select the subscription plan that best fits this tenant's needs.
+      </p>
+
+      {/* Billing Interval Toggle */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+        <div style={{ 
+          display: 'inline-flex', 
+          background: 'var(--bg-secondary)', 
+          borderRadius: '8px', 
+          padding: '4px',
+          border: '1px solid var(--border-color)'
+        }}>
+          <button
+            type="button"
+            onClick={() => setBillingInterval('monthly')}
+            style={{
+              padding: '8px 20px',
+              border: 'none',
+              borderRadius: '6px',
+              background: billingInterval === 'monthly' ? 'var(--accent-primary)' : 'transparent',
+              color: billingInterval === 'monthly' ? 'white' : 'var(--text-primary)',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Monthly
+          </button>
+          <button
+            type="button"
+            onClick={() => setBillingInterval('yearly')}
+            style={{
+              padding: '8px 20px',
+              border: 'none',
+              borderRadius: '6px',
+              background: billingInterval === 'yearly' ? 'var(--accent-primary)' : 'transparent',
+              color: billingInterval === 'yearly' ? 'white' : 'var(--text-primary)',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Yearly
+            <span style={{ 
+              marginLeft: '6px', 
+              fontSize: '11px', 
+              background: billingInterval === 'yearly' ? 'rgba(255,255,255,0.2)' : 'var(--accent-success)', 
+              color: billingInterval === 'yearly' ? 'white' : 'white',
+              padding: '2px 6px', 
+              borderRadius: '4px' 
+            }}>
+              Save ~17%
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Plan Cards */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
+        gap: '16px',
+        marginBottom: '24px'
+      }}>
+        {plans.map(plan => {
+          const price = billingInterval === 'yearly' ? plan.price_yearly : plan.price_monthly;
+          const perMonth = billingInterval === 'yearly' ? plan.price_yearly / 12 : plan.price_monthly;
+          const savings = calculateSavings(plan);
+          const features = typeof plan.features === 'string' ? JSON.parse(plan.features) : plan.features;
+
+          return (
+            <div
+              key={plan.id}
+              onClick={() => setSelectedPlan(plan)}
+              style={{
+                border: selectedPlan?.id === plan.id 
+                  ? '2px solid var(--accent-primary)' 
+                  : '1px solid var(--border-color)',
+                borderRadius: '12px',
+                padding: '20px',
+                cursor: 'pointer',
+                background: selectedPlan?.id === plan.id ? 'var(--bg-hover)' : 'var(--bg-primary)',
+                position: 'relative',
+                transition: 'all 0.2s'
+              }}
+            >
+              {plan.is_featured && (
+                <div style={{
+                  position: 'absolute',
+                  top: '-10px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'var(--accent-primary)',
+                  color: 'white',
+                  padding: '2px 12px',
+                  borderRadius: '10px',
+                  fontSize: '11px',
+                  fontWeight: 600
+                }}>
+                  MOST POPULAR
+                </div>
+              )}
+              
+              <h3 style={{ margin: '0 0 4px 0', fontSize: '18px' }}>{plan.name}</h3>
+              <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted)' }}>
+                {plan.description}
+              </p>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <span style={{ fontSize: '32px', fontWeight: 700 }}>
+                  {formatPrice(perMonth)}
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>/month</span>
+                {billingInterval === 'yearly' && savings && (
+                  <div style={{ fontSize: '12px', color: 'var(--accent-success)', marginTop: '4px' }}>
+                    {formatPrice(price)}/year (save {savings}%)
+                  </div>
+                )}
+              </div>
+              
+              <ul style={{ 
+                margin: 0, 
+                padding: 0, 
+                listStyle: 'none',
+                fontSize: '13px'
+              }}>
+                {features.map((feature, idx) => (
+                  <li key={idx} style={{ 
+                    display: 'flex', 
+                    alignItems: 'flex-start', 
+                    gap: '8px',
+                    marginBottom: '8px',
+                    color: 'var(--text-secondary)'
+                  }}>
+                    <Icons.Check size={14} style={{ color: 'var(--accent-success)', flexShrink: 0, marginTop: '2px' }} />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+
+              {selectedPlan?.id === plan.id && (
+                <div style={{
+                  position: 'absolute',
+                  top: '12px',
+                  right: '12px',
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  background: 'var(--accent-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Icons.Check size={14} style={{ color: 'white' }} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Payment Options */}
+      {selectedPlan && (
+        <div style={{ marginTop: '24px' }}>
+          <h3 style={{ fontSize: '16px', marginBottom: '12px' }}>Payment Options</h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              padding: '16px',
+              border: paymentOption === 'trial' ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              background: paymentOption === 'trial' ? 'var(--bg-hover)' : 'var(--bg-primary)'
+            }}>
+              <input
+                type="radio"
+                name="payment_option"
+                value="trial"
+                checked={paymentOption === 'trial'}
+                onChange={() => setPaymentOption('trial')}
+                style={{ marginTop: '4px' }}
+              />
+              <div>
+                <div style={{ fontWeight: 500 }}>Start with 14-day free trial</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  No payment required now. Tenant can add payment method later.
+                </div>
+              </div>
+            </label>
+
+            <label style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              padding: '16px',
+              border: paymentOption === 'pay_now' ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              background: paymentOption === 'pay_now' ? 'var(--bg-hover)' : 'var(--bg-primary)'
+            }}>
+              <input
+                type="radio"
+                name="payment_option"
+                value="pay_now"
+                checked={paymentOption === 'pay_now'}
+                onChange={() => setPaymentOption('pay_now')}
+                style={{ marginTop: '4px' }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 500 }}>Add payment method now</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: paymentOption === 'pay_now' ? '12px' : 0 }}>
+                  Start subscription immediately (still includes 14-day trial).
+                </div>
+                
+                {paymentOption === 'pay_now' && (
+                  <div style={{ marginTop: '12px' }}>
+                    {creatingSetupIntent ? (
+                      <div style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                        <Icons.Loader size={16} className="spin" style={{ marginRight: '8px' }} />
+                        Initializing payment form...
+                      </div>
+                    ) : (
+                      <div style={{
+                        padding: '12px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        background: 'var(--bg-secondary)'
+                      }}>
+                        <CardElement
+                          options={{
+                            style: {
+                              base: {
+                                fontSize: '14px',
+                                color: 'var(--text-primary)',
+                                '::placeholder': {
+                                  color: 'var(--text-muted)',
+                                },
+                              },
+                            },
+                          }}
+                          onChange={(e) => setCardComplete(e.complete)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </label>
+
+            <label style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              padding: '16px',
+              border: paymentOption === 'skip' ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              background: paymentOption === 'skip' ? 'var(--bg-hover)' : 'var(--bg-primary)'
+            }}>
+              <input
+                type="radio"
+                name="payment_option"
+                value="skip"
+                checked={paymentOption === 'skip'}
+                onChange={() => setPaymentOption('skip')}
+                style={{ marginTop: '4px' }}
+              />
+              <div>
+                <div style={{ fontWeight: 500 }}>Skip subscription (internal use)</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  For demo, testing, or internal tenants. No billing.
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Wrapper to provide Stripe context
+const SubscriptionStep = (props) => (
+  <Elements stripe={stripePromise}>
+    <SubscriptionStepInner {...props} />
+  </Elements>
+);
+
+// ============================================================================
+// MAIN WIZARD COMPONENT
+// ============================================================================
 
 const OnboardingWizard = () => {
   const navigate = useNavigate();
@@ -23,6 +392,10 @@ const OnboardingWizard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [tenantId, setTenantId] = useState(null);
+
+  // Subscription plans
+  const [plans, setPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(false);
 
   // Form data for each step
   const [tenantData, setTenantData] = useState({
@@ -38,6 +411,14 @@ const OnboardingWizard = () => {
     confirmPassword: '',
     name: '',
     phone: ''
+  });
+
+  // Subscription data
+  const [subscriptionData, setSubscriptionData] = useState({
+    selectedPlan: null,
+    billingInterval: 'monthly',
+    paymentOption: 'trial', // 'trial', 'pay_now', 'skip'
+    setupIntentSecret: null
   });
 
   const [businessData, setBusinessData] = useState({
@@ -61,7 +442,6 @@ const OnboardingWizard = () => {
 
   const [integrationsData, setIntegrationsData] = useState({
     stripe_enabled: false,
-    stripe_account_id: '',
     plaid_enabled: false
   });
 
@@ -71,6 +451,27 @@ const OnboardingWizard = () => {
     load_sample_animals: false,
     load_sample_accounts: false
   });
+
+  // Load subscription plans on mount
+  useEffect(() => {
+    const loadPlans = async () => {
+      setPlansLoading(true);
+      try {
+        const result = await subscriptionsService.getPlans();
+        setPlans(result.data || []);
+        // Pre-select featured plan
+        const featured = (result.data || []).find(p => p.is_featured);
+        if (featured) {
+          setSubscriptionData(prev => ({ ...prev, selectedPlan: featured }));
+        }
+      } catch (err) {
+        console.error('Failed to load plans:', err);
+      } finally {
+        setPlansLoading(false);
+      }
+    };
+    loadPlans();
+  }, []);
 
   const generateSlug = (name) => {
     return name
@@ -86,7 +487,6 @@ const OnboardingWizard = () => {
       name,
       slug: generateSlug(name)
     });
-    // Also update business name if empty
     if (!businessData.business_name) {
       setBusinessData({ ...businessData, business_name: name });
     }
@@ -118,7 +518,13 @@ const OnboardingWizard = () => {
           return false;
         }
         break;
-      case 2: // Business Config
+      case 2: // Subscription
+        if (!subscriptionData.selectedPlan && subscriptionData.paymentOption !== 'skip') {
+          setError('Please select a subscription plan');
+          return false;
+        }
+        break;
+      case 3: // Business Config
         if (!businessData.business_name.trim()) {
           setError('Business name is required');
           return false;
@@ -134,57 +540,90 @@ const OnboardingWizard = () => {
   const handleNext = async () => {
     if (!validateStep()) return;
 
-    // Execute step-specific actions
     try {
       setLoading(true);
       setError(null);
 
+      // Step 0: Create tenant
       if (currentStep === 0 && !tenantId) {
-        // Create tenant
         const response = await onboardingService.createTenant(tenantData).catch(() => {
-          // Demo mode - generate fake tenant ID
           return { data: { id: crypto.randomUUID() } };
         });
         setTenantId(response.data.id);
       }
 
+      // Step 1: Create admin user
       if (currentStep === 1 && tenantId) {
-        // Create admin user
         await onboardingService.createAdminUser(tenantId, adminData).catch(() => {
           console.log('Demo mode: Admin user step');
         });
       }
 
+      // Step 2: Create subscription
       if (currentStep === 2 && tenantId) {
-        // Configure business settings
+        const { selectedPlan, billingInterval, paymentOption } = subscriptionData;
+        
+        if (paymentOption === 'skip') {
+          // Skip subscription for internal tenants
+          await subscriptionsService.skipSubscription(tenantId).catch(() => {
+            console.log('Demo mode: Skip subscription');
+          });
+        } else if (paymentOption === 'trial') {
+          // Create trial subscription
+          await subscriptionsService.createTrialSubscription({
+            tenant_id: tenantId,
+            plan_slug: selectedPlan.slug,
+            billing_interval: billingInterval,
+            trial_days: 14,
+            billing_email: adminData.email
+          }).catch(() => {
+            console.log('Demo mode: Trial subscription');
+          });
+        } else if (paymentOption === 'pay_now') {
+          // Payment method is handled via Stripe Elements
+          // The actual subscription creation happens after card confirmation
+          // For now, we'll create with trial and assume card is added
+          await subscriptionsService.createTrialSubscription({
+            tenant_id: tenantId,
+            plan_slug: selectedPlan.slug,
+            billing_interval: billingInterval,
+            trial_days: 14,
+            billing_email: adminData.email
+          }).catch(() => {
+            console.log('Demo mode: Subscription with payment');
+          });
+        }
+      }
+
+      // Step 3: Business settings
+      if (currentStep === 3 && tenantId) {
         await onboardingService.configureBusinessSettings(tenantId, businessData).catch(() => {
           console.log('Demo mode: Business settings step');
         });
       }
 
-      if (currentStep === 3 && tenantId) {
-        // Initialize chart of accounts
+      // Step 4: Chart of accounts
+      if (currentStep === 4 && tenantId) {
         await onboardingService.initializeChartOfAccounts(tenantId, accountsData.template).catch(() => {
           console.log('Demo mode: COA step');
         });
       }
 
-      if (currentStep === 4 && tenantId) {
-        // Configure integrations
+      // Step 5: Integrations
+      if (currentStep === 5 && tenantId) {
         await onboardingService.configureIntegrations(tenantId, integrationsData).catch(() => {
           console.log('Demo mode: Integrations step');
         });
       }
 
-      if (currentStep === 5 && tenantId) {
-        // Load sample data and complete
+      // Step 6: Sample data & complete
+      if (currentStep === 6 && tenantId) {
         await onboardingService.loadSampleData(tenantId, sampleData).catch(() => {
           console.log('Demo mode: Sample data step');
         });
         await onboardingService.completeOnboarding(tenantId).catch(() => {
           console.log('Demo mode: Complete onboarding');
         });
-        // Navigate to tenant detail
         navigate(`/tenants/${tenantId}`);
         return;
       }
@@ -370,6 +809,30 @@ const OnboardingWizard = () => {
         );
 
       case 2:
+        return plansLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <Icons.Loader size={32} className="spin" />
+            <p style={{ marginTop: '12px', color: 'var(--text-muted)' }}>Loading subscription plans...</p>
+          </div>
+        ) : (
+          <SubscriptionStep
+            plans={plans}
+            selectedPlan={subscriptionData.selectedPlan}
+            setSelectedPlan={(plan) => setSubscriptionData({ ...subscriptionData, selectedPlan: plan })}
+            billingInterval={subscriptionData.billingInterval}
+            setBillingInterval={(interval) => setSubscriptionData({ ...subscriptionData, billingInterval: interval })}
+            paymentOption={subscriptionData.paymentOption}
+            setPaymentOption={(option) => setSubscriptionData({ ...subscriptionData, paymentOption: option })}
+            tenantId={tenantId}
+            adminEmail={adminData.email}
+            tenantName={tenantData.name}
+            onSetupIntentCreated={(secret) => setSubscriptionData({ ...subscriptionData, setupIntentSecret: secret })}
+            error={error}
+            setError={setError}
+          />
+        );
+
+      case 3:
         return (
           <div>
             <h2 style={{ marginBottom: '8px' }}>Business Configuration</h2>
@@ -472,7 +935,7 @@ const OnboardingWizard = () => {
           </div>
         );
 
-      case 3:
+      case 4:
         return (
           <div>
             <h2 style={{ marginBottom: '8px' }}>Chart of Accounts</h2>
@@ -521,12 +984,12 @@ const OnboardingWizard = () => {
           </div>
         );
 
-      case 4:
+      case 5:
         return (
           <div>
             <h2 style={{ marginBottom: '8px' }}>Integrations</h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
-              Configure payment processing and banking integrations.
+              Enable payment processing and banking integrations for this tenant.
             </p>
 
             <div className="card" style={{ marginBottom: '16px' }}>
@@ -534,8 +997,8 @@ const OnboardingWizard = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <Icons.CreditCard size={24} />
                   <div>
-                    <div style={{ fontWeight: 500 }}>Stripe Payments</div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Accept credit cards and manage payouts</div>
+                    <div style={{ fontWeight: 500 }}>Stripe Connect</div>
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Accept credit cards with their own Stripe account</div>
                   </div>
                 </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
@@ -549,16 +1012,20 @@ const OnboardingWizard = () => {
               </div>
               {integrationsData.stripe_enabled && (
                 <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Stripe Account ID (optional)</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="acct_..."
-                      value={integrationsData.stripe_account_id}
-                      onChange={(e) => setIntegrationsData({ ...integrationsData, stripe_account_id: e.target.value })}
-                    />
-                    <p className="form-hint">Leave blank to set up later</p>
+                  <div style={{ 
+                    background: 'var(--bg-tertiary)', 
+                    padding: '12px 16px', 
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: 'var(--text-secondary)'
+                  }}>
+                    <strong>How it works:</strong>
+                    <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                      <li>After tenant creation, the admin logs into Back Office</li>
+                      <li>They go to System → Stripe Connect to create their account</li>
+                      <li>Stripe handles identity verification and bank account setup</li>
+                      <li>Once approved, they can accept card payments via POS and online</li>
+                    </ul>
                   </div>
                 </div>
               )}
@@ -586,12 +1053,12 @@ const OnboardingWizard = () => {
 
             <div className="alert alert-info" style={{ marginTop: '16px' }}>
               <Icons.Info size={18} />
-              <span>Integration credentials can be configured after tenant creation in the tenant settings.</span>
+              <span>Integrations are configured by the tenant in their Back Office after onboarding is complete.</span>
             </div>
           </div>
         );
 
-      case 5:
+      case 6:
         return (
           <div>
             <h2 style={{ marginBottom: '8px' }}>Sample Data</h2>

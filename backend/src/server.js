@@ -52,6 +52,8 @@ const posLayoutsRouter = require('./routes/pos-layouts');
 const sitePublicRouter = require('./routes/sitePublic');
 const reportBuilderRouter = require('./routes/reportBuilder');
 const tenantAssetsRouter = require('./routes/tenantAssets');
+const connectRouter = require('./routes/connect');
+const subscriptionsRouter = require('./routes/subscriptions');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -175,8 +177,15 @@ const posLimiter = rateLimit({
 
 app.use(limiter);
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
+// Body parsing - skip JSON parsing for Stripe webhook routes (they need raw body)
+app.use((req, res, next) => {
+  if (req.originalUrl.includes('/webhook')) {
+    // Skip JSON parsing for webhook routes
+    next();
+  } else {
+    express.json({ limit: '10mb' })(req, res, next);
+  }
+});
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Request logging
@@ -241,6 +250,8 @@ app.use(`${API_PREFIX}/pos-layouts`, posLayoutsRouter);
 app.use(`${API_PREFIX}/site-public`, sitePublicRouter);
 app.use(`${API_PREFIX}/report-builder`, reportBuilderRouter);
 app.use(`${API_PREFIX}/tenant-assets`, tenantAssetsRouter);
+app.use(`${API_PREFIX}/connect`, connectRouter);
+app.use(`${API_PREFIX}/subscriptions`, subscriptionsRouter);
 
 // Also mount tenant-assets at root for cleaner URLs (public access)
 app.use('/tenant-assets', tenantAssetsRouter);

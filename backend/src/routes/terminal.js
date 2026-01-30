@@ -1,6 +1,7 @@
 /**
- * Stripe Terminal Routes
- * Handles POS terminal operations including reader management and payments
+ * Stripe Terminal Routes - Connect Edition
+ * Handles POS terminal operations using Stripe Connect
+ * Each tenant's terminals connect to their own connected account
  */
 
 const express = require('express');
@@ -14,15 +15,80 @@ const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Get tenant's Stripe Connect account ID
+ * Throws error if tenant doesn't have Connect set up
+ */
+async function getTenantStripeAccount(tenantId, requireActive = true) {
+  const result = await db.query(`
+    SELECT 
+      stripe_account_id, 
+      stripe_charges_enabled,
+      stripe_account_status,
+      name
+    FROM tenants WHERE id = $1
+  `, [tenantId]);
+  
+  if (result.rows.length === 0) {
+    throw new ApiError(404, 'Tenant not found');
+  }
+  
+  const tenant = result.rows[0];
+  
+  if (!tenant.stripe_account_id) {
+    throw new ApiError(400, 'Stripe Connect not configured for this tenant. Please complete Stripe onboarding in Settings.');
+  }
+  
+  if (requireActive && !tenant.stripe_charges_enabled) {
+    throw new ApiError(400, `Stripe account for ${tenant.name} cannot accept payments yet. Please complete Stripe onboarding.`);
+  }
+  
+  return tenant.stripe_account_id;
+}
+
+/**
+ * Get the platform application fee percentage from settings
+ */
+async function getPlatformFeePercent() {
+  try {
+    const result = await db.query(
+      "SELECT value FROM platform_settings WHERE key = 'stripe_connect_fee_percent'"
+    );
+    return result.rows.length > 0 ? parseFloat(result.rows[0].value) : 2.5;
+  } catch (error) {
+    logger.warn('Could not fetch platform fee setting, using default 2.5%');
+    return 2.5;
+  }
+}
+
+/**
+ * Calculate application fee from amount
+ */
+async function calculateApplicationFee(amount) {
+  const feePercent = await getPlatformFeePercent();
+  return Math.round(amount * (feePercent / 100));
+}
+
+// ============================================================================
 // CONNECTION TOKEN - Required by Stripe Terminal SDK
 // ============================================================================
 
 /**
  * POST /terminal/connection-token
  * Generate a connection token for the Terminal SDK
+ * The token is scoped to the tenant's connected account
  */
 router.post('/connection-token', authenticate, requireStaff, asyncHandler(async (req, res) => {
-  const connectionToken = await stripe.terminal.connectionTokens.create();
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, false);
+  
+  // Create connection token on the connected account
+  const connectionToken = await stripe.terminal.connectionTokens.create(
+    {},
+    { stripeAccount: stripeAccountId }
+  );
   
   res.json({
     status: 'success',
@@ -36,10 +102,37 @@ router.post('/connection-token', authenticate, requireStaff, asyncHandler(async 
 
 /**
  * GET /terminal/locations
- * List all registered terminal locations
+ * List all registered terminal locations for this tenant
  */
 router.get('/locations', authenticate, requireStaff, asyncHandler(async (req, res) => {
-  const locations = await stripe.terminal.locations.list({ limit: 100 });
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, false);
+  
+  const locations = await stripe.terminal.locations.list(
+    { limit: 100 },
+    { stripeAccount: stripeAccountId }
+  );
+  
+  // Sync to local database for tracking
+  for (const location of locations.data) {
+    await db.query(`
+      INSERT INTO stripe_terminal_locations 
+      (tenant_id, stripe_location_id, display_name, address_line1, address_city, 
+       address_state, address_postal_code, address_country)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (tenant_id, stripe_location_id) DO UPDATE SET
+        display_name = EXCLUDED.display_name,
+        updated_at = CURRENT_TIMESTAMP
+    `, [
+      req.user.tenant_id,
+      location.id,
+      location.display_name,
+      location.address?.line1,
+      location.address?.city,
+      location.address?.state,
+      location.address?.postal_code,
+      location.address?.country || 'US'
+    ]);
+  }
   
   res.json({
     status: 'success',
@@ -49,7 +142,7 @@ router.get('/locations', authenticate, requireStaff, asyncHandler(async (req, re
 
 /**
  * POST /terminal/locations
- * Register a new terminal location
+ * Register a new terminal location on the connected account
  */
 router.post('/locations', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { display_name, address } = req.body;
@@ -58,22 +151,76 @@ router.post('/locations', authenticate, requireStaff, asyncHandler(async (req, r
     throw new ApiError(400, 'display_name and address are required');
   }
 
-  const location = await stripe.terminal.locations.create({
-    display_name,
-    address: {
-      line1: address.line1,
-      city: address.city,
-      state: address.state,
-      postal_code: address.postal_code,
-      country: address.country || 'US'
-    }
-  });
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, false);
 
-  logger.info('Terminal location created', { locationId: location.id, displayName: display_name });
+  const location = await stripe.terminal.locations.create(
+    {
+      display_name,
+      address: {
+        line1: address.line1,
+        city: address.city,
+        state: address.state,
+        postal_code: address.postal_code,
+        country: address.country || 'US'
+      }
+    },
+    { stripeAccount: stripeAccountId }
+  );
+
+  // Save to local database
+  await db.query(`
+    INSERT INTO stripe_terminal_locations 
+    (tenant_id, stripe_location_id, display_name, address_line1, address_city, 
+     address_state, address_postal_code, address_country)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+  `, [
+    req.user.tenant_id,
+    location.id,
+    location.display_name,
+    address.line1,
+    address.city,
+    address.state,
+    address.postal_code,
+    address.country || 'US'
+  ]);
+
+  logger.info('Terminal location created on connected account', { 
+    locationId: location.id, 
+    displayName: display_name,
+    tenantId: req.user.tenant_id,
+    stripeAccountId 
+  });
 
   res.status(201).json({
     status: 'success',
     data: location
+  });
+}));
+
+/**
+ * DELETE /terminal/locations/:locationId
+ * Delete a terminal location
+ */
+router.delete('/locations/:locationId', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const { locationId } = req.params;
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, false);
+
+  await stripe.terminal.locations.del(
+    locationId,
+    { stripeAccount: stripeAccountId }
+  );
+
+  // Remove from local database
+  await db.query(`
+    DELETE FROM stripe_terminal_locations 
+    WHERE stripe_location_id = $1 AND tenant_id = $2
+  `, [locationId, req.user.tenant_id]);
+
+  logger.info('Terminal location deleted', { locationId, tenantId: req.user.tenant_id });
+
+  res.json({
+    status: 'success',
+    message: 'Location deleted'
   });
 }));
 
@@ -83,17 +230,44 @@ router.post('/locations', authenticate, requireStaff, asyncHandler(async (req, r
 
 /**
  * GET /terminal/readers
- * List all registered readers
+ * List all registered readers for this tenant
  */
 router.get('/readers', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { location } = req.query;
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, false);
   
   const params = { limit: 100 };
   if (location) {
     params.location = location;
   }
 
-  const readers = await stripe.terminal.readers.list(params);
+  const readers = await stripe.terminal.readers.list(
+    params,
+    { stripeAccount: stripeAccountId }
+  );
+  
+  // Sync to local database
+  for (const reader of readers.data) {
+    await db.query(`
+      INSERT INTO stripe_terminal_readers 
+      (tenant_id, stripe_reader_id, stripe_location_id, label, device_type, 
+       serial_number, status, last_seen_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+      ON CONFLICT (tenant_id, stripe_reader_id) DO UPDATE SET
+        label = EXCLUDED.label,
+        status = EXCLUDED.status,
+        last_seen_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    `, [
+      req.user.tenant_id,
+      reader.id,
+      reader.location,
+      reader.label,
+      reader.device_type,
+      reader.serial_number,
+      reader.status
+    ]);
+  }
   
   res.json({
     status: 'success',
@@ -103,7 +277,7 @@ router.get('/readers', authenticate, requireStaff, asyncHandler(async (req, res)
 
 /**
  * POST /terminal/readers
- * Register a new reader (using registration code from reader screen)
+ * Register a new reader on the connected account
  */
 router.post('/readers', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { registration_code, label, location } = req.body;
@@ -112,13 +286,38 @@ router.post('/readers', authenticate, requireStaff, asyncHandler(async (req, res
     throw new ApiError(400, 'registration_code and location are required');
   }
 
-  const reader = await stripe.terminal.readers.create({
-    registration_code,
-    label: label || 'POS Reader',
-    location
-  });
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, false);
 
-  logger.info('Terminal reader registered', { readerId: reader.id, label: reader.label });
+  const reader = await stripe.terminal.readers.create(
+    {
+      registration_code,
+      label: label || 'POS Reader',
+      location
+    },
+    { stripeAccount: stripeAccountId }
+  );
+
+  // Save to local database
+  await db.query(`
+    INSERT INTO stripe_terminal_readers 
+    (tenant_id, stripe_reader_id, stripe_location_id, label, device_type, serial_number, status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+  `, [
+    req.user.tenant_id,
+    reader.id,
+    reader.location,
+    reader.label,
+    reader.device_type,
+    reader.serial_number,
+    reader.status
+  ]);
+
+  logger.info('Terminal reader registered on connected account', { 
+    readerId: reader.id, 
+    label: reader.label,
+    tenantId: req.user.tenant_id,
+    stripeAccountId
+  });
 
   res.status(201).json({
     status: 'success',
@@ -132,10 +331,20 @@ router.post('/readers', authenticate, requireStaff, asyncHandler(async (req, res
  */
 router.delete('/readers/:readerId', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { readerId } = req.params;
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, false);
 
-  await stripe.terminal.readers.del(readerId);
+  await stripe.terminal.readers.del(
+    readerId,
+    { stripeAccount: stripeAccountId }
+  );
 
-  logger.info('Terminal reader deleted', { readerId });
+  // Remove from local database
+  await db.query(`
+    DELETE FROM stripe_terminal_readers 
+    WHERE stripe_reader_id = $1 AND tenant_id = $2
+  `, [readerId, req.user.tenant_id]);
+
+  logger.info('Terminal reader deleted', { readerId, tenantId: req.user.tenant_id });
 
   res.json({
     status: 'success',
@@ -144,12 +353,12 @@ router.delete('/readers/:readerId', authenticate, requireStaff, asyncHandler(asy
 }));
 
 // ============================================================================
-// PAYMENT INTENTS - Create and manage payments
+// PAYMENT INTENTS - Create and manage payments with application fees
 // ============================================================================
 
 /**
  * POST /terminal/payment-intents
- * Create a payment intent for terminal collection
+ * Create a payment intent for terminal collection with application fee
  */
 router.post('/payment-intents', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { amount, description, metadata } = req.body;
@@ -158,23 +367,37 @@ router.post('/payment-intents', authenticate, requireStaff, asyncHandler(async (
     throw new ApiError(400, 'Amount must be at least 50 cents');
   }
 
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: Math.round(amount),
-    currency: 'usd',
-    payment_method_types: ['card_present'],
-    capture_method: 'automatic',
-    description: description || 'POS Sale',
-    metadata: {
-      ...metadata,
-      source: 'pos_terminal',
-      created_by: req.user.id
-    }
-  });
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, true);
+  
+  // Calculate platform application fee
+  const applicationFee = await calculateApplicationFee(amount);
 
-  logger.info('Payment intent created for terminal', { 
+  // Create payment intent on connected account with direct charges
+  const paymentIntent = await stripe.paymentIntents.create(
+    {
+      amount: Math.round(amount),
+      currency: 'usd',
+      payment_method_types: ['card_present'],
+      capture_method: 'automatic',
+      description: description || 'POS Sale',
+      application_fee_amount: applicationFee,
+      metadata: {
+        ...metadata,
+        source: 'pos_terminal',
+        tenant_id: req.user.tenant_id,
+        created_by: req.user.id
+      }
+    },
+    { stripeAccount: stripeAccountId }
+  );
+
+  logger.info('Payment intent created for terminal on connected account', { 
     paymentIntentId: paymentIntent.id, 
     amount,
-    createdBy: req.user.id 
+    applicationFee,
+    createdBy: req.user.id,
+    tenantId: req.user.tenant_id,
+    stripeAccountId
   });
 
   res.status(201).json({
@@ -183,7 +406,8 @@ router.post('/payment-intents', authenticate, requireStaff, asyncHandler(async (
       id: paymentIntent.id,
       client_secret: paymentIntent.client_secret,
       amount: paymentIntent.amount,
-      status: paymentIntent.status
+      status: paymentIntent.status,
+      application_fee_amount: applicationFee
     }
   });
 }));
@@ -200,11 +424,19 @@ router.post('/payment-intents/:paymentIntentId/process', authenticate, requireSt
     throw new ApiError(400, 'readerId is required');
   }
 
-  const reader = await stripe.terminal.readers.processPaymentIntent(readerId, {
-    payment_intent: paymentIntentId
-  });
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, true);
 
-  logger.info('Payment processing on reader', { paymentIntentId, readerId });
+  const reader = await stripe.terminal.readers.processPaymentIntent(
+    readerId,
+    { payment_intent: paymentIntentId },
+    { stripeAccount: stripeAccountId }
+  );
+
+  logger.info('Payment processing on reader', { 
+    paymentIntentId, 
+    readerId,
+    tenantId: req.user.tenant_id 
+  });
 
   res.json({
     status: 'success',
@@ -218,14 +450,42 @@ router.post('/payment-intents/:paymentIntentId/process', authenticate, requireSt
  */
 router.post('/payment-intents/:paymentIntentId/cancel', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { paymentIntentId } = req.params;
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, true);
 
-  const paymentIntent = await stripe.paymentIntents.cancel(paymentIntentId);
+  const paymentIntent = await stripe.paymentIntents.cancel(
+    paymentIntentId,
+    { stripeAccount: stripeAccountId }
+  );
 
-  logger.info('Payment intent cancelled', { paymentIntentId });
+  logger.info('Payment intent cancelled', { paymentIntentId, tenantId: req.user.tenant_id });
 
   res.json({
     status: 'success',
     data: paymentIntent
+  });
+}));
+
+/**
+ * GET /terminal/payment-intents/:paymentIntentId
+ * Retrieve a payment intent status
+ */
+router.get('/payment-intents/:paymentIntentId', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const { paymentIntentId } = req.params;
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, true);
+
+  const paymentIntent = await stripe.paymentIntents.retrieve(
+    paymentIntentId,
+    { stripeAccount: stripeAccountId }
+  );
+
+  res.json({
+    status: 'success',
+    data: {
+      id: paymentIntent.id,
+      amount: paymentIntent.amount,
+      status: paymentIntent.status,
+      charges: paymentIntent.charges?.data || []
+    }
   });
 }));
 
@@ -235,10 +495,14 @@ router.post('/payment-intents/:paymentIntentId/cancel', authenticate, requireSta
  */
 router.post('/readers/:readerId/cancel-action', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { readerId } = req.params;
+  const stripeAccountId = await getTenantStripeAccount(req.user.tenant_id, true);
 
-  const reader = await stripe.terminal.readers.cancelAction(readerId);
+  const reader = await stripe.terminal.readers.cancelAction(
+    readerId,
+    { stripeAccount: stripeAccountId }
+  );
 
-  logger.info('Reader action cancelled', { readerId });
+  logger.info('Reader action cancelled', { readerId, tenantId: req.user.tenant_id });
 
   res.json({
     status: 'success',
@@ -247,7 +511,63 @@ router.post('/readers/:readerId/cancel-action', authenticate, requireStaff, asyn
 }));
 
 // ============================================================================
-// ORDERS - Record completed sales
+// CONNECT STATUS CHECK
+// ============================================================================
+
+/**
+ * GET /terminal/connect-status
+ * Check if tenant's Stripe Connect is properly configured for terminal use
+ */
+router.get('/connect-status', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const result = await db.query(`
+    SELECT 
+      stripe_account_id, 
+      stripe_charges_enabled,
+      stripe_payouts_enabled,
+      stripe_account_status,
+      stripe_onboarding_complete
+    FROM tenants WHERE id = $1
+  `, [req.user.tenant_id]);
+  
+  if (result.rows.length === 0) {
+    throw new ApiError(404, 'Tenant not found');
+  }
+  
+  const tenant = result.rows[0];
+  
+  const status = {
+    connected: !!tenant.stripe_account_id,
+    account_id: tenant.stripe_account_id,
+    charges_enabled: tenant.stripe_charges_enabled || false,
+    payouts_enabled: tenant.stripe_payouts_enabled || false,
+    onboarding_complete: tenant.stripe_onboarding_complete || false,
+    status: tenant.stripe_account_status || 'not_connected',
+    terminal_ready: tenant.stripe_charges_enabled === true
+  };
+  
+  // Check for locations and readers if connected
+  if (status.connected) {
+    const locationsResult = await db.query(
+      'SELECT COUNT(*) FROM stripe_terminal_locations WHERE tenant_id = $1',
+      [req.user.tenant_id]
+    );
+    const readersResult = await db.query(
+      'SELECT COUNT(*) FROM stripe_terminal_readers WHERE tenant_id = $1',
+      [req.user.tenant_id]
+    );
+    
+    status.locations_count = parseInt(locationsResult.rows[0].count);
+    status.readers_count = parseInt(readersResult.rows[0].count);
+  }
+
+  res.json({
+    status: 'success',
+    data: status
+  });
+}));
+
+// ============================================================================
+// ORDERS - Record completed sales (unchanged, but now with Connect context)
 // ============================================================================
 
 /**
@@ -333,6 +653,7 @@ router.post('/orders', authenticate, requireStaff, asyncHandler(async (req, res)
       orderNumber: order.order_number,
       total,
       paymentMethod: payment_method,
+      paymentIntentId: payment_intent_id,
       createdBy: req.user.id,
       tenantId: req.user.tenant_id
     });
@@ -431,7 +752,6 @@ router.get('/orders/:orderId', authenticate, requireStaff, asyncHandler(async (r
 /**
  * GET /terminal/layouts
  * Get available POS layouts for this tenant
- * Returns empty array if pos_layouts table doesn't exist yet
  */
 router.get('/layouts', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const tenantId = req.user.tenant_id;
@@ -449,7 +769,6 @@ router.get('/layouts', authenticate, requireStaff, asyncHandler(async (req, res)
       data: result.rows
     });
   } catch (err) {
-    // Table may not exist yet
     logger.info('pos_layouts table not available', { error: err.message });
     res.json({
       status: 'success',
@@ -465,19 +784,14 @@ router.get('/layouts', authenticate, requireStaff, asyncHandler(async (req, res)
 /**
  * GET /terminal/products
  * Get products for POS display based on layout
- * If layout_id provided, returns only items in that layout
- * If no layout_id, uses the tenant's default layout
- * Falls back to all active items if no layout exists or layouts feature not available
  */
 router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res) => {
   const { layout_id, category_id, search } = req.query;
   const tenantId = req.user.tenant_id;
 
-  // Try to use layouts if available, but fall back gracefully
   let effectiveLayoutId = layout_id || null;
   let useLayouts = false;
   
-  // Check if layouts table exists and get default layout if needed
   if (!effectiveLayoutId) {
     try {
       const defaultLayout = await db.query(`
@@ -491,18 +805,14 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
         useLayouts = true;
       }
     } catch (err) {
-      // pos_layouts table doesn't exist yet - that's fine
       logger.info('pos_layouts table not available, using all active items');
     }
   } else {
     useLayouts = true;
   }
 
-  // If we have a layout ID, try to use it
   if (useLayouts && effectiveLayoutId) {
     try {
-      logger.info('Fetching products for layout', { layout_id: effectiveLayoutId, tenant_id: tenantId });
-      
       let queryText = `
         SELECT 
           i.id, i.name, i.description, i.sku,
@@ -542,8 +852,6 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
       queryText += ' ORDER BY li.display_order, i.name';
 
       const result = await db.query(queryText, params);
-      
-      logger.info('Layout products query result', { layout_id: effectiveLayoutId, count: result.rows.length });
 
       return res.json({
         status: 'success',
@@ -551,12 +859,11 @@ router.get('/products', authenticate, requireStaff, asyncHandler(async (req, res
         layout_id: effectiveLayoutId
       });
     } catch (err) {
-      // Layout query failed - fall through to fallback
       logger.warn('Layout query failed, falling back to all items', { error: err.message });
     }
   }
 
-  // Fallback: Return all active items (no layout)
+  // Fallback: Return all active items
   let queryText = `
     SELECT 
       i.id, i.name, i.description, i.sku,

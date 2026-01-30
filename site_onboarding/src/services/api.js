@@ -223,4 +223,56 @@ export const integrationsService = {
   },
 };
 
+// ============================================================================
+// SUBSCRIPTIONS
+// ============================================================================
+
+export const subscriptionsService = {
+  // Get available subscription plans
+  getPlans: async () => {
+    const response = await api.get('/subscriptions/plans');
+    return response.data;
+  },
+
+  // Get a specific plan
+  getPlan: async (slug) => {
+    const response = await api.get(`/subscriptions/plans/${slug}`);
+    return response.data;
+  },
+
+  // Create setup intent for collecting payment method
+  createSetupIntent: async (tenantId, customerEmail, customerName) => {
+    const response = await api.post('/subscriptions/create-setup-intent', {
+      tenant_id: tenantId,
+      customer_email: customerEmail,
+      customer_name: customerName
+    });
+    return response.data;
+  },
+
+  // Create subscription with payment method
+  createSubscription: async (data) => {
+    const response = await api.post('/subscriptions/create', data);
+    return response.data;
+  },
+
+  // Create trial subscription (no payment method required)
+  createTrialSubscription: async (data) => {
+    const response = await api.post('/subscriptions/create-trial', data);
+    return response.data;
+  },
+
+  // Get tenant's subscription status
+  getTenantSubscription: async (tenantId) => {
+    const response = await api.get(`/subscriptions/tenant/${tenantId}`);
+    return response.data;
+  },
+
+  // Skip subscription (for internal/test tenants)
+  skipSubscription: async (tenantId) => {
+    const response = await api.post('/subscriptions/skip', { tenant_id: tenantId });
+    return response.data;
+  },
+};
+
 export default api;
