@@ -1,0 +1,399 @@
+/**
+ * Branding Assets View Styles
+ */
+
+.branding-view {
+  padding: 24px;
+  max-width: 1200px;
+}
+
+.branding-view .view-header {
+  margin-bottom: 24px;
+}
+
+.branding-view .view-header h1 {
+  margin: 0 0 4px 0;
+  font-size: 24px;
+  color: #1a1a1a;
+}
+
+.branding-view .view-header p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* Loading State */
+.branding-view .loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px;
+  color: #666;
+}
+
+.branding-view .loading-state .spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Banners */
+.branding-view .error-banner,
+.branding-view .info-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.branding-view .error-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.branding-view .error-banner button {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: #991b1b;
+  opacity: 0.6;
+}
+
+.branding-view .error-banner button:hover {
+  opacity: 1;
+}
+
+.branding-view .info-banner {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+}
+
+.branding-view .info-banner svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.branding-view .info-banner strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* Assets Grid */
+.branding-view .assets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+/* Asset Card */
+.asset-card {
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.asset-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #d5d5d5;
+}
+
+.asset-header {
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.asset-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.asset-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.4;
+}
+
+/* Dropzone */
+.asset-dropzone {
+  position: relative;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  background: #fafafa;
+}
+
+.asset-dropzone:hover {
+  background: #f5f5f5;
+}
+
+.asset-dropzone.drag-over {
+  background: #e8f4ff;
+  border: 2px dashed var(--brand-color, #3a7233);
+}
+
+/* Placeholder */
+.asset-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #999;
+  text-align: center;
+}
+
+.asset-placeholder svg {
+  width: 48px;
+  height: 48px;
+  opacity: 0.4;
+}
+
+.asset-placeholder span {
+  font-size: 14px;
+}
+
+.asset-placeholder .file-types {
+  font-size: 12px;
+  color: #bbb;
+}
+
+/* Preview */
+.asset-preview {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.asset-preview img {
+  display: block;
+  object-fit: contain;
+  border-radius: 4px;
+  background: repeating-conic-gradient(#f0f0f0 0% 25%, transparent 0% 50%) 50% / 16px 16px;
+}
+
+.asset-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  opacity: 0;
+  transition: opacity 0.2s;
+  border-radius: 4px;
+}
+
+.asset-preview:hover .asset-overlay,
+.asset-dropzone.drag-over .asset-overlay {
+  opacity: 1;
+}
+
+.asset-overlay svg {
+  width: 32px;
+  height: 32px;
+}
+
+.asset-overlay span {
+  font-size: 13px;
+}
+
+/* Upload Progress */
+.upload-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--brand-color, #3a7233);
+}
+
+.upload-progress svg {
+  width: 32px;
+  height: 32px;
+}
+
+.upload-progress span {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Asset Meta */
+.asset-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #f9f9f9;
+  border-top: 1px solid #f0f0f0;
+  font-size: 13px;
+}
+
+.asset-filename {
+  flex: 1;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asset-size {
+  color: #999;
+  white-space: nowrap;
+}
+
+.asset-delete-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: #999;
+  border-radius: 4px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.asset-delete-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.asset-delete-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Usage Section */
+.usage-section {
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.usage-section h2 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  color: #1a1a1a;
+}
+
+.usage-section > p {
+  margin: 0 0 16px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.url-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.url-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.url-label {
+  font-weight: 500;
+  color: #333;
+  min-width: 140px;
+}
+
+.url-value {
+  flex: 1;
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 13px;
+  color: #666;
+  background: #f0f0f0;
+  padding: 6px 10px;
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 200px;
+}
+
+.copy-btn {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 6px 8px;
+  cursor: pointer;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.copy-btn:hover {
+  background: var(--brand-color, #3a7233);
+  border-color: var(--brand-color, #3a7233);
+  color: white;
+}
+
+.copy-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.url-status {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.url-status.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.url-status.inactive {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .branding-view {
+    padding: 16px;
+  }
+
+  .branding-view .assets-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .url-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .url-value {
+    width: 100%;
+  }
+}

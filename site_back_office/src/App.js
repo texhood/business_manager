@@ -36,6 +36,7 @@ import {
   SiteBuilderView,
   DataImportView,
   ReportBuilderView,
+  BrandingAssetsView,
 } from './components/views';
 import ModificationsManager from './components/views/ModificationsManager';
 import BlogPreviewView from './components/views/BlogPreviewView';
@@ -436,6 +437,7 @@ function App() {
       isSection: true,
       children: [
         { id: 'siteDesigner', label: 'Site Settings', icon: Icons.Settings },
+        { id: 'brandingAssets', label: 'Branding Assets', icon: Icons.Palette },
         { id: 'siteBuilder', label: 'Site Builder', icon: Icons.Layout },
         { id: 'mediaLibrary', label: 'Media Library', icon: Icons.Image },
         { id: 'blogPosts', label: 'Blog Posts', icon: Icons.FileText },
@@ -506,6 +508,8 @@ function App() {
         return <SiteBuilderView />;
       case 'siteDesigner':
         return <SiteDesignerView />;
+      case 'brandingAssets':
+        return <BrandingAssetsView />;
       case 'dataImport':
         return <DataImportView />;
       case 'reportBuilder':

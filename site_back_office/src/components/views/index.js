@@ -24,3 +24,4 @@ export { default as SiteDesignerView } from './SiteDesignerView';
 export { default as SiteBuilderView } from './SiteBuilderView';
 export { default as DataImportView } from './DataImportView';
 export { default as ReportBuilderView } from './ReportBuilderView';
+export { default as BrandingAssetsView } from './BrandingAssetsView';

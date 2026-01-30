@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Platform Logo Options - Hood Family Farms Business Manager</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 40px;
+      margin: 0;
+    }
+    h1 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 40px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 30px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .option {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .option h3 {
+      margin: 0 0 8px 0;
+      color: #3a7233;
+    }
+    .option p {
+      margin: 0 0 20px 0;
+      color: #666;
+      font-size: 14px;
+    }
+    .preview-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 15px;
+    }
+    .preview-row span {
+      font-size: 12px;
+      color: #999;
+      width: 50px;
+    }
+    .size-100 { width: 100px; height: 100px; }
+    .size-64 { width: 64px; height: 64px; }
+    .size-32 { width: 32px; height: 32px; }
+    .size-16 { width: 16px; height: 16px; }
+    .dark-bg {
+      background: #333;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 15px;
+    }
+    .dark-bg .preview-row {
+      margin-bottom: 10px;
+    }
+    .dark-bg span {
+      color: #999;
+    }
+    .color-palette {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+    }
+    .color-swatch {
+      width: 60px;
+      text-align: center;
+    }
+    .color-swatch div {
+      width: 60px;
+      height: 40px;
+      border-radius: 6px;
+      margin-bottom: 5px;
+    }
+    .color-swatch span {
+      font-size: 11px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <h1>Platform Logo Options</h1>
+  <p class="subtitle">For Stripe Connect branding and platform identity</p>
+  
+  <div class="grid">
+    
+    <!-- Option 1 -->
+    <div class="option">
+      <h3>Option 1: Simple Barn</h3>
+      <p>Clean, professional, works at all sizes. Best for Stripe icon.</p>
+      <div class="preview-row">
+        <span>100px</span>
+        <svg class="size-100" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#fdfbf7"/>
+          <path d="M50 15 L85 40 L15 40 Z" fill="#3a7233"/>
+          <rect x="44" y="8" width="12" height="10" fill="#3a7233"/>
+          <path d="M44 8 L50 2 L56 8 Z" fill="#3a7233"/>
+          <rect x="20" y="40" width="60" height="45" fill="#3a7233"/>
+          <rect x="38" y="55" width="24" height="30" fill="#fdfbf7"/>
+          <line x1="50" y1="55" x2="50" y2="85" stroke="#3a7233" stroke-width="2"/>
+          <circle cx="46" cy="72" r="2" fill="#3a7233"/>
+          <circle cx="54" cy="72" r="2" fill="#3a7233"/>
+        </svg>
+        <span>64px</span>
+        <svg class="size-64" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#fdfbf7"/>
+          <path d="M50 15 L85 40 L15 40 Z" fill="#3a7233"/>
+          <rect x="44" y="8" width="12" height="10" fill="#3a7233"/>
+          <path d="M44 8 L50 2 L56 8 Z" fill="#3a7233"/>
+          <rect x="20" y="40" width="60" height="45" fill="#3a7233"/>
+          <rect x="38" y="55" width="24" height="30" fill="#fdfbf7"/>
+          <line x1="50" y1="55" x2="50" y2="85" stroke="#3a7233" stroke-width="2"/>
+        </svg>
+        <span>32px</span>
+        <svg class="size-32" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#fdfbf7"/>
+          <path d="M50 15 L85 40 L15 40 Z" fill="#3a7233"/>
+          <rect x="44" y="8" width="12" height="10" fill="#3a7233"/>
+          <path d="M44 8 L50 2 L56 8 Z" fill="#3a7233"/>
+          <rect x="20" y="40" width="60" height="45" fill="#3a7233"/>
+          <rect x="38" y="55" width="24" height="30" fill="#fdfbf7"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Option 2 -->
+    <div class="option">
+      <h3>Option 2: Barn with Sun</h3>
+      <p>Suggests growth, warmth, and new beginnings.</p>
+      <div class="preview-row">
+        <span>100px</span>
+        <svg class="size-100" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#fdfbf7"/>
+          <circle cx="50" cy="85" r="35" fill="none" stroke="#d4a574" stroke-width="2" stroke-dasharray="4 6"/>
+          <path d="M25 85 A25 25 0 0 1 75 85" fill="#d4a574"/>
+          <path d="M50 20 L80 42 L20 42 Z" fill="#3a7233"/>
+          <rect x="45" y="12" width="10" height="10" fill="#3a7233"/>
+          <path d="M45 12 L50 6 L55 12 Z" fill="#3a7233"/>
+          <rect x="25" y="42" width="50" height="35" fill="#3a7233"/>
+          <rect x="40" y="52" width="20" height="25" fill="#fdfbf7"/>
+          <line x1="50" y1="52" x2="50" y2="77" stroke="#3a7233" stroke-width="2"/>
+        </svg>
+        <span>64px</span>
+        <svg class="size-64" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#fdfbf7"/>
+          <circle cx="50" cy="85" r="35" fill="none" stroke="#d4a574" stroke-width="2" stroke-dasharray="4 6"/>
+          <path d="M25 85 A25 25 0 0 1 75 85" fill="#d4a574"/>
+          <path d="M50 20 L80 42 L20 42 Z" fill="#3a7233"/>
+          <rect x="45" y="12" width="10" height="10" fill="#3a7233"/>
+          <path d="M45 12 L50 6 L55 12 Z" fill="#3a7233"/>
+          <rect x="25" y="42" width="50" height="35" fill="#3a7233"/>
+          <rect x="40" y="52" width="20" height="25" fill="#fdfbf7"/>
+        </svg>
+        <span>32px</span>
+        <svg class="size-32" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#fdfbf7"/>
+          <path d="M25 85 A25 25 0 0 1 75 85" fill="#d4a574"/>
+          <path d="M50 20 L80 42 L20 42 Z" fill="#3a7233"/>
+          <rect x="25" y="42" width="50" height="35" fill="#3a7233"/>
+          <rect x="40" y="52" width="20" height="25" fill="#fdfbf7"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Option 3 -->
+    <div class="option">
+      <h3>Option 3: Minimalist (Inverted)</h3>
+      <p>Bold, modern. Green background with white barn.</p>
+      <div class="preview-row">
+        <span>100px</span>
+        <svg class="size-100" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#3a7233"/>
+          <path d="M50 12 L82 38 L82 88 L18 88 L18 38 Z" fill="#fdfbf7"/>
+          <path d="M50 12 L82 38 L18 38 Z" fill="#3a7233"/>
+          <rect x="38" y="55" width="24" height="33" fill="#3a7233"/>
+          <line x1="50" y1="55" x2="50" y2="88" stroke="#fdfbf7" stroke-width="2"/>
+          <rect x="44" y="5" width="12" height="9" fill="#fdfbf7"/>
+          <path d="M44 5 L50 0 L56 5 Z" fill="#fdfbf7"/>
+        </svg>
+        <span>64px</span>
+        <svg class="size-64" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#3a7233"/>
+          <path d="M50 12 L82 38 L82 88 L18 88 L18 38 Z" fill="#fdfbf7"/>
+          <path d="M50 12 L82 38 L18 38 Z" fill="#3a7233"/>
+          <rect x="38" y="55" width="24" height="33" fill="#3a7233"/>
+          <line x1="50" y1="55" x2="50" y2="88" stroke="#fdfbf7" stroke-width="2"/>
+          <rect x="44" y="5" width="12" height="9" fill="#fdfbf7"/>
+          <path d="M44 5 L50 0 L56 5 Z" fill="#fdfbf7"/>
+        </svg>
+        <span>32px</span>
+        <svg class="size-32" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#3a7233"/>
+          <path d="M50 12 L82 38 L82 88 L18 88 L18 38 Z" fill="#fdfbf7"/>
+          <path d="M50 12 L82 38 L18 38 Z" fill="#3a7233"/>
+          <rect x="38" y="55" width="24" height="33" fill="#3a7233"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Option 4 -->
+    <div class="option">
+      <h3>Option 4: Circle Badge</h3>
+      <p>Perfect for app icons, profile pictures, and avatars.</p>
+      <div class="preview-row">
+        <span>100px</span>
+        <svg class="size-100" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="48" fill="#3a7233"/>
+          <circle cx="50" cy="50" r="44" fill="#fdfbf7"/>
+          <path d="M50 22 L75 42 L25 42 Z" fill="#3a7233"/>
+          <rect x="46" y="16" width="8" height="8" fill="#3a7233"/>
+          <path d="M46 16 L50 11 L54 16 Z" fill="#3a7233"/>
+          <rect x="28" y="42" width="44" height="34" fill="#3a7233"/>
+          <rect x="40" y="50" width="20" height="26" fill="#fdfbf7"/>
+          <line x1="50" y1="50" x2="50" y2="76" stroke="#3a7233" stroke-width="2"/>
+          <ellipse cx="50" cy="78" rx="35" ry="6" fill="#4a6741"/>
+        </svg>
+        <span>64px</span>
+        <svg class="size-64" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="48" fill="#3a7233"/>
+          <circle cx="50" cy="50" r="44" fill="#fdfbf7"/>
+          <path d="M50 22 L75 42 L25 42 Z" fill="#3a7233"/>
+          <rect x="46" y="16" width="8" height="8" fill="#3a7233"/>
+          <path d="M46 16 L50 11 L54 16 Z" fill="#3a7233"/>
+          <rect x="28" y="42" width="44" height="34" fill="#3a7233"/>
+          <rect x="40" y="50" width="20" height="26" fill="#fdfbf7"/>
+          <line x1="50" y1="50" x2="50" y2="76" stroke="#3a7233" stroke-width="2"/>
+        </svg>
+        <span>32px</span>
+        <svg class="size-32" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="48" fill="#3a7233"/>
+          <circle cx="50" cy="50" r="44" fill="#fdfbf7"/>
+          <path d="M50 22 L75 42 L25 42 Z" fill="#3a7233"/>
+          <rect x="28" y="42" width="44" height="34" fill="#3a7233"/>
+          <rect x="40" y="50" width="20" height="26" fill="#fdfbf7"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Option 5 -->
+    <div class="option">
+      <h3>Option 5: Barn with Landscape</h3>
+      <p>Rolling hills evoke pastoral farming. More illustrative.</p>
+      <div class="preview-row">
+        <span>100px</span>
+        <svg class="size-100" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#e8f0e3"/>
+          <ellipse cx="20" cy="95" rx="50" ry="25" fill="#7a9b6a"/>
+          <ellipse cx="85" cy="95" rx="45" ry="22" fill="#8bab7a"/>
+          <ellipse cx="50" cy="100" rx="60" ry="20" fill="#5c8a4a"/>
+          <path d="M50 18 L78 40 L22 40 Z" fill="#3a7233"/>
+          <rect x="45" y="10" width="10" height="10" fill="#3a7233"/>
+          <path d="M45 10 L50 4 L55 10 Z" fill="#3a7233"/>
+          <rect x="26" y="40" width="48" height="38" fill="#3a7233"/>
+          <rect x="40" y="52" width="20" height="26" fill="#fdfbf7"/>
+          <line x1="50" y1="52" x2="50" y2="78" stroke="#3a7233" stroke-width="2"/>
+          <rect x="30" y="48" width="6" height="6" fill="#fdfbf7"/>
+          <rect x="64" y="48" width="6" height="6" fill="#fdfbf7"/>
+        </svg>
+        <span>64px</span>
+        <svg class="size-64" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#e8f0e3"/>
+          <ellipse cx="20" cy="95" rx="50" ry="25" fill="#7a9b6a"/>
+          <ellipse cx="85" cy="95" rx="45" ry="22" fill="#8bab7a"/>
+          <ellipse cx="50" cy="100" rx="60" ry="20" fill="#5c8a4a"/>
+          <path d="M50 18 L78 40 L22 40 Z" fill="#3a7233"/>
+          <rect x="45" y="10" width="10" height="10" fill="#3a7233"/>
+          <path d="M45 10 L50 4 L55 10 Z" fill="#3a7233"/>
+          <rect x="26" y="40" width="48" height="38" fill="#3a7233"/>
+          <rect x="40" y="52" width="20" height="26" fill="#fdfbf7"/>
+        </svg>
+        <span>32px</span>
+        <svg class="size-32" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#e8f0e3"/>
+          <ellipse cx="50" cy="100" rx="60" ry="20" fill="#5c8a4a"/>
+          <path d="M50 18 L78 40 L22 40 Z" fill="#3a7233"/>
+          <rect x="26" y="40" width="48" height="38" fill="#3a7233"/>
+          <rect x="40" y="52" width="20" height="26" fill="#fdfbf7"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Option 6 -->
+    <div class="option">
+      <h3>Option 6: Livestock Silhouettes</h3>
+      <p>Directly represents products: cattle, sheep, poultry.</p>
+      <div class="preview-row">
+        <span>100px</span>
+        <svg class="size-100" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#fdfbf7"/>
+          <rect x="0" y="75" width="100" height="25" fill="#e8f0e3"/>
+          <g fill="#3a7233" transform="translate(55, 45)">
+            <ellipse cx="15" cy="20" rx="18" ry="12"/>
+            <ellipse cx="-3" cy="14" rx="7" ry="5"/>
+            <rect x="2" y="28" width="4" height="14"/>
+            <rect x="22" y="28" width="4" height="14"/>
+          </g>
+          <g fill="#4a6741" transform="translate(18, 52)">
+            <ellipse cx="12" cy="12" rx="12" ry="9"/>
+            <circle cx="5" cy="8" r="4"/>
+            <circle cx="19" cy="8" r="4"/>
+            <circle cx="12" cy="5" r="4"/>
+            <ellipse cx="0" cy="14" rx="5" ry="4"/>
+            <rect x="4" y="18" width="3" height="10"/>
+            <rect x="17" y="18" width="3" height="10"/>
+          </g>
+          <g fill="#5c8a4a" transform="translate(42, 58)">
+            <ellipse cx="8" cy="10" rx="8" ry="7"/>
+            <circle cx="2" cy="4" r="4"/>
+            <path d="M-2 4 L-5 5 L-2 6 Z"/>
+            <path d="M14 6 Q20 2 18 8 Q22 5 16 10"/>
+          </g>
+        </svg>
+        <span>64px</span>
+        <svg class="size-64" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#fdfbf7"/>
+          <rect x="0" y="75" width="100" height="25" fill="#e8f0e3"/>
+          <g fill="#3a7233" transform="translate(55, 45)">
+            <ellipse cx="15" cy="20" rx="18" ry="12"/>
+            <ellipse cx="-3" cy="14" rx="7" ry="5"/>
+            <rect x="2" y="28" width="4" height="14"/>
+            <rect x="22" y="28" width="4" height="14"/>
+          </g>
+          <g fill="#4a6741" transform="translate(18, 52)">
+            <ellipse cx="12" cy="12" rx="12" ry="9"/>
+            <circle cx="5" cy="8" r="4"/>
+            <circle cx="19" cy="8" r="4"/>
+            <ellipse cx="0" cy="14" rx="5" ry="4"/>
+            <rect x="4" y="18" width="3" height="10"/>
+            <rect x="17" y="18" width="3" height="10"/>
+          </g>
+        </svg>
+        <span>32px</span>
+        <svg class="size-32" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#fdfbf7"/>
+          <rect x="0" y="75" width="100" height="25" fill="#e8f0e3"/>
+          <g fill="#3a7233" transform="translate(55, 48)">
+            <ellipse cx="15" cy="18" rx="16" ry="10"/>
+            <ellipse cx="-1" cy="13" rx="6" ry="4"/>
+          </g>
+          <g fill="#4a6741" transform="translate(20, 55)">
+            <ellipse cx="12" cy="10" rx="10" ry="7"/>
+            <ellipse cx="2" cy="12" rx="4" ry="3"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Color Palette Reference -->
+  <div style="max-width: 600px; margin: 50px auto; background: white; padding: 30px; border-radius: 12px;">
+    <h3 style="margin-top: 0; color: #3a7233;">Brand Color Palette</h3>
+    <div class="color-palette">
+      <div class="color-swatch">
+        <div style="background: #3a7233;"></div>
+        <span>Primary<br>#3a7233</span>
+      </div>
+      <div class="color-swatch">
+        <div style="background: #4a6741;"></div>
+        <span>Secondary<br>#4a6741</span>
+      </div>
+      <div class="color-swatch">
+        <div style="background: #8b7355;"></div>
+        <span>Brown<br>#8b7355</span>
+      </div>
+      <div class="color-swatch">
+        <div style="background: #d4a574;"></div>
+        <span>Accent<br>#d4a574</span>
+      </div>
+      <div class="color-swatch">
+        <div style="background: #fdfbf7; border: 1px solid #ddd;"></div>
+        <span>Cream<br>#fdfbf7</span>
+      </div>
+      <div class="color-swatch">
+        <div style="background: #e8f0e3;"></div>
+        <span>Light Green<br>#e8f0e3</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align: center; margin-top: 40px; color: #666;">
+    <p><strong>Recommendation for Stripe Connect:</strong> Option 1 or Option 3 work best at small sizes.</p>
+    <p>Option 4 (Circle Badge) is ideal for app icons and profile pictures.</p>
+  </div>
+
+</body>
+</html>

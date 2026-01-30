@@ -51,6 +51,7 @@ const tenantsRouter = require('./routes/tenants');
 const posLayoutsRouter = require('./routes/pos-layouts');
 const sitePublicRouter = require('./routes/sitePublic');
 const reportBuilderRouter = require('./routes/reportBuilder');
+const tenantAssetsRouter = require('./routes/tenantAssets');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -77,6 +78,10 @@ app.use(helmet({
 const path = require('path');
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 logger.info(`Serving static uploads from: ${path.join(__dirname, '../uploads')}`);
+
+// Serve platform assets (committed to git, persistent across deploys)
+app.use('/assets', express.static(path.join(__dirname, './assets')));
+logger.info(`Serving platform assets from: ${path.join(__dirname, './assets')}`);
 
 // CORS configuration
 // Development origins from environment or defaults
@@ -235,6 +240,10 @@ app.use(`${API_PREFIX}/tenants`, tenantsRouter);
 app.use(`${API_PREFIX}/pos-layouts`, posLayoutsRouter);
 app.use(`${API_PREFIX}/site-public`, sitePublicRouter);
 app.use(`${API_PREFIX}/report-builder`, reportBuilderRouter);
+app.use(`${API_PREFIX}/tenant-assets`, tenantAssetsRouter);
+
+// Also mount tenant-assets at root for cleaner URLs (public access)
+app.use('/tenant-assets', tenantAssetsRouter);
 
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {

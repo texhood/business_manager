@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background -->
+  <rect width="100" height="100" fill="#3a7233"/>
+  <!-- Barn shape in negative space -->
+  <path d="M50 12 L82 38 L82 88 L18 88 L18 38 Z" fill="#fdfbf7"/>
+  <!-- Roof line -->
+  <path d="M50 12 L82 38 L18 38 Z" fill="#3a7233"/>
+  <!-- Door -->
+  <rect x="38" y="55" width="24" height="33" fill="#3a7233"/>
+  <line x1="50" y1="55" x2="50" y2="88" stroke="#fdfbf7" stroke-width="2"/>
+  <!-- Cupola -->
+  <rect x="44" y="5" width="12" height="9" fill="#fdfbf7"/>
+  <path d="M44 5 L50 0 L56 5 Z" fill="#fdfbf7"/>
+</svg>

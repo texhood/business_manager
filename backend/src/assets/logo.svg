@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Platform Logo: Simple Barn -->
+  <rect width="100" height="100" fill="#fdfbf7"/>
+  <path d="M50 15 L85 40 L15 40 Z" fill="#3a7233"/>
+  <rect x="44" y="8" width="12" height="10" fill="#3a7233"/>
+  <path d="M44 8 L50 2 L56 8 Z" fill="#3a7233"/>
+  <rect x="20" y="40" width="60" height="45" fill="#3a7233"/>
+  <rect x="38" y="55" width="24" height="30" fill="#fdfbf7"/>
+  <line x1="50" y1="55" x2="50" y2="85" stroke="#3a7233" stroke-width="2"/>
+  <circle cx="46" cy="72" r="2" fill="#3a7233"/>
+  <circle cx="54" cy="72" r="2" fill="#3a7233"/>
+</svg>
