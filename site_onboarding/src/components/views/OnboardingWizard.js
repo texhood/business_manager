@@ -10,8 +10,10 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { Icons } from '../common/Icons';
 import { onboardingService, subscriptionsService } from '../../services/api';
 
-// Load Stripe
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
+// Load Stripe - only if key is configured
+const stripePromise = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY 
+  ? loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY)
+  : null;
 
 const WIZARD_STEPS = [
   { id: 'tenant', label: 'Tenant Info', icon: Icons.Building },
@@ -40,7 +42,8 @@ const SubscriptionStepInner = ({
   tenantName,
   onSetupIntentCreated,
   error,
-  setError
+  setError,
+  stripeDisabled = false
 }) => {
   const stripe = useStripe();
   const elements = useElements();
@@ -51,7 +54,7 @@ const SubscriptionStepInner = ({
   // Create setup intent when user chooses to pay now
   useEffect(() => {
     const createSetupIntent = async () => {
-      if (paymentOption === 'pay_now' && tenantId && !setupIntentSecret) {
+      if (paymentOption === 'pay_now' && tenantId && !setupIntentSecret && !stripeDisabled) {
         setCreatingSetupIntent(true);
         try {
           const result = await subscriptionsService.createSetupIntent(
@@ -70,7 +73,7 @@ const SubscriptionStepInner = ({
     };
 
     createSetupIntent();
-  }, [paymentOption, tenantId, adminEmail, tenantName, setupIntentSecret, setError, onSetupIntentCreated]);
+  }, [paymentOption, tenantId, adminEmail, tenantName, setupIntentSecret, setError, onSetupIntentCreated, stripeDisabled]);
 
   const formatPrice = (cents) => {
     return new Intl.NumberFormat('en-US', {
@@ -85,6 +88,16 @@ const SubscriptionStepInner = ({
     const savings = annualIfMonthly - plan.price_yearly;
     if (savings <= 0) return null;
     return Math.round((savings / annualIfMonthly) * 100);
+  };
+
+  // Safe features parser
+  const parseFeatures = (features) => {
+    if (!features) return [];
+    if (Array.isArray(features)) return features;
+    if (typeof features === 'string') {
+      try { return JSON.parse(features); } catch { return []; }
+    }
+    return [];
   };
 
   return (
@@ -155,11 +168,11 @@ const SubscriptionStepInner = ({
         gap: '16px',
         marginBottom: '24px'
       }}>
-        {plans.map(plan => {
+        {(plans || []).map(plan => {
           const price = billingInterval === 'yearly' ? plan.price_yearly : plan.price_monthly;
-          const perMonth = billingInterval === 'yearly' ? plan.price_yearly / 12 : plan.price_monthly;
+          const perMonth = billingInterval === 'yearly' ? (plan.price_yearly || 0) / 12 : plan.price_monthly;
           const savings = calculateSavings(plan);
-          const features = typeof plan.features === 'string' ? JSON.parse(plan.features) : plan.features;
+          const features = parseFeatures(plan.features);
 
           return (
             <div
@@ -284,64 +297,66 @@ const SubscriptionStepInner = ({
               </div>
             </label>
 
-            <label style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '12px',
-              padding: '16px',
-              border: paymentOption === 'pay_now' ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              background: paymentOption === 'pay_now' ? 'var(--bg-hover)' : 'var(--bg-primary)'
-            }}>
-              <input
-                type="radio"
-                name="payment_option"
-                value="pay_now"
-                checked={paymentOption === 'pay_now'}
-                onChange={() => setPaymentOption('pay_now')}
-                style={{ marginTop: '4px' }}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 500 }}>Add payment method now</div>
-                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: paymentOption === 'pay_now' ? '12px' : 0 }}>
-                  Start subscription immediately (still includes 14-day trial).
-                </div>
-                
-                {paymentOption === 'pay_now' && (
-                  <div style={{ marginTop: '12px' }}>
-                    {creatingSetupIntent ? (
-                      <div style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>
-                        <Icons.Loader size={16} className="spin" style={{ marginRight: '8px' }} />
-                        Initializing payment form...
-                      </div>
-                    ) : (
-                      <div style={{
-                        padding: '12px',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '6px',
-                        background: 'var(--bg-secondary)'
-                      }}>
-                        <CardElement
-                          options={{
-                            style: {
-                              base: {
-                                fontSize: '14px',
-                                color: 'var(--text-primary)',
-                                '::placeholder': {
-                                  color: 'var(--text-muted)',
+            {!stripeDisabled && (
+              <label style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                padding: '16px',
+                border: paymentOption === 'pay_now' ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                background: paymentOption === 'pay_now' ? 'var(--bg-hover)' : 'var(--bg-primary)'
+              }}>
+                <input
+                  type="radio"
+                  name="payment_option"
+                  value="pay_now"
+                  checked={paymentOption === 'pay_now'}
+                  onChange={() => setPaymentOption('pay_now')}
+                  style={{ marginTop: '4px' }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500 }}>Add payment method now</div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: paymentOption === 'pay_now' ? '12px' : 0 }}>
+                    Start subscription immediately (still includes 14-day trial).
+                  </div>
+                  
+                  {paymentOption === 'pay_now' && (
+                    <div style={{ marginTop: '12px' }}>
+                      {creatingSetupIntent ? (
+                        <div style={{ padding: '12px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                          <Icons.Loader size={16} className="spin" style={{ marginRight: '8px' }} />
+                          Initializing payment form...
+                        </div>
+                      ) : (
+                        <div style={{
+                          padding: '12px',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '6px',
+                          background: 'var(--bg-secondary)'
+                        }}>
+                          <CardElement
+                            options={{
+                              style: {
+                                base: {
+                                  fontSize: '14px',
+                                  color: '#333',
+                                  '::placeholder': {
+                                    color: '#999',
+                                  },
                                 },
                               },
-                            },
-                          }}
-                          onChange={(e) => setCardComplete(e.complete)}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </label>
+                            }}
+                            onChange={(e) => setCardComplete(e.complete)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </label>
+            )}
 
             <label style={{
               display: 'flex',
@@ -375,12 +390,25 @@ const SubscriptionStepInner = ({
   );
 };
 
-// Wrapper to provide Stripe context
-const SubscriptionStep = (props) => (
-  <Elements stripe={stripePromise}>
-    <SubscriptionStepInner {...props} />
-  </Elements>
-);
+// Wrapper to provide Stripe context (or render without if Stripe not configured)
+const SubscriptionStep = (props) => {
+  if (!stripePromise) {
+    return (
+      <div>
+        <SubscriptionStepInner {...props} stripeDisabled={true} />
+        <div className="alert alert-warning" style={{ marginTop: '16px' }}>
+          <Icons.AlertCircle size={18} />
+          <span>Stripe is not configured. Payment collection is disabled. Set REACT_APP_STRIPE_PUBLISHABLE_KEY to enable.</span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <Elements stripe={stripePromise}>
+      <SubscriptionStepInner {...props} />
+    </Elements>
+  );
+};
 
 // ============================================================================
 // MAIN WIZARD COMPONENT
@@ -458,14 +486,16 @@ const OnboardingWizard = () => {
       setPlansLoading(true);
       try {
         const result = await subscriptionsService.getPlans();
-        setPlans(result.data || []);
+        const plansData = result.data || [];
+        setPlans(plansData);
         // Pre-select featured plan
-        const featured = (result.data || []).find(p => p.is_featured);
+        const featured = plansData.find(p => p.is_featured);
         if (featured) {
           setSubscriptionData(prev => ({ ...prev, selectedPlan: featured }));
         }
       } catch (err) {
         console.error('Failed to load plans:', err);
+        setPlans([]);
       } finally {
         setPlansLoading(false);
       }
