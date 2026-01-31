@@ -54,6 +54,7 @@ const reportBuilderRouter = require('./routes/reportBuilder');
 const tenantAssetsRouter = require('./routes/tenantAssets');
 const connectRouter = require('./routes/connect');
 const subscriptionsRouter = require('./routes/subscriptions');
+const tenantSettingsRouter = require('./routes/tenantSettings');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -92,27 +93,60 @@ const devOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://loc
   .map(origin => origin.trim());
 
 // Production domain patterns for subdomain-based multi-tenancy
+// Supports both busmgr.com (new) and hoodfamilyfarms.com (legacy/transition)
 const productionPatterns = [
-  /^https:\/\/[a-z0-9-]+\.office\.hoodfamilyfarms\.com$/,   // {tenant}.office.hoodfamilyfarms.com
-  /^https:\/\/[a-z0-9-]+\.herds\.hoodfamilyfarms\.com$/,    // {tenant}.herds.hoodfamilyfarms.com
-  /^https:\/\/[a-z0-9-]+\.rpos\.hoodfamilyfarms\.com$/,     // {tenant}.rpos.hoodfamilyfarms.com
-  /^https:\/\/[a-z0-9-]+\.kitchen\.hoodfamilyfarms\.com$/,  // {tenant}.kitchen.hoodfamilyfarms.com
-  /^https:\/\/[a-z0-9-]+\.pos\.hoodfamilyfarms\.com$/,      // {tenant}.pos.hoodfamilyfarms.com
-  /^https:\/\/[a-z0-9-]+\.alt\.hoodfamilyfarms\.com$/,      // {tenant}.alt.hoodfamilyfarms.com (ecommerce)
-  /^https:\/\/office\.hoodfamilyfarms\.com$/,               // Base app domains
+  // =========================================================================
+  // NEW DOMAIN: busmgr.com
+  // =========================================================================
+  /^https:\/\/busmgr\.com$/,                                // Root domain
+  /^https:\/\/www\.busmgr\.com$/,                           // WWW
+  /^https:\/\/api\.busmgr\.com$/,                           // API
+  /^https:\/\/signup\.busmgr\.com$/,                        // Onboarding
+  
+  // Tenant subdomains: {tenant}.busmgr.com (ecommerce storefronts)
+  /^https:\/\/[a-z0-9-]+\.busmgr\.com$/,
+  
+  // App base domains
+  /^https:\/\/office\.busmgr\.com$/,
+  /^https:\/\/app\.busmgr\.com$/,
+  /^https:\/\/pos\.busmgr\.com$/,
+  /^https:\/\/kitchen\.busmgr\.com$/,
+  /^https:\/\/terminal\.busmgr\.com$/,
+  
+  // Tenant app subdomains: {tenant}.{app}.busmgr.com
+  /^https:\/\/[a-z0-9-]+\.office\.busmgr\.com$/,            // {tenant}.office.busmgr.com
+  /^https:\/\/[a-z0-9-]+\.app\.busmgr\.com$/,               // {tenant}.app.busmgr.com
+  /^https:\/\/[a-z0-9-]+\.pos\.busmgr\.com$/,               // {tenant}.pos.busmgr.com
+  /^https:\/\/[a-z0-9-]+\.kitchen\.busmgr\.com$/,           // {tenant}.kitchen.busmgr.com
+  /^https:\/\/[a-z0-9-]+\.terminal\.busmgr\.com$/,          // {tenant}.terminal.busmgr.com
+  
+  // =========================================================================
+  // LEGACY DOMAIN: hoodfamilyfarms.com (keep during transition)
+  // =========================================================================
+  /^https:\/\/hoodfamilyfarms\.com$/,                        // Root domain
+  /^https:\/\/www\.hoodfamilyfarms\.com$/,                   // WWW
+  /^https:\/\/api\.hoodfamilyfarms\.com$/,                   // API
+  /^https:\/\/signup\.hoodfamilyfarms\.com$/,                // Onboarding
+  
+  // App base domains
+  /^https:\/\/office\.hoodfamilyfarms\.com$/,
   /^https:\/\/herds\.hoodfamilyfarms\.com$/,
   /^https:\/\/rpos\.hoodfamilyfarms\.com$/,
   /^https:\/\/kitchen\.hoodfamilyfarms\.com$/,
   /^https:\/\/pos\.hoodfamilyfarms\.com$/,
   /^https:\/\/alt\.hoodfamilyfarms\.com$/,
-  /^https:\/\/signup\.hoodfamilyfarms\.com$/,
-  /^https:\/\/api\.hoodfamilyfarms\.com$/,
-  /^https:\/\/hoodfamilyfarms\.com$/,                        // Root domain
-  /^https:\/\/www\.hoodfamilyfarms\.com$/,                   // WWW
+  
+  // Tenant app subdomains: {tenant}.{app}.hoodfamilyfarms.com
+  /^https:\/\/[a-z0-9-]+\.office\.hoodfamilyfarms\.com$/,
+  /^https:\/\/[a-z0-9-]+\.herds\.hoodfamilyfarms\.com$/,
+  /^https:\/\/[a-z0-9-]+\.rpos\.hoodfamilyfarms\.com$/,
+  /^https:\/\/[a-z0-9-]+\.kitchen\.hoodfamilyfarms\.com$/,
+  /^https:\/\/[a-z0-9-]+\.pos\.hoodfamilyfarms\.com$/,
+  /^https:\/\/[a-z0-9-]+\.alt\.hoodfamilyfarms\.com$/,
 ];
 
 logger.info('CORS allowed dev origins:', devOrigins);
-logger.info('CORS production patterns enabled for *.hoodfamilyfarms.com');
+logger.info('CORS production patterns enabled for *.busmgr.com and *.hoodfamilyfarms.com');
 
 app.use(cors({
   origin: function(origin, callback) {
@@ -142,8 +176,13 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID'],
-}))
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Per-Page'],
+  maxAge: 86400, // 24 hours - browsers cache preflight response
+}));
+
+// Handle preflight requests explicitly
+app.options('*', cors());
 
 // Rate limiting - general limiter
 const limiter = rateLimit({
@@ -252,6 +291,7 @@ app.use(`${API_PREFIX}/report-builder`, reportBuilderRouter);
 app.use(`${API_PREFIX}/tenant-assets`, tenantAssetsRouter);
 app.use(`${API_PREFIX}/connect`, connectRouter);
 app.use(`${API_PREFIX}/subscriptions`, subscriptionsRouter);
+app.use(`${API_PREFIX}/tenant-settings`, tenantSettingsRouter);
 
 // Also mount tenant-assets at root for cleaner URLs (public access)
 app.use('/tenant-assets', tenantAssetsRouter);
@@ -259,9 +299,9 @@ app.use('/tenant-assets', tenantAssetsRouter);
 // API documentation endpoint
 app.get(`${API_PREFIX}`, (req, res) => {
   res.json({
-    name: 'Hood Family Farms API',
+    name: 'Business Manager API',
     version: '1.0.0',
-    description: 'API for farm management, eCommerce, and food trailer operations',
+    description: 'Multi-tenant API for business management, eCommerce, and POS operations',
     endpoints: {
       auth: `${API_PREFIX}/auth`,
       accounts: `${API_PREFIX}/accounts`,
@@ -275,8 +315,9 @@ app.get(`${API_PREFIX}`, (req, res) => {
       reports: `${API_PREFIX}/reports`,
       accounting: `${API_PREFIX}/accounting`,
       reportBuilder: `${API_PREFIX}/report-builder`,
+      tenantSettings: `${API_PREFIX}/tenant-settings`,
     },
-    documentation: 'https://docs.hoodfamilyfarms.com/api',
+    documentation: 'https://docs.busmgr.com/api',
   });
 });
 
@@ -292,7 +333,7 @@ app.use(errorHandler);
 // ============================================================================
 
 const server = app.listen(PORT, () => {
-  logger.info(`🌱 Hood Family Farms API running on port ${PORT}`);
+  logger.info(`🚀 Business Manager API running on port ${PORT}`);
   logger.info(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`🔗 API available at http://localhost:${PORT}${API_PREFIX}`);
 });
