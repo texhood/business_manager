@@ -1,14 +1,70 @@
 /**
  * Site Builder View (Hybrid System)
  * Advanced page editor with templates, zones, and blocks
+ * 
+ * Location: site_back_office/src/components/views/SiteBuilderView.js
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Icons } from '../common/Icons';
 import Modal from '../common/Modal';
 import './SiteBuilderView.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
+
+// ============================================================================
+// INLINE STYLES FOR CRITICAL OVERLAY (fallback if CSS doesn't load)
+// ============================================================================
+
+const overlayStyles = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  width: '100vw',
+  height: '100vh',
+  backgroundColor: '#ffffff',
+  zIndex: 99999,
+  overflow: 'hidden',
+  display: 'flex',
+  flexDirection: 'column'
+};
+
+const builderStyles = {
+  display: 'flex',
+  flexDirection: 'column',
+  height: '100%',
+  width: '100%',
+  overflow: 'hidden',
+  backgroundColor: '#ffffff'
+};
+
+const builderHeaderStyles = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: '16px 24px',
+  backgroundColor: '#f9fafb',
+  borderBottom: '1px solid #e5e7eb',
+  flexShrink: 0
+};
+
+const builderTabsStyles = {
+  display: 'flex',
+  gap: '4px',
+  padding: '12px 24px',
+  backgroundColor: '#f9fafb',
+  borderBottom: '1px solid #e5e7eb',
+  flexShrink: 0
+};
+
+const builderContentStyles = {
+  flex: 1,
+  overflowY: 'auto',
+  padding: '24px',
+  backgroundColor: '#ffffff'
+};
 
 // ============================================================================
 // BLOCK TYPE ICONS MAP
@@ -34,7 +90,6 @@ const blockIcons = {
   html: Icons.FileText
 };
 
-// Default icon for unknown block types
 const DefaultBlockIcon = Icons.Package;
 
 // ============================================================================
@@ -48,21 +103,15 @@ const BlockTypePicker = ({ blockTypes, allowedBlocks, onSelect, onClose }) => {
   const categories = ['all', 'layout', 'content', 'media', 'commerce', 'forms'];
 
   const filteredBlocks = blockTypes.filter(block => {
-    // Filter by allowed blocks if specified
     if (allowedBlocks && allowedBlocks.length > 0 && !allowedBlocks.includes(block.id)) {
       return false;
     }
-    
-    // Filter by search
     if (search && !block.name.toLowerCase().includes(search.toLowerCase())) {
       return false;
     }
-    
-    // Filter by category
     if (selectedCategory !== 'all' && block.category !== selectedCategory) {
       return false;
     }
-    
     return true;
   });
 
@@ -145,19 +194,10 @@ const BlockContentEditor = ({ block, blockType, onSave, onClose }) => {
     setContent(prev => ({ ...prev, [key]: value }));
   };
 
-  const updateNestedContent = (parentKey, childKey, value) => {
-    setContent(prev => ({
-      ...prev,
-      [parentKey]: { ...prev[parentKey], [childKey]: value }
-    }));
-  };
-
-  // Render a form field based on schema
   const renderField = (key, fieldSchema, value, onChange) => {
     const type = fieldSchema.type;
     const format = fieldSchema.format;
 
-    // Handle nested objects (like buttons)
     if (type === 'object' && fieldSchema.properties) {
       return (
         <div className="nested-fields">
@@ -176,7 +216,6 @@ const BlockContentEditor = ({ block, blockType, onSave, onClose }) => {
       );
     }
 
-    // Handle arrays (like cards, items)
     if (type === 'array') {
       const items = value || [];
       const itemSchema = fieldSchema.items?.properties || {};
@@ -227,7 +266,6 @@ const BlockContentEditor = ({ block, blockType, onSave, onClose }) => {
       );
     }
 
-    // Textarea for long text
     if (type === 'string' && (format === 'textarea' || format === 'richtext')) {
       return (
         <textarea
@@ -239,7 +277,6 @@ const BlockContentEditor = ({ block, blockType, onSave, onClose }) => {
       );
     }
 
-    // Image picker
     if (type === 'string' && format === 'image') {
       return (
         <div className="image-picker">
@@ -247,7 +284,7 @@ const BlockContentEditor = ({ block, blockType, onSave, onClose }) => {
             type="text"
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="/uploads/image.jpg"
+            placeholder="/uploads/image.jpg or https://..."
           />
           {value && (
             <div className="image-preview">
@@ -258,7 +295,6 @@ const BlockContentEditor = ({ block, blockType, onSave, onClose }) => {
       );
     }
 
-    // Color picker
     if (type === 'string' && format === 'color') {
       return (
         <div className="color-picker">
@@ -277,7 +313,6 @@ const BlockContentEditor = ({ block, blockType, onSave, onClose }) => {
       );
     }
 
-    // Select dropdown
     if (type === 'string' && fieldSchema.enum) {
       return (
         <select
@@ -291,7 +326,6 @@ const BlockContentEditor = ({ block, blockType, onSave, onClose }) => {
       );
     }
 
-    // Boolean checkbox
     if (type === 'boolean') {
       return (
         <label className="checkbox-label">
@@ -305,7 +339,6 @@ const BlockContentEditor = ({ block, blockType, onSave, onClose }) => {
       );
     }
 
-    // Number input
     if (type === 'number' || type === 'integer') {
       return (
         <input
@@ -319,7 +352,6 @@ const BlockContentEditor = ({ block, blockType, onSave, onClose }) => {
       );
     }
 
-    // Default: text input
     return (
       <input
         type="text"
@@ -509,7 +541,6 @@ const ZoneEditor = ({
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
     
-    // Reorder blocks
     const newBlocks = [...blocks];
     const draggedBlock = newBlocks[draggedIndex];
     newBlocks.splice(draggedIndex, 1);
@@ -592,7 +623,7 @@ const ZoneEditor = ({
 };
 
 // ============================================================================
-// PAGE BUILDER
+// PAGE BUILDER (Full Screen Overlay)
 // ============================================================================
 
 const PageBuilder = ({ page, onClose, onSave }) => {
@@ -810,23 +841,21 @@ const PageBuilder = ({ page, onClose, onSave }) => {
     }
   };
 
-  // Get blocks for a specific zone
   const getBlocksForZone = (zoneKey) => {
     return blocks
       .filter(b => b.zone_key === zoneKey)
       .sort((a, b) => a.display_order - b.display_order);
   };
 
-  // Create default zone if no template
   const effectiveZones = zones.length > 0 ? zones : [
     { zone_key: 'content', zone_name: 'Main Content', description: 'Add any blocks here', allowed_blocks: [] }
   ];
 
   if (loading) {
     return (
-      <div className="page-builder-overlay">
-        <div className="page-builder loading">
-          <Icons.Loader />
+      <div style={overlayStyles}>
+        <div style={{ ...builderStyles, justifyContent: 'center', alignItems: 'center' }}>
+          <Icons.Loader style={{ animation: 'spin 1s linear infinite' }} />
           <p>Loading page builder...</p>
         </div>
       </div>
@@ -834,16 +863,17 @@ const PageBuilder = ({ page, onClose, onSave }) => {
   }
 
   return (
-    <div className="page-builder-overlay">
-      <div className="page-builder">
-        <div className="builder-header">
-          <div className="builder-title">
-            <button className="btn-icon" onClick={onClose}>
+    <div style={overlayStyles} className="page-builder-overlay">
+      <div style={builderStyles} className="page-builder">
+        {/* Header */}
+        <div style={builderHeaderStyles} className="builder-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }} className="builder-title">
+            <button className="btn-icon" onClick={onClose} style={{ padding: '8px' }}>
               <Icons.ArrowLeft />
             </button>
-            <h2>Edit: {page.title}</h2>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Edit: {page.title}</h2>
           </div>
-          <div className="builder-actions">
+          <div style={{ display: 'flex', gap: '12px' }} className="builder-actions">
             <button className="btn btn-secondary" onClick={onClose}>
               Cancel
             </button>
@@ -853,35 +883,93 @@ const PageBuilder = ({ page, onClose, onSave }) => {
           </div>
         </div>
 
-        <div className="builder-tabs">
+        {/* Tabs */}
+        <div style={builderTabsStyles} className="builder-tabs">
           <button
             className={`tab-btn ${activeTab === 'blocks' ? 'active' : ''}`}
             onClick={() => setActiveTab('blocks')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              border: 'none',
+              background: activeTab === 'blocks' ? '#2d5016' : 'transparent',
+              color: activeTab === 'blocks' ? 'white' : '#6b7280',
+              fontSize: '14px',
+              fontWeight: 500,
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
           >
             <Icons.Layout /> Page Content
           </button>
           <button
             className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
             onClick={() => setActiveTab('settings')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              border: 'none',
+              background: activeTab === 'settings' ? '#2d5016' : 'transparent',
+              color: activeTab === 'settings' ? 'white' : '#6b7280',
+              fontSize: '14px',
+              fontWeight: 500,
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
           >
             <Icons.Settings /> Page Settings
           </button>
           <button
             className={`tab-btn ${activeTab === 'seo' ? 'active' : ''}`}
             onClick={() => setActiveTab('seo')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              border: 'none',
+              background: activeTab === 'seo' ? '#2d5016' : 'transparent',
+              color: activeTab === 'seo' ? 'white' : '#6b7280',
+              fontSize: '14px',
+              fontWeight: 500,
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
           >
             <Icons.Search /> SEO
           </button>
         </div>
 
-        <div className="builder-content">
+        {/* Content */}
+        <div style={builderContentStyles} className="builder-content">
           {activeTab === 'blocks' && (
-            <div className="blocks-layout">
-              <div className="template-selector">
-                <label>Page Template:</label>
+            <div className="blocks-layout" style={{ maxWidth: '900px', margin: '0 auto' }}>
+              <div className="template-selector" style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                marginBottom: '24px',
+                padding: '16px',
+                background: '#f9fafb',
+                borderRadius: '8px',
+                border: '1px solid #e5e7eb'
+              }}>
+                <label style={{ fontWeight: 500, whiteSpace: 'nowrap' }}>Page Template:</label>
                 <select
                   value={pageSettings.template_id || ''}
                   onChange={(e) => handleTemplateChange(e.target.value || null)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 12px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    background: '#ffffff',
+                    fontSize: '14px'
+                  }}
                 >
                   <option value="">No Template (Free-form)</option>
                   {templates.map(t => (
@@ -890,7 +978,7 @@ const PageBuilder = ({ page, onClose, onSave }) => {
                 </select>
               </div>
 
-              <div className="zones-container">
+              <div className="zones-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {effectiveZones.map(zone => (
                   <ZoneEditor
                     key={zone.zone_key}
@@ -910,33 +998,57 @@ const PageBuilder = ({ page, onClose, onSave }) => {
           )}
 
           {activeTab === 'settings' && (
-            <div className="page-settings-tab">
-              <div className="form-group">
-                <label>Page Title</label>
+            <div className="page-settings-tab" style={{ maxWidth: '600px' }}>
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500 }}>Page Title</label>
                 <input
                   type="text"
                   value={pageSettings.title}
                   onChange={(e) => setPageSettings({ ...pageSettings, title: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
                 />
               </div>
-              <div className="form-group">
-                <label>URL Slug</label>
-                <div className="slug-input">
-                  <span className="slug-prefix">/</span>
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500 }}>URL Slug</label>
+                <div className="slug-input" style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{
+                    padding: '10px 12px',
+                    background: '#f9fafb',
+                    border: '1px solid #e5e7eb',
+                    borderRight: 'none',
+                    borderRadius: '6px 0 0 6px',
+                    color: '#6b7280',
+                    fontFamily: 'monospace'
+                  }}>/</span>
                   <input
                     type="text"
                     value={pageSettings.slug}
                     onChange={(e) => setPageSettings({ ...pageSettings, slug: e.target.value })}
                     disabled={page.is_system_page && page.page_type === 'home'}
+                    style={{
+                      flex: 1,
+                      padding: '10px 12px',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0 6px 6px 0',
+                      fontSize: '14px',
+                      fontFamily: 'monospace'
+                    }}
                   />
                 </div>
               </div>
               <div className="form-group">
-                <label className="checkbox-label">
+                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={pageSettings.is_homepage}
                     onChange={(e) => setPageSettings({ ...pageSettings, is_homepage: e.target.checked })}
+                    style={{ width: '18px', height: '18px' }}
                   />
                   <span>Set as Homepage</span>
                 </label>
@@ -945,38 +1057,58 @@ const PageBuilder = ({ page, onClose, onSave }) => {
           )}
 
           {activeTab === 'seo' && (
-            <div className="seo-settings-tab">
-              <div className="form-group">
-                <label>SEO Title</label>
+            <div className="seo-settings-tab" style={{ maxWidth: '600px' }}>
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500 }}>SEO Title</label>
                 <input
                   type="text"
                   value={pageSettings.seo_title}
                   onChange={(e) => setPageSettings({ ...pageSettings, seo_title: e.target.value })}
                   placeholder="Page title for search engines"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
                 />
-                <span className="form-hint">{pageSettings.seo_title?.length || 0}/60 characters</span>
+                <span style={{ fontSize: '12px', color: '#6b7280' }}>{pageSettings.seo_title?.length || 0}/60 characters</span>
               </div>
-              <div className="form-group">
-                <label>Meta Description</label>
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500 }}>Meta Description</label>
                 <textarea
                   value={pageSettings.seo_description}
                   onChange={(e) => setPageSettings({ ...pageSettings, seo_description: e.target.value })}
                   placeholder="Brief description for search results"
                   rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    resize: 'vertical'
+                  }}
                 />
-                <span className="form-hint">{pageSettings.seo_description?.length || 0}/160 characters</span>
+                <span style={{ fontSize: '12px', color: '#6b7280' }}>{pageSettings.seo_description?.length || 0}/160 characters</span>
               </div>
 
-              <div className="seo-preview">
-                <h4>Search Preview</h4>
-                <div className="search-result-preview">
-                  <div className="preview-title">
+              <div className="seo-preview" style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid #e5e7eb' }}>
+                <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 600, color: '#6b7280' }}>Search Preview</h4>
+                <div style={{
+                  padding: '16px',
+                  background: '#f9fafb',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <div style={{ fontSize: '18px', color: '#1a0dab', marginBottom: '4px' }}>
                     {pageSettings.seo_title || pageSettings.title || 'Page Title'}
                   </div>
-                  <div className="preview-url">
+                  <div style={{ fontSize: '14px', color: '#006621', marginBottom: '4px' }}>
                     example.com/{pageSettings.slug || ''}
                   </div>
-                  <div className="preview-description">
+                  <div style={{ fontSize: '14px', color: '#545454', lineHeight: 1.5 }}>
                     {pageSettings.seo_description || 'No description set.'}
                   </div>
                 </div>
