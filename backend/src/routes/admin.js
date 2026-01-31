@@ -38,10 +38,12 @@ router.get('/system/dashboard', async (req, res) => {
         FROM tenants
       `);
 
-      // Get user count
-      const usersResult = await client.query('SELECT COUNT(*) as total FROM accounts');
+      // Get user count across all tenants
+      const usersResult = await client.query(`
+        SELECT COUNT(*) as total FROM accounts WHERE role != 'super_admin'
+      `);
 
-      // Get transaction count (last 30 days)
+      // Get transaction count (last 30 days) across all tenants
       const txnResult = await client.query(`
         SELECT COUNT(*) as total 
         FROM transactions 
@@ -49,12 +51,12 @@ router.get('/system/dashboard', async (req, res) => {
       `);
 
       res.json({
-        success: true,
+        status: 'success',
         data: {
-          totalTenants: parseInt(tenantsResult.rows[0]?.total || 1),
-          activeTenants: parseInt(tenantsResult.rows[0]?.active || 1),
-          totalUsers: parseInt(usersResult.rows[0]?.total || 0),
-          totalTransactions: parseInt(txnResult.rows[0]?.total || 0),
+          totalTenants: parseInt(tenantsResult.rows[0]?.total) || 0,
+          activeTenants: parseInt(tenantsResult.rows[0]?.active) || 0,
+          totalUsers: parseInt(usersResult.rows[0]?.total) || 0,
+          totalTransactions: parseInt(txnResult.rows[0]?.total) || 0,
           systemHealth: 'healthy'
         }
       });
@@ -63,7 +65,7 @@ router.get('/system/dashboard', async (req, res) => {
     }
   } catch (error) {
     logger.error('Error fetching dashboard stats:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch dashboard stats' });
+    res.status(500).json({ status: 'error', message: 'Failed to fetch dashboard stats' });
   }
 });
 

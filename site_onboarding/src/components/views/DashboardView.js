@@ -21,28 +21,37 @@ const DashboardView = () => {
   }, []);
 
   const loadDashboard = async () => {
+  try {
+    setLoading(true);
+    
+    // Load tenants
+    const tenantsData = await tenantsService.getAll({ limit: 5 }).catch(() => ({ data: [] }));
+    setTenants(tenantsData.data || []);
+    
+    // Get dashboard stats
+    let statsData = null;
     try {
-      setLoading(true);
-      const [statsData, tenantsData] = await Promise.all([
-        systemService.getDashboardStats().catch(() => null),
-        tenantsService.getAll({ limit: 5 }).catch(() => ({ data: [] }))
-      ]);
-      
-      setStats(statsData || {
-        totalTenants: 0,
-        activeTenants: 0,
-        totalUsers: 0,
-        totalTransactions: 0,
-        systemHealth: 'unknown'
-      });
-      setTenants(tenantsData.data || []);
+      const response = await systemService.getDashboardStats();
+      // Handle nested data structure: response is { status, data: { totalTenants, ... } }
+      statsData = response?.data || response;
     } catch (err) {
-      console.error('Failed to load dashboard:', err);
-      setError('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
+      console.warn('Dashboard stats endpoint failed:', err);
     }
-  };
+    
+    setStats(statsData || {
+      totalTenants: 0,
+      activeTenants: 0,
+      totalUsers: 0,
+      totalTransactions: 0,
+      systemHealth: 'unknown'
+    });
+  } catch (err) {
+    console.error('Failed to load dashboard:', err);
+    setError('Failed to load dashboard data');
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (loading) {
     return (
@@ -70,7 +79,7 @@ const DashboardView = () => {
             <Icons.Building size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-value">{formatNumber(stats?.totalTenants || 1)}</div>
+            <div className="stat-value">{formatNumber(stats?.totalTenants ?? 0)}</div>
             <div className="stat-label">Total Tenants</div>
           </div>
         </div>
@@ -80,7 +89,7 @@ const DashboardView = () => {
             <Icons.CheckCircle size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-value">{formatNumber(stats?.activeTenants || 1)}</div>
+            <div className="stat-value">{formatNumber(stats?.activeTenants ?? 0)}</div>
             <div className="stat-label">Active Tenants</div>
           </div>
         </div>
@@ -90,7 +99,7 @@ const DashboardView = () => {
             <Icons.Users size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-value">{formatNumber(stats?.totalUsers || 0)}</div>
+            <div className="stat-value">{formatNumber(stats?.totalUsers ?? 0)}</div>
             <div className="stat-label">Total Users</div>
           </div>
         </div>
@@ -100,7 +109,7 @@ const DashboardView = () => {
             <Icons.Activity size={24} />
           </div>
           <div className="stat-content">
-            <div className="stat-value">{formatNumber(stats?.totalTransactions || 0)}</div>
+            <div className="stat-value">{formatNumber(stats?.totalTransactions ?? 0)}</div>
             <div className="stat-label">Transactions (30d)</div>
           </div>
         </div>
