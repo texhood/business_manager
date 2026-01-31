@@ -802,6 +802,10 @@ const PageBuilder = ({ page, onClose, onSave }) => {
   };
 
   const handleTemplateChange = async (templateId) => {
+    // Optimistic update - update state immediately so UI responds
+    const previousTemplateId = pageSettings.template_id;
+    setPageSettings(prev => ({ ...prev, template_id: templateId }));
+    
     try {
       const res = await fetch(`${API_URL}/site-builder/pages/${page.id}/template`, {
         method: 'PUT',
@@ -813,11 +817,21 @@ const PageBuilder = ({ page, onClose, onSave }) => {
       });
 
       if (res.ok) {
-        setPageSettings(prev => ({ ...prev, template_id: templateId }));
+        // Success - refresh data to get updated zones/blocks
         fetchData();
+      } else {
+        // API error - rollback the optimistic update
+        console.error('Error changing template:', res.status, res.statusText);
+        const errorData = await res.json().catch(() => ({}));
+        console.error('API response:', errorData);
+        setPageSettings(prev => ({ ...prev, template_id: previousTemplateId }));
+        alert(`Failed to change template: ${errorData.message || res.statusText}`);
       }
     } catch (err) {
+      // Network error - rollback the optimistic update
       console.error('Error changing template:', err);
+      setPageSettings(prev => ({ ...prev, template_id: previousTemplateId }));
+      alert('Failed to change template. Please check your connection and try again.');
     }
   };
 
