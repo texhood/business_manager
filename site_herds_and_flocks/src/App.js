@@ -1,6 +1,13 @@
 /**
- * Hood Family Farms - Herds, Flocks & Pastures
+ * ===========================================================================
+ * FILE: site_herds_and_flocks/src/App.js
+ * ===========================================================================
+ * Herds, Flocks & Pastures
  * Main App Component with Navigation and Routing
+ *
+ * CHANGES (tenant branding fix):
+ *   - Added import of useTenantBranding hook
+ *   - Added useTenantBranding('Herds & Flocks') call in App component
  */
 
 import React, { useState, useEffect } from 'react';
@@ -8,6 +15,9 @@ import './App.css';
 
 // Services
 import { authService, statsService } from './services/api';
+
+// Tenant Branding
+import { useTenantBranding } from './hooks/useTenantBranding';
 
 // Components
 import { Icons } from './components/common/Icons';
@@ -139,6 +149,9 @@ function App() {
   const [stats, setStats] = useState({});
   const [dataLoading, setDataLoading] = useState(false);
   const [expandedSections, setExpandedSections] = useState(['livestock', 'pastures', 'sales', 'settings']);
+
+  // Load tenant branding: sets CSS vars, document title, favicon
+  useTenantBranding('Herds & Flocks');
 
   // Check for existing session on mount
   useEffect(() => {

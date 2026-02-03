@@ -82,6 +82,8 @@
 .branding-view .info-banner svg {
   flex-shrink: 0;
   margin-top: 2px;
+  width: 20px;
+  height: 20px;
 }
 
 .branding-view .info-banner strong {

@@ -1,6 +1,14 @@
 /**
+ * ===========================================================================
+ * FILE: site_back_office/src/App.js
+ * ===========================================================================
  * Hood Family Farms - Business Manager Application
  * Main App Component with Navigation and Routing
+ *
+ * CHANGES (tenant branding fix):
+ *   - applyBrandColor() now also sets --primary, --primary-color, etc.
+ *   - applyTenantTitle() added to set document.title dynamically
+ *   - init() and handleLogin() call applyTenantTitle() after loading tenant
  */
 
 import React, { useState, useEffect } from 'react';
@@ -76,8 +84,14 @@ function applyBrandColor(hexColor) {
   const hsl = hexToHsl(hexColor);
   const root = document.documentElement;
   
-  // Set CSS custom properties
+  // Core brand colour
   root.style.setProperty('--brand-color', hexColor);
+  root.style.setProperty('--primary', hexColor);
+  root.style.setProperty('--primary-color', hexColor);
+  root.style.setProperty('--accent-color', hexColor);
+  root.style.setProperty('--theme-color', hexColor);
+
+  // HSL components
   root.style.setProperty('--brand-color-h', hsl.h);
   root.style.setProperty('--brand-color-s', `${hsl.s}%`);
   root.style.setProperty('--brand-color-l', `${hsl.l}%`);
@@ -86,6 +100,24 @@ function applyBrandColor(hexColor) {
   root.style.setProperty('--brand-color-light', `hsl(${hsl.h}, ${hsl.s}%, ${Math.min(hsl.l + 15, 90)}%)`);
   root.style.setProperty('--brand-color-dark', `hsl(${hsl.h}, ${hsl.s}%, ${Math.max(hsl.l - 10, 10)}%)`);
   root.style.setProperty('--brand-color-bg', `hsl(${hsl.h}, ${Math.max(hsl.s - 30, 10)}%, 95%)`);
+  root.style.setProperty('--primary-hover', `hsl(${hsl.h}, ${hsl.s}%, ${Math.max(hsl.l - 10, 10)}%)`);
+  root.style.setProperty('--primary-dark', `hsl(${hsl.h}, ${hsl.s}%, ${Math.max(hsl.l - 10, 10)}%)`);
+  root.style.setProperty('--primary-light', `hsl(${hsl.h}, ${hsl.s}%, ${Math.min(hsl.l + 15, 90)}%)`);
+  root.style.setProperty('--primary-bg', `hsl(${hsl.h}, ${Math.max(hsl.s - 30, 10)}%, 95%)`);
+
+  // Meta theme-color
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', hexColor);
+}
+
+// ============================================================================
+// HELPER: Set document title from tenant data
+// ============================================================================
+function applyTenantTitle(tenantData) {
+  const name = tenantData?.business_name || tenantData?.name || '';
+  if (name) {
+    document.title = `${name} - Admin`;
+  }
 }
 
 // ============================================================================
@@ -192,6 +224,9 @@ function App() {
           console.log('loadTenantBranding: Applying color', tenantData.primary_color);
           applyBrandColor(tenantData.primary_color);
         }
+
+        // Apply document title
+        applyTenantTitle(tenantData);
         
         return tenantData;
       } else {
@@ -278,6 +313,7 @@ function App() {
           console.log('Applying color from subdomain lookup:', subdomainTenantData.primary_color);
           applyBrandColor(subdomainTenantData.primary_color);
         }
+        applyTenantTitle(subdomainTenantData);
       } else if (tenantIdToLoad) {
         await loadTenantBranding(tenantIdToLoad);
       }
@@ -349,6 +385,7 @@ function App() {
     
     // Reset brand color to default
     applyBrandColor('#7A8B6E');
+    document.title = 'Back Office';
   };
 
   const toggleSection = (sectionId) => {

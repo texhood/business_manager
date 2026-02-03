@@ -1,8 +1,22 @@
+/**
+ * ===========================================================================
+ * FILE: site_website_ecommerce/src/App.js
+ * ===========================================================================
+ * Public-facing Ecommerce / Website
+ *
+ * CHANGES (tenant branding fix):
+ *   - Added import of useTenantBranding hook
+ *   - Added useTenantBranding('') call — no suffix so tab just shows business name
+ */
+
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 // Context Providers
 import { SiteProvider } from './context/SiteContext';
+
+// Tenant Branding
+import { useTenantBranding } from './hooks/useTenantBranding';
 
 // Layout Components
 import Header from './components/Header';
@@ -40,6 +54,10 @@ import './App.css';
 const USE_DYNAMIC_PAGES = true; // Toggle this to switch between hardcoded and CMS pages
 
 function App() {
+  // Load tenant branding: sets CSS vars, document title, favicon
+  // Empty suffix — public site tab just shows the business name
+  useTenantBranding('');
+
   return (
     <SiteProvider>
       <div className="app">
