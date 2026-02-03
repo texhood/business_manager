@@ -214,11 +214,6 @@ const posLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const tenantBrandingRoutes = require('./routes/tenantBranding');
-
-// Public tenant branding (no auth required)
-app.use('/api/v1/tenant-branding', tenantBrandingRoutes);
-
 app.use(limiter);
 
 // Body parsing - skip JSON parsing for Stripe webhook routes (they need raw body)
