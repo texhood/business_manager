@@ -110,6 +110,8 @@ const productionPatterns = [
   /^https:\/\/office\.busmgr\.com$/,
   /^https:\/\/app\.busmgr\.com$/,
   /^https:\/\/pos\.busmgr\.com$/,
+  /^https:\/\/rpos\.busmgr\.com$/,
+  /^https:\/\/herds\.busmgr\.com$/,
   /^https:\/\/kitchen\.busmgr\.com$/,
   /^https:\/\/terminal\.busmgr\.com$/,
   
@@ -117,6 +119,8 @@ const productionPatterns = [
   /^https:\/\/[a-z0-9-]+\.office\.busmgr\.com$/,            // {tenant}.office.busmgr.com
   /^https:\/\/[a-z0-9-]+\.app\.busmgr\.com$/,               // {tenant}.app.busmgr.com
   /^https:\/\/[a-z0-9-]+\.pos\.busmgr\.com$/,               // {tenant}.pos.busmgr.com
+  /^https:\/\/[a-z0-9-]+\.rpos\.busmgr\.com$/,              // {tenant}.rpos.busmgr.com
+  /^https:\/\/[a-z0-9-]+\.herds\.busmgr\.com$/,             // {tenant}.herds.busmgr.com
   /^https:\/\/[a-z0-9-]+\.kitchen\.busmgr\.com$/,           // {tenant}.kitchen.busmgr.com
   /^https:\/\/[a-z0-9-]+\.terminal\.busmgr\.com$/,          // {tenant}.terminal.busmgr.com
   

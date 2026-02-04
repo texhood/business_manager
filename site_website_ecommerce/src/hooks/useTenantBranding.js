@@ -38,9 +38,10 @@ function getTenantSlug() {
   if (parts.length >= 3) {
     const candidate = parts[0].toLowerCase();
     const reserved = [
-      'www', 'api', 'office', 'pos', 'kds', 'herds', 'onboard',
+      'www', 'api', 'office', 'pos', 'rpos', 'kds', 'herds', 'onboard',
       'app', 'admin', 'mail', 'smtp', 'ftp', 'cdn', 'static',
-      'dev', 'staging', 'test', 'demo',
+      'dev', 'staging', 'test', 'demo', 'kitchen', 'terminal',
+      'signup', 'backend',
     ];
     if (!reserved.includes(candidate)) return candidate;
   }

@@ -12,10 +12,10 @@
 
 // App subdomains that are NOT tenant slugs
 const APP_SUBDOMAINS = [
-  'www', 'api', 'office', 'pos', 'kds', 'herds', 'onboard', 
+  'www', 'api', 'office', 'pos', 'rpos', 'kds', 'herds', 'onboard', 
   'app', 'admin', 'restaurant', 'ecommerce', 'shop', 'store',
   'mail', 'smtp', 'ftp', 'cdn', 'static', 'dev', 'staging', 'test', 'demo',
-  'signup' // Special: signup portal operates across all tenants
+  'kitchen', 'terminal', 'signup', 'backend',
 ];
 
 /**

@@ -10,9 +10,10 @@
 
 // App subdomains that are NOT tenant slugs
 const APP_SUBDOMAINS = [
-  'www', 'api', 'office', 'pos', 'kds', 'herds', 'onboard', 
+  'www', 'api', 'office', 'pos', 'rpos', 'kds', 'herds', 'onboard', 
   'app', 'admin', 'restaurant', 'ecommerce', 'shop', 'store', 'alt',
-  'mail', 'smtp', 'ftp', 'cdn', 'static', 'dev', 'staging', 'test', 'demo'
+  'mail', 'smtp', 'ftp', 'cdn', 'static', 'dev', 'staging', 'test', 'demo',
+  'kitchen', 'terminal', 'signup', 'backend',
 ];
 
 /**

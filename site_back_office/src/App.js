@@ -140,9 +140,10 @@ function getTenantSlugFromSubdomain() {
     
     // Reserved subdomains that are NOT tenant slugs
     const reservedSubdomains = [
-      'www', 'api', 'office', 'pos', 'kds', 'herds', 'onboard', 
+      'www', 'api', 'office', 'pos', 'rpos', 'kds', 'herds', 'onboard', 
       'app', 'admin', 'mail', 'smtp', 'ftp', 'cdn', 'static',
-      'dev', 'staging', 'test', 'demo'
+      'dev', 'staging', 'test', 'demo', 'kitchen', 'terminal',
+      'signup', 'backend',
     ];
     
     if (!reservedSubdomains.includes(potentialSlug.toLowerCase())) {
