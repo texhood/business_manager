@@ -37,23 +37,24 @@ const LoginPage = ({ onLogin }) => {
           <p>Business Manager</p>
         </div>
         
+        {error && (
+          <div className="login-error">
+            <Icons.AlertCircle />
+            {error}
+          </div>
+        )}
+
         <form className="login-form" onSubmit={handleSubmit}>
-          {error && (
-            <div className="login-error">
-              <Icons.AlertCircle />
-              <span>{error}</span>
-            </div>
-          )}
-          
           <div className="form-group">
             <label>Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="sara@hoodfamilyfarms.com"
+              placeholder="your@email.com"
               required
               autoFocus
+              autoComplete="email"
             />
           </div>
           
@@ -64,7 +65,7 @@ const LoginPage = ({ onLogin }) => {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder="••••••••"
                 required
                 autoComplete="current-password"
               />
@@ -80,8 +81,17 @@ const LoginPage = ({ onLogin }) => {
           </div>
           
           <button type="submit" className="login-btn" disabled={loading}>
-            {loading ? <Icons.Loader /> : <Icons.Check />}
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? (
+              <>
+                <Icons.Loader className="animate-spin" />
+                Signing in...
+              </>
+            ) : (
+              <>
+                <Icons.LogIn />
+                Sign In
+              </>
+            )}
           </button>
         </form>
       </div>

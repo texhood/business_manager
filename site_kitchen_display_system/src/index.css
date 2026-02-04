@@ -806,6 +806,10 @@ body {
   }
 }
 
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
 .loading-text {
   font-size: 16px;
   color: rgba(255, 255, 255, 0.7);
