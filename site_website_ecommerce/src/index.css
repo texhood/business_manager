@@ -11,6 +11,8 @@
   --color-primary: #3a7233;
   --color-primary-dark: #2d5a27;
   --color-primary-light: #4a8f42;
+  --color-primary-ring: rgba(58, 114, 51, 0.15);
+  --color-primary-bg-subtle: rgba(58, 114, 51, 0.05);
   --color-secondary: #8b7355;
   --color-accent: #c9a962;
   --color-background: #faf8f5;
@@ -203,7 +205,7 @@ input, textarea, select {
 input:focus, textarea:focus, select:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(74, 124, 89, 0.1);
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
 }
 
 /* Images */

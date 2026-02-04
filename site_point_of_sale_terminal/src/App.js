@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { useTenantBranding } from './hooks/useTenantBranding';
 import Login from './components/Login';
 import POS from './components/POS';
 
@@ -24,6 +25,9 @@ function ProtectedRoute({ children }) {
 }
 
 function App() {
+  // Load tenant branding: sets CSS vars, document title, favicon
+  useTenantBranding('POS Terminal');
+
   return (
     <div className="app">
       <Routes>

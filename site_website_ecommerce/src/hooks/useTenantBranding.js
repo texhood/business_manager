@@ -79,12 +79,17 @@ function applyBrandColor(hex) {
   const hsl = hexToHsl(hex);
   const root = document.documentElement;
 
-  // Core brand colour
-  root.style.setProperty('--brand-color', hex);
-  root.style.setProperty('--primary', hex);
-  root.style.setProperty('--primary-color', hex);
-  root.style.setProperty('--accent-color', hex);
-  root.style.setProperty('--theme-color', hex);
+  // Core brand colour — covers all naming patterns across apps
+  root.style.setProperty('--brand-color', hex);       // back-office
+  root.style.setProperty('--primary', hex);            // POS terminal, restaurant POS
+  root.style.setProperty('--primary-color', hex);      // general
+  root.style.setProperty('--accent-color', hex);       // general
+  root.style.setProperty('--theme-color', hex);        // general
+  root.style.setProperty('--color-primary', hex);      // ecommerce
+  root.style.setProperty('--color-primary-dark', `hsl(${hsl.h}, ${hsl.s}%, ${Math.max(hsl.l - 10, 10)}%)`);
+  root.style.setProperty('--color-primary-light', `hsl(${hsl.h}, ${hsl.s}%, ${Math.min(hsl.l + 15, 90)}%)`);
+  root.style.setProperty('--color-primary-ring', `hsla(${hsl.h}, ${hsl.s}%, ${hsl.l}%, 0.15)`);
+  root.style.setProperty('--color-primary-bg-subtle', `hsla(${hsl.h}, ${hsl.s}%, ${hsl.l}%, 0.05)`);
 
   // HSL components (used by back-office CSS)
   root.style.setProperty('--brand-color-h', hsl.h);

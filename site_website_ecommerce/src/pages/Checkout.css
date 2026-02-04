@@ -96,7 +96,7 @@
 .form-group textarea:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(122, 139, 110, 0.15);
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
 }
 
 .form-group textarea {
@@ -127,7 +127,7 @@
 
 .delivery-option.selected {
   border-color: var(--color-primary);
-  background-color: rgba(122, 139, 110, 0.05);
+  background-color: var(--color-primary-bg-subtle);
 }
 
 .delivery-option input[type="radio"] {
@@ -168,7 +168,7 @@
 
 .card-element-container:focus-within {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(122, 139, 110, 0.15);
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
 }
 
 .payment-security {

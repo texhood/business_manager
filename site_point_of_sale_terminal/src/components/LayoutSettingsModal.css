@@ -75,7 +75,7 @@
 
 .layout-item.selected {
   border-color: var(--primary);
-  background: #f0f7eb;
+  background: var(--primary-bg);
 }
 
 .layout-info {
