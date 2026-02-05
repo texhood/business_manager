@@ -11,6 +11,7 @@ const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true, // Send SSO cookie with every request
 });
 
 // Request interceptor — add auth token and tenant header
@@ -52,10 +53,27 @@ export const authService = {
     return user;
   },
 
-  logout: () => {
+  logout: async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (e) {
+      // Best-effort — clear local state regardless
+    }
     localStorage.removeItem('portal_token');
     localStorage.removeItem('portal_refresh_token');
     localStorage.removeItem('portal_user');
+  },
+
+  // SSO bootstrap — check if cookie session exists when no local token
+  checkSSOSession: async () => {
+    try {
+      const response = await api.get('/auth/me');
+      const user = response.data.data;
+      localStorage.setItem('portal_user', JSON.stringify(user));
+      return user;
+    } catch (e) {
+      return null;
+    }
   },
 
   getCurrentUser: () => {

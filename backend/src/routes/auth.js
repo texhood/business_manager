@@ -84,6 +84,17 @@ router.post('/login', loginValidation, validate, asyncHandler(async (req, res) =
 
   const { password_hash: _, ...userData } = user;
 
+  // Set SSO cookie scoped to .busmgr.com for cross-app authentication
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.cookie('busmgr_sso', token, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    domain: isProduction ? '.busmgr.com' : undefined,
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (matches JWT expiry)
+  });
+
   res.json({
     status: 'success',
     data: {
@@ -289,6 +300,16 @@ router.put('/password', authenticate, asyncHandler(async (req, res) => {
  */
 router.post('/logout', authenticate, asyncHandler(async (req, res) => {
   logger.info('User logged out', { userId: req.user.id });
+
+  // Clear SSO cookie
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.clearCookie('busmgr_sso', {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    domain: isProduction ? '.busmgr.com' : undefined,
+    path: '/',
+  });
 
   res.json({
     status: 'success',

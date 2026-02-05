@@ -31,6 +31,7 @@ export const apiFetch = async (endpoint, options = {}) => {
   
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
+    credentials: 'include', // Send SSO cookie with every request
     headers: {
       ...getHeaders(token),
       ...options.headers,
@@ -38,6 +39,25 @@ export const apiFetch = async (endpoint, options = {}) => {
   });
   
   return response;
+};
+
+/**
+ * SSO bootstrap — check if cookie session exists when no local token
+ */
+export const checkSSOSession = async () => {
+  try {
+    const response = await fetch(`${API_URL}/auth/me`, {
+      credentials: 'include',
+      headers: getHeaders(),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return data.data;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
 };
 
 /**

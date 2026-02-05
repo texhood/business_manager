@@ -20,23 +20,27 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session
-    const storedUser = authService.getCurrentUser();
-    if (storedUser) {
-      // Verify token is still valid
-      authService.getMe()
-        .then(freshUser => {
+    const checkAuth = async () => {
+      // Check for existing localStorage session
+      const storedUser = authService.getCurrentUser();
+      if (storedUser) {
+        try {
+          const freshUser = await authService.getMe();
           setUser(freshUser);
-          setLoading(false);
-        })
-        .catch(() => {
+        } catch {
           authService.logout();
           setUser(null);
-          setLoading(false);
-        });
-    } else {
+        }
+      } else {
+        // No local token — try SSO cookie
+        const ssoUser = await authService.checkSSOSession();
+        if (ssoUser) {
+          setUser(ssoUser);
+        }
+      }
       setLoading(false);
-    }
+    };
+    checkAuth();
   }, []);
 
   const handleLogin = (loggedInUser) => {

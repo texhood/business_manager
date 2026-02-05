@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getHeaders, API_URL } from '../services/api';
+import { getHeaders, API_URL, checkSSOSession } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -8,16 +8,16 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('kds_token'));
   const [loading, setLoading] = useState(true);
 
-  // Check for existing session on mount
+  // Check for existing session on mount, or try SSO cookie
   useEffect(() => {
-    const verifyToken = async () => {
+    const checkAuth = async () => {
       const storedToken = localStorage.getItem('kds_token');
       const storedUser = localStorage.getItem('kds_user');
 
       if (storedToken && storedUser) {
         try {
-          // Verify token is still valid
           const response = await fetch(`${API_URL}/auth/me`, {
+            credentials: 'include',
             headers: getHeaders(storedToken)
           });
 
@@ -25,7 +25,6 @@ export const AuthProvider = ({ children }) => {
             setToken(storedToken);
             setUser(JSON.parse(storedUser));
           } else {
-            // Token invalid, clear storage
             localStorage.removeItem('kds_token');
             localStorage.removeItem('kds_user');
             setToken(null);
@@ -38,16 +37,23 @@ export const AuthProvider = ({ children }) => {
           setToken(null);
           setUser(null);
         }
+      } else {
+        // No local token — try SSO cookie
+        const ssoUser = await checkSSOSession();
+        if (ssoUser) {
+          setUser(ssoUser);
+        }
       }
       setLoading(false);
     };
 
-    verifyToken();
+    checkAuth();
   }, []);
 
   const login = async (email, password) => {
     const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
+      credentials: 'include',
       headers: getHeaders(),
       body: JSON.stringify({ email, password })
     });

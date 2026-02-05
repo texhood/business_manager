@@ -14,6 +14,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Send SSO cookie with every request
 });
 
 // Request interceptor - add auth token and tenant header
@@ -68,10 +69,27 @@ export const authService = {
     return user;
   },
 
-  logout: () => {
+  logout: async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (e) {
+      // Best-effort
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+  },
+
+  // SSO bootstrap — check if cookie session exists when no local token
+  checkSSOSession: async () => {
+    try {
+      const response = await api.get('/auth/me');
+      const user = response.data.data;
+      localStorage.setItem('user', JSON.stringify(user));
+      return user;
+    } catch (e) {
+      return null;
+    }
   },
 
   getCurrentUser: () => {

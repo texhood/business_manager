@@ -13,22 +13,27 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session on mount
-    const storedUser = authService.getCurrentUser();
-    if (storedUser) {
-      setUser(storedUser);
-      // Optionally verify token is still valid
-      authService.getMe()
-        .then(freshUser => setUser(freshUser))
-        .catch(() => {
-          // Token invalid, clear session
+    const checkAuth = async () => {
+      const storedUser = authService.getCurrentUser();
+      if (storedUser) {
+        setUser(storedUser);
+        try {
+          const freshUser = await authService.getMe();
+          setUser(freshUser);
+        } catch {
           authService.logout();
           setUser(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
+        }
+      } else {
+        // No local token — try SSO cookie
+        const ssoUser = await authService.checkSSOSession();
+        if (ssoUser) {
+          setUser(ssoUser);
+        }
+      }
       setLoading(false);
-    }
+    };
+    checkAuth();
   }, []);
 
   const login = async (email, password) => {

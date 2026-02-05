@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getHeaders, API_URL } from '../services/api';
+import { getHeaders, API_URL, checkSSOSession } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -9,16 +9,25 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (token) {
-      validateToken();
-    } else {
+    const checkAuth = async () => {
+      if (token) {
+        await validateToken();
+      } else {
+        // No local token — try SSO cookie
+        const ssoUser = await checkSSOSession();
+        if (ssoUser) {
+          setUser(ssoUser);
+        }
+      }
       setLoading(false);
-    }
+    };
+    checkAuth();
   }, []);
 
   const validateToken = async () => {
     try {
       const response = await fetch(`${API_URL}/auth/me`, {
+        credentials: 'include',
         headers: getHeaders(token)
       });
       
@@ -33,14 +42,13 @@ export function AuthProvider({ children }) {
       console.error('Token validation error:', error);
       localStorage.removeItem('restaurant_pos_token');
       setToken(null);
-    } finally {
-      setLoading(false);
     }
   };
 
   const login = async (email, password) => {
     const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
+      credentials: 'include',
       headers: getHeaders(),
       body: JSON.stringify({ email, password })
     });

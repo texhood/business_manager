@@ -153,14 +153,24 @@ function App() {
   // Load tenant branding: sets CSS vars, document title, favicon
   useTenantBranding('Herds & Flocks');
 
-  // Check for existing session on mount
+  // Check for existing session on mount, or try SSO cookie
   useEffect(() => {
-    const storedUser = authService.getCurrentUser();
-    if (storedUser) {
-      setUser(storedUser);
-      loadData();
-    }
-    setLoading(false);
+    const checkAuth = async () => {
+      const storedUser = authService.getCurrentUser();
+      if (storedUser) {
+        setUser(storedUser);
+        loadData();
+      } else {
+        // No local token — try SSO cookie
+        const ssoUser = await authService.checkSSOSession();
+        if (ssoUser) {
+          setUser(ssoUser);
+          loadData();
+        }
+      }
+      setLoading(false);
+    };
+    checkAuth();
   }, []);
 
   // Load dashboard data

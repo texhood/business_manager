@@ -15,7 +15,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
  */
 const authenticate = async (req, res, next) => {
   try {
-    // Get token from header OR query string (for file downloads)
+    // Get token from header, query string, or SSO cookie
     let token;
     const authHeader = req.headers.authorization;
     
@@ -24,6 +24,9 @@ const authenticate = async (req, res, next) => {
     } else if (req.query.token) {
       // Support token in query string for file downloads (CSV exports, etc.)
       token = req.query.token;
+    } else if (req.cookies && req.cookies.busmgr_sso) {
+      // SSO cookie — shared across all *.busmgr.com subdomains
+      token = req.cookies.busmgr_sso;
     }
     
     if (!token) {
