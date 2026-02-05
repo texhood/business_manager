@@ -13,7 +13,7 @@ const APP_SUBDOMAINS = [
   'www', 'api', 'office', 'pos', 'rpos', 'kds', 'herds', 'onboard', 
   'app', 'admin', 'restaurant', 'ecommerce', 'shop', 'store',
   'mail', 'smtp', 'ftp', 'cdn', 'static', 'dev', 'staging', 'test', 'demo',
-  'kitchen', 'terminal', 'signup', 'backend',
+  'kitchen', 'terminal', 'signup', 'backend', 'portal',
 ];
 
 /**

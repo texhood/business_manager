@@ -55,6 +55,7 @@ const tenantAssetsRouter = require('./routes/tenantAssets');
 const connectRouter = require('./routes/connect');
 const subscriptionsRouter = require('./routes/subscriptions');
 const tenantSettingsRouter = require('./routes/tenantSettings');
+const portalRouter = require('./routes/portal');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -102,6 +103,8 @@ const productionPatterns = [
   /^https:\/\/www\.busmgr\.com$/,                           // WWW
   /^https:\/\/api\.busmgr\.com$/,                           // API
   /^https:\/\/signup\.busmgr\.com$/,                        // Onboarding
+  /^https:\/\/portal\.busmgr\.com$/,                        // Tenant Portal
+  /^https:\/\/[a-z0-9-]+\.portal\.busmgr\.com$/,            // {tenant}.portal.busmgr.com
   
   // Tenant subdomains: {tenant}.busmgr.com (ecommerce storefronts)
   /^https:\/\/[a-z0-9-]+\.busmgr\.com$/,
@@ -123,6 +126,7 @@ const productionPatterns = [
   /^https:\/\/[a-z0-9-]+\.herds\.busmgr\.com$/,             // {tenant}.herds.busmgr.com
   /^https:\/\/[a-z0-9-]+\.kitchen\.busmgr\.com$/,           // {tenant}.kitchen.busmgr.com
   /^https:\/\/[a-z0-9-]+\.terminal\.busmgr\.com$/,          // {tenant}.terminal.busmgr.com
+  /^https:\/\/[a-z0-9-]+\.portal\.busmgr\.com$/,            // {tenant}.portal.busmgr.com
   
   // =========================================================================
   // LEGACY DOMAIN: hoodfamilyfarms.com (keep during transition)
@@ -296,6 +300,7 @@ app.use(`${API_PREFIX}/tenant-assets`, tenantAssetsRouter);
 app.use(`${API_PREFIX}/connect`, connectRouter);
 app.use(`${API_PREFIX}/subscriptions`, subscriptionsRouter);
 app.use(`${API_PREFIX}/tenant-settings`, tenantSettingsRouter);
+app.use(`${API_PREFIX}/portal`, portalRouter);
 
 // Also mount tenant-assets at root for cleaner URLs (public access)
 app.use('/tenant-assets', tenantAssetsRouter);
