@@ -1,98 +1,93 @@
 /**
- * Plaid API Service
- * Add this to your existing api.js or create as separate file
+ * Plaid API Service (Multi-Tenant)
+ * Uses the shared api axios instance for automatic auth token
+ * and X-Tenant-ID header injection.
  * 
  * Usage:
  *   import { plaidService } from './services/plaidApi';
  *   const token = await plaidService.createLinkToken();
  */
 
-const API_BASE = '/api/v1';
+import api from './api';
 
 export const plaidService = {
   /**
    * Create a link token to initialize Plaid Link
    */
   async createLinkToken() {
-    const response = await fetch(`${API_BASE}/plaid/create-link-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!response.ok) throw new Error('Failed to create link token');
-    return response.json();
+    const response = await api.post('/plaid/create-link-token');
+    return response.data;
   },
 
   /**
    * Exchange public token for access token after Link completes
    */
   async exchangeToken(publicToken) {
-    const response = await fetch(`${API_BASE}/plaid/exchange-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ public_token: publicToken }),
+    const response = await api.post('/plaid/exchange-token', {
+      public_token: publicToken,
     });
-    if (!response.ok) throw new Error('Failed to exchange token');
-    return response.json();
+    return response.data;
   },
 
   /**
    * Sync transactions from all linked banks
    */
   async syncTransactions(itemId = null) {
-    const response = await fetch(`${API_BASE}/plaid/sync-transactions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_id: itemId }),
+    const response = await api.post('/plaid/sync-transactions', {
+      item_id: itemId,
     });
-    if (!response.ok) throw new Error('Failed to sync transactions');
-    return response.json();
+    return response.data;
+  },
+
+  /**
+   * Refresh accounts from Plaid for existing items
+   */
+  async refreshAccounts(itemId = null) {
+    const response = await api.post('/plaid/refresh-accounts', {
+      item_id: itemId,
+    });
+    return response.data;
   },
 
   /**
    * Get all linked bank accounts
    */
   async getAccounts() {
-    const response = await fetch(`${API_BASE}/plaid/accounts`);
-    if (!response.ok) throw new Error('Failed to fetch accounts');
-    return response.json();
+    const response = await api.get('/plaid/accounts');
+    return response.data;
   },
 
   /**
    * Get all Plaid items (bank connections)
    */
   async getItems() {
-    const response = await fetch(`${API_BASE}/plaid/items`);
-    if (!response.ok) throw new Error('Failed to fetch items');
-    return response.json();
+    const response = await api.get('/plaid/items');
+    return response.data;
   },
 
   /**
    * Link a Plaid account to a GL account
    */
   async linkAccount(plaidAccountId, glAccountId) {
-    const response = await fetch(`${API_BASE}/plaid/accounts/${plaidAccountId}/link`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ linked_account_id: glAccountId }),
-    });
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const error = new Error(errorData.message || errorData.error || 'Failed to link account');
-      error.details = errorData;
-      throw error;
+    try {
+      const response = await api.put(`/plaid/accounts/${plaidAccountId}/link`, {
+        linked_account_id: glAccountId,
+      });
+      return response.data;
+    } catch (error) {
+      const errorData = error.response?.data || {};
+      const err = new Error(errorData.message || errorData.error || 'Failed to link account');
+      err.details = errorData;
+      throw err;
     }
-    return response.json();
   },
 
   /**
    * Remove a bank connection
    */
   async removeItem(itemId) {
-    const response = await fetch(`${API_BASE}/plaid/items/${itemId}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) throw new Error('Failed to remove bank connection');
-    return response.json();
+    const response = await api.delete(`/plaid/items/${itemId}`);
+    return response.data;
   },
 };
 

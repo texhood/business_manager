@@ -1,6 +1,6 @@
 /**
  * routes/plaid.js
- * Plaid Integration Routes
+ * Plaid Integration Routes (Multi-Tenant)
  * Handles bank account linking and transaction sync
  * 
  * Add to server.js:
@@ -12,6 +12,7 @@ const express = require('express');
 const router = express.Router();
 const { Configuration, PlaidApi, PlaidEnvironments, Products } = require('plaid');
 const db = require('../../config/database');
+const { authenticate, requireStaff } = require('../middleware/auth');
 
 // ============================================================================
 // PLAID CLIENT SETUP
@@ -30,6 +31,11 @@ const configuration = new Configuration({
 
 const plaidClient = new PlaidApi(configuration);
 
+// Helper to get tenant_id from authenticated user
+const getTenantId = (req) => {
+  return req.user?.tenant_id || null;
+};
+
 // ============================================================================
 // LINK TOKEN - Start the Plaid Link flow
 // ============================================================================
@@ -38,13 +44,29 @@ const plaidClient = new PlaidApi(configuration);
  * POST /api/v1/plaid/create-link-token
  * Creates a link token to initialize Plaid Link on the frontend
  */
-router.post('/create-link-token', async (req, res) => {
+router.post('/create-link-token', authenticate, requireStaff, async (req, res) => {
+  const tenantId = getTenantId(req);
+
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Tenant context required' });
+  }
+
   try {
+    // Get tenant business name for Plaid Link display
+    let clientName = 'Business Manager';
+    const tenantResult = await db.query(
+      'SELECT business_name, name FROM tenants WHERE id = $1',
+      [tenantId]
+    );
+    if (tenantResult.rows.length > 0) {
+      clientName = tenantResult.rows[0].business_name || tenantResult.rows[0].name || clientName;
+    }
+
     const request = {
       user: {
-        client_user_id: 'hood-family-farms-user', // In production, use actual user ID
+        client_user_id: `${tenantId}-${req.user.id}`,
       },
-      client_name: 'Hood Family Farms',
+      client_name: clientName,
       products: [Products.Transactions],
       country_codes: ['US'],
       language: 'en',
@@ -79,8 +101,13 @@ router.post('/create-link-token', async (req, res) => {
  * Exchanges a public_token from Link for an access_token
  * Body: { public_token: string }
  */
-router.post('/exchange-token', async (req, res) => {
+router.post('/exchange-token', authenticate, requireStaff, async (req, res) => {
+  const tenantId = getTenantId(req);
   const { public_token } = req.body;
+
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Tenant context required' });
+  }
 
   if (!public_token) {
     return res.status(400).json({ error: 'public_token is required' });
@@ -111,10 +138,10 @@ router.post('/exchange-token', async (req, res) => {
       }
     }
 
-    // Store the Plaid Item
+    // Store the Plaid Item with tenant_id
     const itemResult = await db.query(
-      `INSERT INTO plaid_items (access_token, item_id, institution_id, institution_name)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO plaid_items (access_token, item_id, institution_id, institution_name, tenant_id)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (item_id) DO UPDATE SET
          access_token = EXCLUDED.access_token,
          institution_name = EXCLUDED.institution_name,
@@ -123,11 +150,11 @@ router.post('/exchange-token', async (req, res) => {
          error_message = NULL,
          updated_at = NOW()
        RETURNING id`,
-      [access_token, item_id, institutionId, institutionName]
+      [access_token, item_id, institutionId, institutionName, tenantId]
     );
     const plaidItemId = itemResult.rows[0].id;
 
-    // Get and store accounts
+    // Get and store accounts with tenant_id
     const accountsResponse = await plaidClient.accountsGet({ access_token });
     const accounts = accountsResponse.data.accounts;
 
@@ -135,8 +162,8 @@ router.post('/exchange-token', async (req, res) => {
       await db.query(
         `INSERT INTO plaid_accounts (
           plaid_item_id, account_id, name, official_name, type, subtype, mask,
-          current_balance, available_balance, iso_currency_code
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          current_balance, available_balance, iso_currency_code, tenant_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ON CONFLICT (account_id) DO UPDATE SET
           name = EXCLUDED.name,
           official_name = EXCLUDED.official_name,
@@ -154,6 +181,7 @@ router.post('/exchange-token', async (req, res) => {
           account.balances.current,
           account.balances.available,
           account.balances.iso_currency_code || 'USD',
+          tenantId,
         ]
       );
     }
@@ -188,16 +216,21 @@ router.post('/exchange-token', async (req, res) => {
  * Syncs transactions for all linked accounts or a specific item
  * Body: { item_id?: string } - optional, syncs all if not provided
  */
-router.post('/sync-transactions', async (req, res) => {
+router.post('/sync-transactions', authenticate, requireStaff, async (req, res) => {
+  const tenantId = getTenantId(req);
   const { item_id } = req.body;
 
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Tenant context required' });
+  }
+
   try {
-    // Get Plaid items to sync
-    let itemsQuery = 'SELECT * FROM plaid_items WHERE status = $1';
-    const queryParams = ['active'];
+    // Get Plaid items to sync - filtered by tenant
+    let itemsQuery = 'SELECT * FROM plaid_items WHERE status = $1 AND tenant_id = $2';
+    const queryParams = ['active', tenantId];
     
     if (item_id) {
-      itemsQuery += ' AND item_id = $2';
+      itemsQuery += ' AND item_id = $3';
       queryParams.push(item_id);
     }
 
@@ -218,7 +251,7 @@ router.post('/sync-transactions', async (req, res) => {
 
     for (const item of items) {
       try {
-        await syncItemTransactions(item, results);
+        await syncItemTransactions(item, results, tenantId);
         results.synced++;
       } catch (error) {
         console.error(`Error syncing item ${item.item_id}:`, error.message);
@@ -231,8 +264,8 @@ router.post('/sync-transactions', async (req, res) => {
         // Update item status on error
         await db.query(
           `UPDATE plaid_items SET status = 'error', error_code = $1, error_message = $2, updated_at = NOW()
-           WHERE id = $3`,
-          [error.response?.data?.error_code || 'UNKNOWN', error.message, item.id]
+           WHERE id = $3 AND tenant_id = $4`,
+          [error.response?.data?.error_code || 'UNKNOWN', error.message, item.id, tenantId]
         );
       }
     }
@@ -249,15 +282,18 @@ router.post('/sync-transactions', async (req, res) => {
 
 /**
  * Sync transactions for a single Plaid item using cursor-based pagination
+ * @param {object} item - plaid_items row
+ * @param {object} results - accumulator for counts
+ * @param {string} tenantId - tenant UUID
  */
-async function syncItemTransactions(item, results) {
+async function syncItemTransactions(item, results, tenantId) {
   let cursor = item.cursor;
   let hasMore = true;
 
   // Get account mapping (plaid_account_id -> our plaid_accounts.id)
   const accountsResult = await db.query(
-    'SELECT id, account_id FROM plaid_accounts WHERE plaid_item_id = $1',
-    [item.id]
+    'SELECT id, account_id FROM plaid_accounts WHERE plaid_item_id = $1 AND tenant_id = $2',
+    [item.id, tenantId]
   );
   const accountMap = {};
   for (const acc of accountsResult.rows) {
@@ -277,22 +313,22 @@ async function syncItemTransactions(item, results) {
 
     // Process added transactions
     for (const txn of data.added) {
-      await upsertTransaction(txn, accountMap, item.id);
+      await upsertTransaction(txn, accountMap, item.id, tenantId);
       results.added++;
     }
 
     // Process modified transactions
     for (const txn of data.modified) {
-      await upsertTransaction(txn, accountMap, item.id);
+      await upsertTransaction(txn, accountMap, item.id, tenantId);
       results.modified++;
     }
 
-    // Process removed transactions
+    // Process removed transactions - scope to tenant
     for (const removed of data.removed) {
       await db.query(
         `UPDATE transactions SET acceptance_status = 'excluded', exclusion_reason = 'Removed by bank'
-         WHERE plaid_transaction_id = $1`,
-        [removed.transaction_id]
+         WHERE plaid_transaction_id = $1 AND tenant_id = $2`,
+        [removed.transaction_id, tenantId]
       );
       results.removed++;
     }
@@ -303,15 +339,15 @@ async function syncItemTransactions(item, results) {
 
   // Update cursor for next sync
   await db.query(
-    'UPDATE plaid_items SET cursor = $1, updated_at = NOW() WHERE id = $2',
-    [cursor, item.id]
+    'UPDATE plaid_items SET cursor = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3',
+    [cursor, item.id, tenantId]
   );
 }
 
 /**
  * Insert or update a transaction from Plaid
  */
-async function upsertTransaction(txn, accountMap, plaidItemId) {
+async function upsertTransaction(txn, accountMap, plaidItemId, tenantId) {
   const plaidAccountId = accountMap[txn.account_id];
   
   // Determine transaction type based on amount
@@ -323,16 +359,11 @@ async function upsertTransaction(txn, accountMap, plaidItemId) {
   // Build description from available fields
   const description = txn.merchant_name || txn.name || 'Unknown';
   
-  // Use Plaid's category if available
-  const category = txn.personal_finance_category?.primary || 
-                   txn.category?.[0] || 
-                   'Uncategorized';
-
   await db.query(
     `INSERT INTO transactions (
       date, type, description, amount, acceptance_status, source,
-      plaid_transaction_id, plaid_account_id, notes
-    ) VALUES ($1, $2, $3, $4, 'pending', 'plaid', $5, $6, $7)
+      plaid_transaction_id, plaid_account_id, notes, tenant_id
+    ) VALUES ($1, $2, $3, $4, 'pending', 'plaid', $5, $6, $7, $8)
     ON CONFLICT (plaid_transaction_id) DO UPDATE SET
       date = EXCLUDED.date,
       description = EXCLUDED.description,
@@ -348,6 +379,7 @@ async function upsertTransaction(txn, accountMap, plaidItemId) {
       txn.transaction_id,
       plaidAccountId,
       `Plaid: ${txn.name} | ${txn.personal_finance_category?.detailed || ''}`.trim(),
+      tenantId,
     ]
   );
 }
@@ -359,18 +391,21 @@ async function upsertTransaction(txn, accountMap, plaidItemId) {
 /**
  * POST /api/v1/plaid/refresh-accounts
  * Fetches accounts from Plaid for all items (or a specific item) and saves them
- * Use this if plaid_accounts is empty but plaid_items has data
  */
-router.post('/refresh-accounts', async (req, res) => {
+router.post('/refresh-accounts', authenticate, requireStaff, async (req, res) => {
+  const tenantId = getTenantId(req);
   const { item_id } = req.body;
 
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Tenant context required' });
+  }
+
   try {
-    // Get Plaid items
-    let query = 'SELECT * FROM plaid_items WHERE status = $1';
-    const params = ['active'];
+    let query = 'SELECT * FROM plaid_items WHERE status = $1 AND tenant_id = $2';
+    const params = ['active', tenantId];
     
     if (item_id) {
-      query += ' AND item_id = $2';
+      query += ' AND item_id = $3';
       params.push(item_id);
     }
 
@@ -403,8 +438,8 @@ router.post('/refresh-accounts', async (req, res) => {
           const upsertResult = await db.query(
             `INSERT INTO plaid_accounts (
               plaid_item_id, account_id, name, official_name, type, subtype, mask,
-              current_balance, available_balance, iso_currency_code
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+              current_balance, available_balance, iso_currency_code, tenant_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             ON CONFLICT (account_id) DO UPDATE SET
               name = EXCLUDED.name,
               official_name = EXCLUDED.official_name,
@@ -423,6 +458,7 @@ router.post('/refresh-accounts', async (req, res) => {
               account.balances.current,
               account.balances.available,
               account.balances.iso_currency_code || 'USD',
+              tenantId,
             ]
           );
           
@@ -431,8 +467,6 @@ router.post('/refresh-accounts', async (req, res) => {
           } else {
             results.accounts_updated++;
           }
-          
-          console.log(`  - ${account.name} (${account.mask}): ${account.type}/${account.subtype}`);
         }
 
         results.items_processed++;
@@ -465,9 +499,15 @@ router.post('/refresh-accounts', async (req, res) => {
 
 /**
  * GET /api/v1/plaid/accounts
- * Returns all linked bank accounts
+ * Returns all linked bank accounts for the tenant
  */
-router.get('/accounts', async (req, res) => {
+router.get('/accounts', authenticate, requireStaff, async (req, res) => {
+  const tenantId = getTenantId(req);
+
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Tenant context required' });
+  }
+
   try {
     const result = await db.query(
       `SELECT 
@@ -483,11 +523,14 @@ router.get('/accounts', async (req, res) => {
         pa.is_active,
         pi.institution_name,
         pi.status as item_status,
-        ac.name as linked_account_name
+        ac.name as linked_account_name,
+        pa.linked_account_id
        FROM plaid_accounts pa
        JOIN plaid_items pi ON pa.plaid_item_id = pi.id
        LEFT JOIN accounts_chart ac ON pa.linked_account_id = ac.id
-       ORDER BY pi.institution_name, pa.name`
+       WHERE pa.tenant_id = $1
+       ORDER BY pi.institution_name, pa.name`,
+      [tenantId]
     );
 
     res.json(result.rows);
@@ -499,9 +542,15 @@ router.get('/accounts', async (req, res) => {
 
 /**
  * GET /api/v1/plaid/items
- * Returns all Plaid items (bank connections)
+ * Returns all Plaid items (bank connections) for the tenant
  */
-router.get('/items', async (req, res) => {
+router.get('/items', authenticate, requireStaff, async (req, res) => {
+  const tenantId = getTenantId(req);
+
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Tenant context required' });
+  }
+
   try {
     const result = await db.query(
       `SELECT 
@@ -516,8 +565,10 @@ router.get('/items', async (req, res) => {
         COUNT(pa.id) as account_count
        FROM plaid_items pi
        LEFT JOIN plaid_accounts pa ON pa.plaid_item_id = pi.id
+       WHERE pi.tenant_id = $1
        GROUP BY pi.id
-       ORDER BY pi.created_at DESC`
+       ORDER BY pi.created_at DESC`,
+      [tenantId]
     );
 
     res.json(result.rows);
@@ -536,19 +587,33 @@ router.get('/items', async (req, res) => {
  * Links a Plaid account to a GL account for automatic categorization
  * Body: { linked_account_id: number }
  */
-router.put('/accounts/:id/link', async (req, res) => {
+router.put('/accounts/:id/link', authenticate, requireStaff, async (req, res) => {
+  const tenantId = getTenantId(req);
   const { id } = req.params;
   const { linked_account_id } = req.body;
 
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Tenant context required' });
+  }
+
   try {
-    // If linking (not unlinking), check if GL account is already linked to another Plaid account
+    // Verify this Plaid account belongs to the tenant
+    const ownerCheck = await db.query(
+      'SELECT id FROM plaid_accounts WHERE id = $1 AND tenant_id = $2',
+      [id, tenantId]
+    );
+    if (ownerCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Plaid account not found' });
+    }
+
+    // If linking (not unlinking), check if GL account is already linked to another Plaid account within this tenant
     if (linked_account_id) {
       const existingLink = await db.query(
         `SELECT pa.id, pa.name, pa.mask, pi.institution_name
          FROM plaid_accounts pa
          JOIN plaid_items pi ON pa.plaid_item_id = pi.id
-         WHERE pa.linked_account_id = $1 AND pa.id != $2`,
-        [linked_account_id, id]
+         WHERE pa.linked_account_id = $1 AND pa.id != $2 AND pa.tenant_id = $3`,
+        [linked_account_id, id, tenantId]
       );
 
       if (existingLink.rows.length > 0) {
@@ -562,9 +627,9 @@ router.put('/accounts/:id/link', async (req, res) => {
 
     const result = await db.query(
       `UPDATE plaid_accounts SET linked_account_id = $1, updated_at = NOW()
-       WHERE id = $2
+       WHERE id = $2 AND tenant_id = $3
        RETURNING *`,
-      [linked_account_id, id]
+      [linked_account_id, id, tenantId]
     );
 
     if (result.rows.length === 0) {
@@ -587,14 +652,19 @@ router.put('/accounts/:id/link', async (req, res) => {
  * Removes a Plaid item (bank connection)
  * Note: Does not delete transactions - just nullifies the plaid_account_id reference
  */
-router.delete('/items/:item_id', async (req, res) => {
+router.delete('/items/:item_id', authenticate, requireStaff, async (req, res) => {
+  const tenantId = getTenantId(req);
   const { item_id } = req.params;
 
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Tenant context required' });
+  }
+
   try {
-    // Get the item
+    // Get the item - scoped to tenant
     const itemResult = await db.query(
-      'SELECT * FROM plaid_items WHERE item_id = $1',
-      [item_id]
+      'SELECT * FROM plaid_items WHERE item_id = $1 AND tenant_id = $2',
+      [item_id, tenantId]
     );
 
     if (itemResult.rows.length === 0) {
@@ -611,10 +681,10 @@ router.delete('/items/:item_id', async (req, res) => {
       // Continue anyway - we still want to clean up our database
     }
 
-    // Get the plaid_accounts for this item
+    // Get the plaid_accounts for this item within this tenant
     const accountsResult = await db.query(
-      'SELECT id FROM plaid_accounts WHERE plaid_item_id = $1',
-      [item.id]
+      'SELECT id FROM plaid_accounts WHERE plaid_item_id = $1 AND tenant_id = $2',
+      [item.id, tenantId]
     );
     const accountIds = accountsResult.rows.map(r => r.id);
 
@@ -622,16 +692,16 @@ router.delete('/items/:item_id', async (req, res) => {
     if (accountIds.length > 0) {
       await db.query(
         `UPDATE transactions SET plaid_account_id = NULL 
-         WHERE plaid_account_id = ANY($1)`,
-        [accountIds]
+         WHERE plaid_account_id = ANY($1) AND tenant_id = $2`,
+        [accountIds, tenantId]
       );
     }
 
     // Delete plaid_accounts first (FK doesn't have CASCADE)
-    await db.query('DELETE FROM plaid_accounts WHERE plaid_item_id = $1', [item.id]);
+    await db.query('DELETE FROM plaid_accounts WHERE plaid_item_id = $1 AND tenant_id = $2', [item.id, tenantId]);
     
     // Now delete the plaid_item
-    await db.query('DELETE FROM plaid_items WHERE item_id = $1', [item_id]);
+    await db.query('DELETE FROM plaid_items WHERE item_id = $1 AND tenant_id = $2', [item_id, tenantId]);
 
     res.json({ 
       success: true, 
@@ -654,6 +724,8 @@ router.delete('/items/:item_id', async (req, res) => {
 /**
  * POST /api/v1/plaid/webhook
  * Receives webhook notifications from Plaid
+ * NOTE: No auth middleware - webhooks come from Plaid, not from users.
+ * Tenant context is resolved from the plaid_items row via item_id.
  */
 router.post('/webhook', async (req, res) => {
   const { webhook_type, webhook_code, item_id } = req.body;
@@ -664,16 +736,18 @@ router.post('/webhook', async (req, res) => {
     switch (webhook_type) {
       case 'TRANSACTIONS':
         if (['SYNC_UPDATES_AVAILABLE', 'INITIAL_UPDATE', 'HISTORICAL_UPDATE'].includes(webhook_code)) {
-          // Trigger a sync for this item
+          // Look up item and resolve tenant from DB
           const itemResult = await db.query(
             'SELECT * FROM plaid_items WHERE item_id = $1 AND status = $2',
             [item_id, 'active']
           );
           
           if (itemResult.rows.length > 0) {
+            const item = itemResult.rows[0];
+            const tenantId = item.tenant_id;
             const results = { added: 0, modified: 0, removed: 0 };
-            await syncItemTransactions(itemResult.rows[0], results);
-            console.log(`Webhook sync complete for ${item_id}:`, results);
+            await syncItemTransactions(item, results, tenantId);
+            console.log(`Webhook sync complete for ${item_id} (tenant ${tenantId}):`, results);
           }
         }
         break;
@@ -687,7 +761,6 @@ router.post('/webhook', async (req, res) => {
             [error?.error_code, error?.error_message, item_id]
           );
         } else if (webhook_code === 'PENDING_EXPIRATION') {
-          // Item needs re-authentication
           await db.query(
             `UPDATE plaid_items SET status = 'pending_reauth', updated_at = NOW()
              WHERE item_id = $1`,
