@@ -47,8 +47,8 @@ const PortalDashboard = ({ user, onLogout }) => {
       console.warn('Failed to record app access:', err);
     }
 
-    // Open app in the same tab (or new tab if you prefer)
-    window.location.href = app.url;
+    // Open app in a new tab
+    window.open(app.url, '_blank', 'noopener,noreferrer');
   };
 
   const handleLogout = () => {
