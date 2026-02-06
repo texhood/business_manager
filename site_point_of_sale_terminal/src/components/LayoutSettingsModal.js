@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../services/api';
 import './LayoutSettingsModal.css';
 
-const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
-
 function LayoutSettingsModal({ currentLayoutId, onSelectLayout, onEditLayout, onCreateLayout, onClose }) {
-  const { token } = useAuth();
   const [layouts, setLayouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -18,9 +15,7 @@ function LayoutSettingsModal({ currentLayoutId, onSelectLayout, onEditLayout, on
   const fetchLayouts = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/pos-layouts`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await apiFetch('/pos-layouts');
 
       if (response.ok) {
         const data = await response.json();
@@ -39,12 +34,8 @@ function LayoutSettingsModal({ currentLayoutId, onSelectLayout, onEditLayout, on
 
   const handleSetDefault = async (layoutId) => {
     try {
-      const response = await fetch(`${API_URL}/pos-layouts/${layoutId}`, {
+      const response = await apiFetch(`/pos-layouts/${layoutId}`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({ is_default: true })
       });
 
@@ -63,9 +54,8 @@ function LayoutSettingsModal({ currentLayoutId, onSelectLayout, onEditLayout, on
 
     try {
       setDeletingId(layoutId);
-      const response = await fetch(`${API_URL}/pos-layouts/${layoutId}`, {
+      const response = await apiFetch(`/pos-layouts/${layoutId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (response.ok) {
@@ -90,12 +80,8 @@ function LayoutSettingsModal({ currentLayoutId, onSelectLayout, onEditLayout, on
     if (!newName) return;
 
     try {
-      const response = await fetch(`${API_URL}/pos-layouts/${layout.id}/duplicate`, {
+      const response = await apiFetch(`/pos-layouts/${layout.id}/duplicate`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({ name: newName })
       });
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useTerminal } from '../context/TerminalContext';
+import { apiFetch } from '../services/api';
 import ProductGrid from './ProductGrid';
 import Cart from './Cart';
 import CashPaymentModal from './CashPaymentModal';
@@ -10,8 +11,6 @@ import OrderCompleteModal from './OrderCompleteModal';
 import ReaderModal from './ReaderModal';
 import LayoutSettingsModal from './LayoutSettingsModal';
 import LayoutEditor from './LayoutEditor';
-
-const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
 function POS() {
   const { user, token, logout } = useAuth();
@@ -60,9 +59,7 @@ function POS() {
   // Fetch available layouts
   const fetchLayouts = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/terminal/layouts`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await apiFetch('/terminal/layouts');
 
       if (response.ok) {
         const data = await response.json();
@@ -80,7 +77,7 @@ function POS() {
     } catch (error) {
       console.error('Error fetching layouts:', error);
     }
-  }, [token, currentLayoutId]);
+  }, [currentLayoutId]);
 
   // Fetch products
   const fetchProducts = useCallback(async () => {
@@ -91,14 +88,10 @@ function POS() {
       if (selectedCategory) params.append('category_id', selectedCategory);
       if (debouncedSearch) params.append('search', debouncedSearch);
 
-      const url = `${API_URL}/terminal/products?${params}`;
+      const url = `/terminal/products?${params}`;
       console.log('[POS] Fetching:', url);
       
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await apiFetch(url);
 
       if (response.ok) {
         const data = await response.json();
@@ -119,16 +112,12 @@ function POS() {
     } finally {
       setLoading(false);
     }
-  }, [token, currentLayoutId, selectedCategory, debouncedSearch]);
+  }, [currentLayoutId, selectedCategory, debouncedSearch]);
 
   // Fetch categories
   const fetchCategories = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/terminal/categories`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await apiFetch('/terminal/categories');
 
       if (response.ok) {
         const data = await response.json();
@@ -137,7 +126,7 @@ function POS() {
     } catch (error) {
       console.error('Error fetching categories:', error);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchLayouts();
@@ -183,9 +172,7 @@ function POS() {
     
     // Fetch updated layouts list
     try {
-      const response = await fetch(`${API_URL}/pos-layouts`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await apiFetch('/pos-layouts');
       if (response.ok) {
         const data = await response.json();
         setLayouts(data.data);
@@ -209,12 +196,8 @@ function POS() {
   // Record order to database
   const recordOrder = async (paymentMethod, paymentIntentId = null, cashReceived = null, changeGiven = null) => {
     try {
-      const response = await fetch(`${API_URL}/terminal/orders`, {
+      const response = await apiFetch('/terminal/orders', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           items: items.map(item => ({
             item_id: item.id,

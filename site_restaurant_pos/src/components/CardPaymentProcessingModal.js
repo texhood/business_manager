@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useTerminal } from '../context/TerminalContext';
-
-const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
+import { apiFetch } from '../services/api';
 
 function CardPaymentProcessingModal({ menuId, onComplete, onClose }) {
-  const { token } = useAuth();
   const { items, total, orderType, customerName, phoneNumber, tableNumber, kitchenNotes } = useCart();
   const { collectPayment, processPayment, cancelCollect } = useTerminal();
   
@@ -27,12 +24,8 @@ function CardPaymentProcessingModal({ menuId, onComplete, onClose }) {
       try {
         // Create payment intent
         setStatus('creating');
-        const createResponse = await fetch(`${API_URL}/restaurant-pos/payment-intents`, {
+        const createResponse = await apiFetch('/restaurant-pos/payment-intents', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
           body: JSON.stringify({
             amount: Math.round(total * 100)
           })
@@ -70,12 +63,8 @@ function CardPaymentProcessingModal({ menuId, onComplete, onClose }) {
           special_instructions: item.special_instructions
         }));
 
-        const orderResponse = await fetch(`${API_URL}/restaurant-pos/orders`, {
+        const orderResponse = await apiFetch('/restaurant-pos/orders', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
           body: JSON.stringify({
             menu_id: menuId,
             items: orderItems,
@@ -117,7 +106,7 @@ function CardPaymentProcessingModal({ menuId, onComplete, onClose }) {
       cancelled = true;
       cancelCollect();
     };
-  }, [token, menuId, items, total, orderType, customerName, phoneNumber, tableNumber, kitchenNotes, collectPayment, processPayment, cancelCollect, onComplete]);
+  }, [menuId, items, total, orderType, customerName, phoneNumber, tableNumber, kitchenNotes, collectPayment, processPayment, cancelCollect, onComplete]);
 
   const handleCancel = () => {
     cancelCollect();

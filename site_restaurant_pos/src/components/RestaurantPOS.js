@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useTerminal } from '../context/TerminalContext';
+import { apiFetch } from '../services/api';
 import MenuSelector from './MenuSelector';
 import MenuItemGrid from './MenuItemGrid';
 import Cart from './Cart';
@@ -10,8 +11,6 @@ import OrderDetailModal from './OrderDetailModal';
 import CheckoutModal from './CheckoutModal';
 import CardPaymentProcessingModal from './CardPaymentProcessingModal';
 import ReaderModal from './ReaderModal';
-
-const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
 const ORDER_POLL_INTERVAL = 5000; // 5 seconds to match KDS
 
@@ -51,9 +50,7 @@ function RestaurantPOS() {
   // Fetch menus
   const fetchMenus = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/restaurant-pos/menus`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await apiFetch('/restaurant-pos/menus');
 
       if (response.ok) {
         const data = await response.json();
@@ -64,14 +61,12 @@ function RestaurantPOS() {
     } finally {
       setLoadingMenus(false);
     }
-  }, [token]);
+  }, []);
 
   // Fetch selected menu details
   const fetchMenu = useCallback(async (menuId) => {
     try {
-      const response = await fetch(`${API_URL}/restaurant-pos/menus/${menuId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await apiFetch(`/restaurant-pos/menus/${menuId}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -80,7 +75,7 @@ function RestaurantPOS() {
     } catch (error) {
       console.error('Error fetching menu:', error);
     }
-  }, [token]);
+  }, []);
 
   // Play ready sound
   const playReadySound = useCallback(() => {
@@ -92,9 +87,7 @@ function RestaurantPOS() {
   // Fetch orders
   const fetchOrders = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/restaurant-pos/orders?active_only=true`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await apiFetch('/restaurant-pos/orders?active_only=true');
 
       if (response.ok) {
         const data = await response.json();
@@ -119,14 +112,12 @@ function RestaurantPOS() {
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
-  }, [token, playReadySound]);
+  }, [playReadySound]);
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/restaurant-pos/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await apiFetch('/restaurant-pos/stats');
 
       if (response.ok) {
         const data = await response.json();
@@ -135,7 +126,7 @@ function RestaurantPOS() {
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
-  }, [token]);
+  }, []);
 
   // Use refs to avoid useEffect dependencies on callbacks
   const fetchMenusRef = useRef(fetchMenus);
@@ -196,12 +187,8 @@ function RestaurantPOS() {
           special_instructions: item.special_instructions
         }));
 
-        const response = await fetch(`${API_URL}/restaurant-pos/orders`, {
+        const response = await apiFetch('/restaurant-pos/orders', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
           body: JSON.stringify({
             menu_id: selectedMenuId,
             items: orderItems,
@@ -247,12 +234,8 @@ function RestaurantPOS() {
   // Mark order complete
   const handleCompleteOrder = async (orderId) => {
     try {
-      const response = await fetch(`${API_URL}/restaurant-pos/orders/${orderId}/status`, {
+      const response = await apiFetch(`/restaurant-pos/orders/${orderId}/status`, {
         method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({ status: 'complete' })
       });
 

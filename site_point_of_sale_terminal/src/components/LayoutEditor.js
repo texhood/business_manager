@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../services/api';
 import './LayoutEditor.css';
 
-const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
-
 function LayoutEditor({ layout, onSave, onCancel }) {
-  const { token } = useAuth();
   
   // Layout metadata
   const [layoutName, setLayoutName] = useState(layout?.name || '');
@@ -42,9 +39,7 @@ function LayoutEditor({ layout, onSave, onCancel }) {
   const fetchLayoutDetails = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/pos-layouts/${layout.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await apiFetch(`/pos-layouts/${layout.id}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -78,9 +73,7 @@ function LayoutEditor({ layout, onSave, onCancel }) {
         if (searchQuery) params.append('search', searchQuery);
         if (selectedCategory) params.append('category_id', selectedCategory);
         
-        const response = await fetch(`${API_URL}/pos-layouts/${layout.id}/available-items?${params}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const response = await apiFetch(`/pos-layouts/${layout.id}/available-items?${params}`);
         
         if (response.ok) {
           const data = await response.json();
@@ -92,9 +85,7 @@ function LayoutEditor({ layout, onSave, onCancel }) {
         if (searchQuery) params.append('search', searchQuery);
         if (selectedCategory) params.append('category_id', selectedCategory);
         
-        const response = await fetch(`${API_URL}/terminal/products?${params}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const response = await apiFetch(`/terminal/products?${params}`);
         
         if (response.ok) {
           const data = await response.json();
@@ -112,9 +103,7 @@ function LayoutEditor({ layout, onSave, onCancel }) {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch(`${API_URL}/terminal/categories`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await apiFetch('/terminal/categories');
       
       if (response.ok) {
         const data = await response.json();
@@ -226,12 +215,8 @@ function LayoutEditor({ layout, onSave, onCancel }) {
       // Create or update layout metadata
       if (layoutId) {
         // Update existing
-        const response = await fetch(`${API_URL}/pos-layouts/${layoutId}`, {
+        const response = await apiFetch(`/pos-layouts/${layoutId}`, {
           method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
           body: JSON.stringify({
             name: layoutName.trim(),
             description: layoutDescription.trim() || null
@@ -244,12 +229,8 @@ function LayoutEditor({ layout, onSave, onCancel }) {
         }
       } else {
         // Create new
-        const response = await fetch(`${API_URL}/pos-layouts`, {
+        const response = await apiFetch('/pos-layouts', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
           body: JSON.stringify({
             name: layoutName.trim(),
             description: layoutDescription.trim() || null
@@ -266,12 +247,8 @@ function LayoutEditor({ layout, onSave, onCancel }) {
       }
 
       // Update layout items
-      const itemsResponse = await fetch(`${API_URL}/pos-layouts/${layoutId}/items`, {
+      const itemsResponse = await apiFetch(`/pos-layouts/${layoutId}/items`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           items: layoutItems.map((item, index) => ({
             item_id: item.item_id,

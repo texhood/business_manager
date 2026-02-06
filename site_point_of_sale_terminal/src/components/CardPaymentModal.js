@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { useTerminal } from '../context/TerminalContext';
-
-const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
+import { apiFetch } from '../services/api';
 
 function CardPaymentModal({ total, onComplete, onClose }) {
-  const { token } = useAuth();
   const { collectPayment, processPayment, cancelCollectPayment } = useTerminal();
   
   const [status, setStatus] = useState('creating'); // creating, waiting, processing, success, error
@@ -30,12 +27,8 @@ function CardPaymentModal({ total, onComplete, onClose }) {
       setStatus('creating');
       setMessage('Creating payment...');
       
-      const response = await fetch(`${API_URL}/terminal/payment-intents`, {
+      const response = await apiFetch('/terminal/payment-intents', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           amount: Math.round(total * 100), // Convert to cents
           description: 'POS Sale'
@@ -82,11 +75,8 @@ function CardPaymentModal({ total, onComplete, onClose }) {
       // Cancel the payment intent if it was created
       if (paymentIntentId) {
         try {
-          await fetch(`${API_URL}/terminal/payment-intents/${paymentIntentId}/cancel`, {
+          await apiFetch(`/terminal/payment-intents/${paymentIntentId}/cancel`, {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
           });
         } catch (cancelErr) {
           console.error('Failed to cancel payment intent:', cancelErr);
@@ -103,11 +93,8 @@ function CardPaymentModal({ total, onComplete, onClose }) {
     // Cancel payment intent
     if (paymentIntentId) {
       try {
-        await fetch(`${API_URL}/terminal/payment-intents/${paymentIntentId}/cancel`, {
+        await apiFetch(`/terminal/payment-intents/${paymentIntentId}/cancel`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
         });
       } catch (err) {
         console.error('Failed to cancel payment intent:', err);
