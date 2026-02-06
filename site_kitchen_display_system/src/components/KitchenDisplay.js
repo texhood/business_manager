@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../services/api';
 import OrderCard from './OrderCard';
 import DoneOrdersPanel from './DoneOrdersPanel';
 
 const REFRESH_INTERVAL = 5000; // 5 seconds
 
 const KitchenDisplay = () => {
-  const { user, token, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [orders, setOrders] = useState([]);
   const [doneOrders, setDoneOrders] = useState([]);
   const [stats, setStats] = useState({ pending: 0, done: 0 });
@@ -33,11 +34,7 @@ const KitchenDisplay = () => {
   // Fetch pending orders from API
   const fetchOrders = useCallback(async () => {
     try {
-      const response = await fetch('/api/v1/kds/orders', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await apiFetch('/kds/orders');
 
       if (!response.ok) {
         throw new Error('Failed to fetch orders');
@@ -60,16 +57,12 @@ const KitchenDisplay = () => {
     } finally {
       setLoading(false);
     }
-  }, [token, playNewOrderSound]);
+  }, [playNewOrderSound]);
 
   // Fetch done orders
   const fetchDoneOrders = useCallback(async () => {
     try {
-      const response = await fetch('/api/v1/kds/orders/done', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await apiFetch('/kds/orders/done');
 
       if (response.ok) {
         const data = await response.json();
@@ -78,16 +71,12 @@ const KitchenDisplay = () => {
     } catch (err) {
       console.error('Fetch done orders error:', err);
     }
-  }, [token]);
+  }, []);
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch('/api/v1/kds/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await apiFetch('/kds/stats');
 
       if (response.ok) {
         const data = await response.json();
@@ -96,7 +85,7 @@ const KitchenDisplay = () => {
     } catch (err) {
       console.error('Fetch stats error:', err);
     }
-  }, [token]);
+  }, []);
 
   // Initial fetch and polling
   useEffect(() => {
@@ -125,12 +114,8 @@ const KitchenDisplay = () => {
   // Handle marking order as done
   const handleMarkDone = async (orderId) => {
     try {
-      const response = await fetch(`/api/v1/kds/orders/${orderId}/done`, {
+      const response = await apiFetch(`/kds/orders/${orderId}/done`, {
         method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
       });
 
       if (!response.ok) {
@@ -158,12 +143,8 @@ const KitchenDisplay = () => {
   // Handle reissuing an order
   const handleReissue = async (orderId) => {
     try {
-      const response = await fetch(`/api/v1/kds/orders/${orderId}/reissue`, {
+      const response = await apiFetch(`/kds/orders/${orderId}/reissue`, {
         method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
       });
 
       if (!response.ok) {
