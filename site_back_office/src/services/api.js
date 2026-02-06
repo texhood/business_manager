@@ -34,11 +34,14 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Flag to prevent redirect during SSO bootstrap
+let _ssoChecking = false;
+
 // Response interceptor - handle auth errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !_ssoChecking) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -83,12 +86,15 @@ export const authService = {
   // SSO bootstrap — check if cookie session exists when no local token
   checkSSOSession: async () => {
     try {
+      _ssoChecking = true;
       const response = await api.get('/auth/me');
       const user = response.data.data;
       localStorage.setItem('user', JSON.stringify(user));
       return user;
     } catch (e) {
       return null;
+    } finally {
+      _ssoChecking = false;
     }
   },
 
