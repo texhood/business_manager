@@ -15,46 +15,61 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
  */
 const authenticate = async (req, res, next) => {
   try {
-    // Get token from header, query string, or SSO cookie
-    let token;
+    // Collect all possible token sources in priority order
+    const tokenSources = [];
     const authHeader = req.headers.authorization;
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else if (req.query.token) {
-      // Support token in query string for file downloads (CSV exports, etc.)
-      token = req.query.token;
-    } else if (req.cookies && req.cookies.busmgr_sso) {
-      // SSO cookie — shared across all *.busmgr.com subdomains
-      token = req.cookies.busmgr_sso;
+      tokenSources.push(authHeader.split(' ')[1]);
+    }
+    if (req.query.token) {
+      tokenSources.push(req.query.token);
+    }
+    if (req.cookies && req.cookies.busmgr_sso) {
+      tokenSources.push(req.cookies.busmgr_sso);
     }
     
-    if (!token) {
+    if (tokenSources.length === 0) {
       throw new ApiError(401, 'No token provided');
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET);
+    // Try each token source — if one fails (expired), fall through to the next
+    let lastError = null;
+    for (const token of tokenSources) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
 
-    // Get user from database (including tenant_id for multi-tenant support)
-    const result = await db.query(
-      'SELECT id, email, name, role, tenant_id, is_farm_member, is_active FROM accounts WHERE id = $1',
-      [decoded.id]
-    );
+        const result = await db.query(
+          'SELECT id, email, name, role, tenant_id, is_farm_member, is_active FROM accounts WHERE id = $1',
+          [decoded.id]
+        );
 
-    if (result.rows.length === 0) {
-      throw new ApiError(401, 'User not found');
+        if (result.rows.length === 0) {
+          lastError = new ApiError(401, 'User not found');
+          continue;
+        }
+
+        const user = result.rows[0];
+
+        if (!user.is_active) {
+          lastError = new ApiError(401, 'Account is deactivated');
+          continue;
+        }
+
+        // Success — attach user and proceed
+        req.user = user;
+        return next();
+      } catch (err) {
+        if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+          lastError = new ApiError(401, 'Invalid or expired token');
+          continue; // Try next token source
+        }
+        throw err; // Non-JWT error, bail out
+      }
     }
 
-    const user = result.rows[0];
-
-    if (!user.is_active) {
-      throw new ApiError(401, 'Account is deactivated');
-    }
-
-    // Attach user to request
-    req.user = user;
-    next();
+    // All token sources failed
+    next(lastError || new ApiError(401, 'Authentication failed'));
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
       next(new ApiError(401, 'Invalid or expired token'));
