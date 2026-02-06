@@ -13,6 +13,7 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async () => {
       const storedToken = localStorage.getItem('kds_token');
       const storedUser = localStorage.getItem('kds_user');
+      let authenticated = false;
 
       if (storedToken && storedUser) {
         try {
@@ -24,6 +25,7 @@ export const AuthProvider = ({ children }) => {
           if (response.ok) {
             setToken(storedToken);
             setUser(JSON.parse(storedUser));
+            authenticated = true;
           } else {
             localStorage.removeItem('kds_token');
             localStorage.removeItem('kds_user');
@@ -37,8 +39,10 @@ export const AuthProvider = ({ children }) => {
           setToken(null);
           setUser(null);
         }
-      } else {
-        // No local token — try SSO cookie
+      }
+
+      // If no valid local token, try SSO cookie
+      if (!authenticated) {
         const ssoUser = await checkSSOSession();
         if (ssoUser) {
           setUser(ssoUser);
@@ -88,7 +92,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     logout,
-    isAuthenticated: !!token
+    isAuthenticated: !!user
   };
 
   return (
