@@ -1,23 +1,30 @@
-# Plaid Integration for Hood Family Farms
+# Plaid Integration — Developer Guide
+
+**Version:** 2.0  
+**Last Updated:** February 2026
 
 ## Overview
 
-This integration allows automatic importing of bank transactions into the Hood Family Farms expense management system via Plaid's API.
+This integration enables automatic importing of bank transactions into the Business Manager accounting system via Plaid's API. Each tenant can link their own bank accounts through Back Office → Accounting → Bank Connections.
 
 ## Files Included
 
 ```
-plaid-integration/
+backend/
 ├── migrations/
-│   └── 004_plaid_integration.sql    # Database tables
-├── routes/
-│   └── plaid.js                     # Backend API routes
-└── frontend/
-    ├── services/
-    │   └── plaidApi.js              # API client
-    └── components/
-        └── BankConnectionsView.jsx   # React component
+│   ├── 004_plaid_integration.sql      # Database tables
+│   └── 004_add_plaid_support.sql      # Additional Plaid support
+├── src/routes/
+│   └── plaid.js                       # Backend API routes
+│
+site_back_office/ (Back Office frontend)
+├── src/services/
+│   └── plaidApi.js                    # API client
+└── src/components/views/
+    └── BankConnectionsView.js         # React component
 ```
+
+> **Note:** The Plaid integration is multi-tenant — each tenant's bank connections are isolated via `tenant_id` filtering on all queries.
 
 ## Installation
 
@@ -29,9 +36,9 @@ cd C:\Sandbox\business_manager\backend
 npm install plaid
 ```
 
-**Frontend:**
+**Frontend (Back Office):**
 ```bash
-cd C:\Sandbox\business_manager\frontend
+cd C:\Sandbox\business_manager\site_office
 npm install react-plaid-link
 ```
 
@@ -70,33 +77,21 @@ const plaidRoutes = require('./routes/plaid');
 app.use('/api/v1/plaid', plaidRoutes);
 ```
 
-### Step 5: Add Frontend Files
+### Step 5: Frontend Integration
 
-1. Copy `frontend/services/plaidApi.js` to `frontend/src/services/plaidApi.js`
-2. Copy `frontend/components/BankConnectionsView.jsx` to `frontend/src/components/BankConnectionsView.jsx`
+The Back Office (`site_office`) already includes Bank Connections in the Accounting sidebar section. The route and navigation are pre-configured:
 
-### Step 6: Add to Navigation
+- **Route:** `/bank-connections` → `BankConnectionsView.js`
+- **Sidebar:** Accounting → Bank Connections
 
-In your `App.jsx`, add the route and navigation:
-
-```jsx
-import BankConnectionsView from './components/BankConnectionsView';
-
-// Add to routes
-<Route path="/bank-connections" element={<BankConnectionsView />} />
-
-// Add to sidebar navigation (after Bank Feed)
-<NavItem to="/bank-connections" icon={<BankIcon />}>Bank Connections</NavItem>
-```
-
-### Step 7: Restart Services
+### Step 6: Restart Services
 
 ```bash
 # Backend
 cd backend && npm run dev
 
-# Frontend  
-cd frontend && npm start
+# Back Office frontend  
+cd site_office && npm start
 ```
 
 ## Usage

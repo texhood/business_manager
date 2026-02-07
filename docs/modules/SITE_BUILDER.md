@@ -1,4 +1,10 @@
-# Site Builder User Guide
+# Site Builder — User Guide
+
+**Application:** Site Builder (within Back Office)  
+**URL Pattern:** `{slug}.office.busmgr.com` → Site Management → Site Builder  
+**Required Tier:** Enterprise (design tools); page display works at Professional+  
+**Version:** 1.1  
+**Last Updated:** February 2026
 
 A complete guide to building and customizing your website using the Site Builder system.
 
@@ -502,6 +508,8 @@ These blocks display your actual content—text, images, and information.
 
 #### Newsletter Signup
 
+> **⚠️ Note:** The Newsletter Signup block type is available in the Site Builder interface but does not yet have a renderer on the live ecommerce site. Blocks of this type will be silently skipped when the page is displayed to visitors. This will be addressed in a future update.
+
 **What it does:** Creates a simple email signup form to collect subscriber addresses.
 
 **Best placement:** CTA zone at the bottom of pages, or as a standalone section
@@ -561,6 +569,8 @@ These blocks help build trust by showing what others think of your business.
 ---
 
 #### Testimonials Carousel
+
+> **⚠️ Note:** The Testimonials Carousel block type (`testimonials-carousel`) is available in the Site Builder admin but the ecommerce site renderer only maps `testimonial` and `testimonials` types. If you add a `testimonials-carousel` block, it may not render on the live site. Use the standard "Testimonial" block type instead until this is resolved.
 
 **What it does:** Displays multiple testimonials in a rotating slideshow.
 
@@ -913,4 +923,4 @@ If you encounter issues not covered here:
 
 ---
 
-*Last updated: January 2026*
+*See also: `ECOMMERCE_WEBSITE.md` for the customer-facing site, and `USER_GUIDE_TENANT_ADMIN.md` for the complete Back Office guide.*
