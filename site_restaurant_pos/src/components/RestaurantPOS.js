@@ -11,6 +11,7 @@ import OrderDetailModal from './OrderDetailModal';
 import CheckoutModal from './CheckoutModal';
 import CardPaymentProcessingModal from './CardPaymentProcessingModal';
 import ReaderModal from './ReaderModal';
+import SalesReview from './SalesReview';
 
 const ORDER_POLL_INTERVAL = 5000; // 5 seconds to match KDS
 
@@ -46,6 +47,7 @@ function RestaurantPOS() {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showCardProcessing, setShowCardProcessing] = useState(false);
   const [showReaderModal, setShowReaderModal] = useState(false);
+  const [showSalesReview, setShowSalesReview] = useState(false);
 
   // Fetch menus
   const fetchMenus = useCallback(async () => {
@@ -317,6 +319,23 @@ function RestaurantPOS() {
           </button>
 
           <button
+            className="sales-review-btn"
+            onClick={() => setShowSalesReview(true)}
+            title="Sales Review"
+            style={{
+              background: 'none',
+              border: '1px solid rgba(255,255,255,0.3)',
+              color: '#fff',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '0.85rem'
+            }}
+          >
+            📊 Sales
+          </button>
+
+          <button
             className={`sound-toggle ${!soundEnabled ? 'muted' : ''}`}
             onClick={() => setSoundEnabled(!soundEnabled)}
             title={soundEnabled ? 'Mute ready notifications' : 'Enable ready notifications'}
@@ -397,6 +416,10 @@ function RestaurantPOS() {
 
       {showReaderModal && (
         <ReaderModal onClose={() => setShowReaderModal(false)} />
+      )}
+
+      {showSalesReview && (
+        <SalesReview onClose={() => setShowSalesReview(false)} />
       )}
     </>
   );

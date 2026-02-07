@@ -753,6 +753,127 @@ router.get('/stats', authenticate, requireStaff, asyncHandler(async (req, res) =
 }));
 
 // ============================================================================
+// SALES REPORT
+// ============================================================================
+
+/**
+ * GET /restaurant-pos/sales-report
+ * Get sales summary and order details for a date range
+ * Query params: start_date, end_date (defaults to today)
+ */
+router.get('/sales-report', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { start_date, end_date } = req.query;
+
+  // Default to today if no dates provided
+  const startDate = start_date || new Date().toISOString().slice(0, 10);
+  const endDate = end_date || startDate;
+
+  // Summary stats
+  const summaryResult = await db.query(`
+    SELECT 
+      COUNT(*) FILTER (WHERE status != 'cancelled') as total_orders,
+      COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled_orders,
+      COUNT(*) FILTER (WHERE status = 'complete') as completed_orders,
+      COUNT(*) FILTER (WHERE status IN ('entered', 'in_process', 'done')) as active_orders,
+      COALESCE(SUM(total) FILTER (WHERE status != 'cancelled'), 0) as gross_sales,
+      COALESCE(SUM(total) FILTER (WHERE status = 'complete'), 0) as completed_sales,
+      COALESCE(SUM(subtotal) FILTER (WHERE status != 'cancelled'), 0) as subtotal,
+      COALESCE(SUM(tax_amount) FILTER (WHERE status != 'cancelled'), 0) as total_tax,
+      COALESCE(AVG(total) FILTER (WHERE status != 'cancelled'), 0) as avg_ticket,
+      COUNT(*) FILTER (WHERE payment_method = 'cash' AND status != 'cancelled') as cash_count,
+      COUNT(*) FILTER (WHERE payment_method = 'card' AND status != 'cancelled') as card_count,
+      COALESCE(SUM(total) FILTER (WHERE payment_method = 'cash' AND status != 'cancelled'), 0) as cash_total,
+      COALESCE(SUM(total) FILTER (WHERE payment_method = 'card' AND status != 'cancelled'), 0) as card_total,
+      COALESCE(SUM(change_given) FILTER (WHERE payment_method = 'cash' AND status != 'cancelled'), 0) as total_change_given,
+      MIN(created_at) as first_order_time,
+      MAX(created_at) as last_order_time
+    FROM restaurant_orders
+    WHERE tenant_id = $1 
+      AND DATE(created_at) >= $2 
+      AND DATE(created_at) <= $3
+  `, [tenantId, startDate, endDate]);
+
+  // Top selling items
+  const topItemsResult = await db.query(`
+    SELECT 
+      oi.name,
+      SUM(oi.quantity) as qty_sold,
+      SUM(oi.total_price) as revenue
+    FROM restaurant_order_items oi
+    JOIN restaurant_orders o ON oi.order_id = o.id
+    WHERE o.tenant_id = $1 
+      AND DATE(o.created_at) >= $2 
+      AND DATE(o.created_at) <= $3
+      AND o.status != 'cancelled'
+    GROUP BY oi.name
+    ORDER BY qty_sold DESC
+    LIMIT 10
+  `, [tenantId, startDate, endDate]);
+
+  // Hourly breakdown
+  const hourlyResult = await db.query(`
+    SELECT 
+      EXTRACT(HOUR FROM created_at) as hour,
+      COUNT(*) as order_count,
+      COALESCE(SUM(total), 0) as hourly_sales
+    FROM restaurant_orders
+    WHERE tenant_id = $1 
+      AND DATE(created_at) >= $2 
+      AND DATE(created_at) <= $3
+      AND status != 'cancelled'
+    GROUP BY EXTRACT(HOUR FROM created_at)
+    ORDER BY hour
+  `, [tenantId, startDate, endDate]);
+
+  // Order type breakdown
+  const orderTypeResult = await db.query(`
+    SELECT 
+      order_type,
+      COUNT(*) as count,
+      COALESCE(SUM(total), 0) as total
+    FROM restaurant_orders
+    WHERE tenant_id = $1 
+      AND DATE(created_at) >= $2 
+      AND DATE(created_at) <= $3
+      AND status != 'cancelled'
+    GROUP BY order_type
+    ORDER BY count DESC
+  `, [tenantId, startDate, endDate]);
+
+  // Detailed order list
+  const ordersResult = await db.query(`
+    SELECT 
+      o.id, o.order_number, o.ticket_number, o.customer_name,
+      o.order_type, o.table_number, o.status,
+      o.subtotal, o.tax_amount, o.total,
+      o.payment_method, o.payment_status,
+      o.cash_received, o.change_given,
+      o.created_at, o.status_updated_at,
+      a.name as created_by_name,
+      (SELECT COUNT(*) FROM restaurant_order_items WHERE order_id = o.id) as item_count
+    FROM restaurant_orders o
+    LEFT JOIN accounts a ON o.created_by = a.id
+    WHERE o.tenant_id = $1 
+      AND DATE(o.created_at) >= $2 
+      AND DATE(o.created_at) <= $3
+    ORDER BY o.created_at DESC
+  `, [tenantId, startDate, endDate]);
+
+  res.json({
+    status: 'success',
+    data: {
+      date_range: { start_date: startDate, end_date: endDate },
+      summary: summaryResult.rows[0],
+      top_items: topItemsResult.rows,
+      hourly: hourlyResult.rows,
+      order_types: orderTypeResult.rows,
+      orders: ordersResult.rows
+    }
+  });
+}));
+
+// ============================================================================
 // HELPERS
 // ============================================================================
 

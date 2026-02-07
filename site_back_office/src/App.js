@@ -46,6 +46,7 @@ import {
   ReportBuilderView,
   BrandingAssetsView,
   StripeConnectView,
+  RestaurantSalesView,
 } from './components/views';
 import ModificationsManager from './components/views/ModificationsManager';
 import BlogPreviewView from './components/views/BlogPreviewView';
@@ -438,6 +439,7 @@ function App() {
         { id: 'menuItems', label: 'Menu Items', icon: Icons.List },
         { id: 'modifications', label: 'Modifications', icon: Icons.Edit },
         { id: 'events', label: 'Events', icon: Icons.Calendar },
+        { id: 'restaurantSales', label: 'Sales Report', icon: Icons.BarChart },
       ],
     },
     
@@ -556,6 +558,8 @@ function App() {
         return <StripeConnectView />;
       case 'reportBuilder':
         return <ReportBuilderView />;
+      case 'restaurantSales':
+        return <RestaurantSalesView />;
       default:
         return <DashboardView accounts={accounts} items={items} transactions={transactions} />;
     }
