@@ -263,7 +263,7 @@ router.get('/reports/expiring', authenticate, requireStaff, asyncHandler(async (
       AND m.end_date <= CURRENT_DATE + INTERVAL '1 day' * $2
       AND m.end_date >= CURRENT_DATE
     ORDER BY m.end_date ASC
-  `, [tenantId, parseInt(days, 10)]));
+  `, [tenantId, parseInt(days, 10)]);
 
   res.json({
     status: 'success',
