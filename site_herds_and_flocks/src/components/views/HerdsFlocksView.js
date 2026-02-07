@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Icons } from '../common/Icons';
-import { herdsService, pasturesService, animalsService, lookupsService } from '../../services/api';
+import { herdsService, pasturesService, animalsService, lookupsService, herdEventsService, herdEventTypesService } from '../../services/api';
 
 // ============================================================================
 // HELPER FUNCTIONS FOR DAM/SIRE FILTERING
@@ -1208,7 +1208,121 @@ const RecordModal = ({ type, record, onSave, onClose }) => {
 };
 
 // ============================================================================
-// HERD DETAIL VIEW - Shows animals in the herd
+// HERD EVENT MODAL
+// ============================================================================
+
+const HerdEventModal = ({ event, eventTypes, onSave, onClose }) => {
+  const [form, setForm] = useState(event || {
+    event_date: new Date().toISOString().split('T')[0],
+    event_type_id: '',
+    quantity: '',
+    unit: '',
+    notes: ''
+  });
+  const [saving, setSaving] = useState(false);
+
+  // When event type changes, auto-fill unit from default_unit
+  const handleTypeChange = (typeId) => {
+    const type = eventTypes.find(t => t.id === parseInt(typeId));
+    setForm({
+      ...form,
+      event_type_id: typeId,
+      unit: (!form.unit && type?.default_unit) ? type.default_unit : form.unit
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await onSave({
+        ...form,
+        event_type_id: parseInt(form.event_type_id),
+        quantity: form.quantity !== '' && form.quantity !== null ? parseFloat(form.quantity) : null,
+        unit: form.unit || null
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>{event ? 'Edit Event' : 'Add Event'}</h2>
+          <button className="modal-close" onClick={onClose}><Icons.X /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <div className="form-row">
+              <div className="form-group">
+                <label>Event Type <span className="required">*</span></label>
+                <select
+                  required
+                  value={form.event_type_id || ''}
+                  onChange={(e) => handleTypeChange(e.target.value)}
+                >
+                  <option value="">Select type...</option>
+                  {eventTypes.filter(t => t.is_active !== false).map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Date <span className="required">*</span></label>
+                <input
+                  type="date"
+                  required
+                  value={form.event_date ? form.event_date.split('T')[0] : ''}
+                  onChange={(e) => setForm({ ...form, event_date: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Quantity</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.quantity ?? ''}
+                  onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                  placeholder="e.g. 24"
+                />
+              </div>
+              <div className="form-group">
+                <label>Unit</label>
+                <input
+                  type="text"
+                  value={form.unit || ''}
+                  onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                  placeholder="e.g. eggs, lbs, doses"
+                />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Notes</label>
+              <textarea
+                rows="3"
+                value={form.notes || ''}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// HERD DETAIL VIEW - Shows animals and events in the herd
 // ============================================================================
 
 const HerdDetailView = ({ herd, onBack, onEdit, onDelete, onSelectAnimal, onRefresh }) => {
@@ -1217,6 +1331,16 @@ const HerdDetailView = ({ herd, onBack, onEdit, onDelete, onSelectAnimal, onRefr
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [showAssignModal, setShowAssignModal] = useState(false);
+
+  // Subtab state
+  const [activeSubtab, setActiveSubtab] = useState('animals');
+
+  // Events state
+  const [events, setEvents] = useState([]);
+  const [eventTypes, setEventTypes] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
 
   const loadAnimals = useCallback(async () => {
     setLoading(true);
@@ -1234,6 +1358,64 @@ const HerdDetailView = ({ herd, onBack, onEdit, onDelete, onSelectAnimal, onRefr
   useEffect(() => {
     loadAnimals();
   }, [loadAnimals]);
+
+  // Load event types once
+  const loadEventTypes = useCallback(async () => {
+    try {
+      const data = await herdEventTypesService.getAll({ active_only: 'true' });
+      setEventTypes(data || []);
+    } catch (err) {
+      console.error('Failed to load event types:', err);
+    }
+  }, []);
+
+  // Load events for this herd
+  const loadEvents = useCallback(async () => {
+    setEventsLoading(true);
+    try {
+      const data = await herdEventsService.getByHerd(herd.id);
+      setEvents(data || []);
+    } catch (err) {
+      console.error('Failed to load events:', err);
+    } finally {
+      setEventsLoading(false);
+    }
+  }, [herd.id]);
+
+  // Load events and event types when switching to events tab
+  useEffect(() => {
+    if (activeSubtab === 'events') {
+      loadEvents();
+      loadEventTypes();
+    }
+  }, [activeSubtab, loadEvents, loadEventTypes]);
+
+  // Event CRUD handlers
+  const handleSaveEvent = async (data) => {
+    try {
+      if (editingEvent) {
+        await herdEventsService.update(editingEvent.id, data);
+      } else {
+        await herdEventsService.create(herd.id, data);
+      }
+      setShowEventModal(false);
+      setEditingEvent(null);
+      loadEvents();
+    } catch (err) {
+      console.error('Failed to save event:', err);
+      alert(err.response?.data?.message || 'Failed to save event');
+    }
+  };
+
+  const handleDeleteEvent = async (eventId) => {
+    if (!window.confirm('Are you sure you want to delete this event?')) return;
+    try {
+      await herdEventsService.delete(eventId);
+      loadEvents();
+    } catch (err) {
+      console.error('Failed to delete event:', err);
+    }
+  };
 
   const getSpeciesIcon = (species) => {
     switch (species?.toLowerCase()) {
@@ -1327,23 +1509,42 @@ const HerdDetailView = ({ herd, onBack, onEdit, onDelete, onSelectAnimal, onRefr
         </div>
       </div>
 
-      {/* Animals Section */}
+      {/* Subtabs Section */}
       <div className="record-subtabs-section">
         <div className="subtabs-header">
           <div className="subtabs-nav">
-            <button className="subtab active">
+            <button 
+              className={`subtab ${activeSubtab === 'animals' ? 'active' : ''}`}
+              onClick={() => setActiveSubtab('animals')}
+            >
               <Icons.Tag />
               Animals
               <span className="subtab-count">{animals.length}</span>
             </button>
+            <button 
+              className={`subtab ${activeSubtab === 'events' ? 'active' : ''}`}
+              onClick={() => setActiveSubtab('events')}
+            >
+              <Icons.Calendar />
+              Events
+              {events.length > 0 && <span className="subtab-count">{events.length}</span>}
+            </button>
           </div>
-          {herd.management_mode === 'individual' && (
+          {activeSubtab === 'animals' && herd.management_mode === 'individual' && (
             <button className="btn btn-primary btn-sm" onClick={() => setShowAssignModal(true)}>
               <Icons.Plus /> Assign Animals
             </button>
           )}
+          {activeSubtab === 'events' && (
+            <button className="btn btn-primary btn-sm" onClick={() => { setEditingEvent(null); setShowEventModal(true); }}>
+              <Icons.Plus /> Add Event
+            </button>
+          )}
         </div>
 
+        {/* ===== ANIMALS SUBTAB ===== */}
+        {activeSubtab === 'animals' && (
+          <>
         {/* Status Filter Pills */}
         <div className="status-filter-bar">
           <button 
@@ -1454,6 +1655,66 @@ const HerdDetailView = ({ herd, onBack, onEdit, onDelete, onSelectAnimal, onRefr
             </table>
           )}
         </div>
+          </>
+        )}
+
+        {/* ===== EVENTS SUBTAB ===== */}
+        {activeSubtab === 'events' && (
+          <div className="subtab-content">
+            {eventsLoading ? (
+              <div className="loading-state">
+                <Icons.Loader className="animate-spin" />
+                <p>Loading events...</p>
+              </div>
+            ) : events.length === 0 ? (
+              <div className="empty-subtab">
+                <Icons.Calendar />
+                <p>No events recorded for this herd</p>
+                <button className="btn btn-secondary btn-sm" onClick={() => { setEditingEvent(null); setShowEventModal(true); }}>
+                  <Icons.Plus /> Add First Event
+                </button>
+              </div>
+            ) : (
+              <table className="subtab-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Quantity</th>
+                    <th>Notes</th>
+                    <th>Recorded By</th>
+                    <th className="actions-col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((evt) => (
+                    <tr key={evt.id}>
+                      <td>{new Date(evt.event_date).toLocaleDateString()}</td>
+                      <td>
+                        <span className="badge badge-blue">{evt.event_type_name}</span>
+                      </td>
+                      <td>
+                        {evt.quantity != null ? (
+                          <strong>{parseFloat(evt.quantity).toLocaleString()}{evt.unit ? ` ${evt.unit}` : ''}</strong>
+                        ) : '—'}
+                      </td>
+                      <td>{evt.notes || '—'}</td>
+                      <td>{evt.recorded_by_name || '—'}</td>
+                      <td className="actions-col">
+                        <button className="btn btn-icon btn-sm" onClick={() => { setEditingEvent(evt); setShowEventModal(true); }} title="Edit">
+                          <Icons.Edit />
+                        </button>
+                        <button className="btn btn-icon btn-sm" onClick={() => handleDeleteEvent(evt.id)} title="Delete">
+                          <Icons.Trash />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Assign Animals Modal */}
@@ -1462,6 +1723,16 @@ const HerdDetailView = ({ herd, onBack, onEdit, onDelete, onSelectAnimal, onRefr
           herd={herd}
           onSave={handleAssignComplete}
           onClose={() => setShowAssignModal(false)}
+        />
+      )}
+
+      {/* Herd Event Modal */}
+      {showEventModal && (
+        <HerdEventModal
+          event={editingEvent}
+          eventTypes={eventTypes}
+          onSave={handleSaveEvent}
+          onClose={() => { setShowEventModal(false); setEditingEvent(null); }}
         />
       )}
     </div>

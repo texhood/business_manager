@@ -526,4 +526,56 @@ export const processingService = {
   },
 };
 
+// ============================================================================
+// HERD EVENT TYPES
+// ============================================================================
+
+export const herdEventTypesService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/herds-flocks/herd-event-types', { params });
+    return response.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/herds-flocks/herd-event-types', data);
+    return response.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/herds-flocks/herd-event-types/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/herds-flocks/herd-event-types/${id}`);
+    return response.data;
+  },
+};
+
+// ============================================================================
+// HERD EVENTS
+// ============================================================================
+
+export const herdEventsService = {
+  getByHerd: async (herdId) => {
+    const response = await api.get(`/herds-flocks/herds/${herdId}/events`);
+    return response.data;
+  },
+
+  create: async (herdId, data) => {
+    const response = await api.post(`/herds-flocks/herds/${herdId}/events`, data);
+    return response.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/herds-flocks/herd-events/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/herds-flocks/herd-events/${id}`);
+    return response.data;
+  },
+};
+
 export default api;

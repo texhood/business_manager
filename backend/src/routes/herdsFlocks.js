@@ -1860,4 +1860,176 @@ router.delete('/rainfall/:id', asyncHandler(async (req, res) => {
   res.json({ message: 'Rainfall record deleted' });
 }));
 
+// ============================================================================
+// HERD EVENT TYPES (tenant-scoped lookup)
+// ============================================================================
+
+router.get('/herd-event-types', asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { active_only } = req.query;
+
+  let query = `SELECT * FROM herd_event_types WHERE tenant_id = $1`;
+  if (active_only === 'true') {
+    query += ` AND is_active = true`;
+  }
+  query += ` ORDER BY name`;
+
+  const result = await db.query(query, [tenantId]);
+  res.json(result.rows);
+}));
+
+router.post('/herd-event-types', [
+  body('name').trim().notEmpty(),
+], validate, asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { name, description, default_unit } = req.body;
+
+  const result = await db.query(
+    `INSERT INTO herd_event_types (tenant_id, name, description, default_unit)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [tenantId, name, description, default_unit]
+  );
+  res.status(201).json(result.rows[0]);
+}));
+
+router.put('/herd-event-types/:id', asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+  const { name, description, default_unit, is_active } = req.body;
+
+  const result = await db.query(
+    `UPDATE herd_event_types SET
+       name = COALESCE($3, name),
+       description = $4,
+       default_unit = $5,
+       is_active = COALESCE($6, is_active)
+     WHERE id = $1 AND tenant_id = $2
+     RETURNING *`,
+    [id, tenantId, name, description, default_unit, is_active]
+  );
+
+  if (result.rows.length === 0) {
+    throw new ApiError(404, 'Herd event type not found');
+  }
+  res.json(result.rows[0]);
+}));
+
+router.delete('/herd-event-types/:id', asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  // Check for events referencing this type
+  const check = await db.query(
+    `SELECT COUNT(*) FROM herd_events WHERE event_type_id = $1 AND tenant_id = $2`,
+    [id, tenantId]
+  );
+  if (parseInt(check.rows[0].count) > 0) {
+    throw new ApiError(400, 'Cannot delete event type with existing events. Set to inactive instead.');
+  }
+
+  await db.query(
+    `DELETE FROM herd_event_types WHERE id = $1 AND tenant_id = $2`,
+    [id, tenantId]
+  );
+  res.json({ message: 'Herd event type deleted' });
+}));
+
+// ============================================================================
+// HERD EVENTS
+// ============================================================================
+
+router.get('/herds/:herdId/events', asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { herdId } = req.params;
+
+  const result = await db.query(
+    `SELECT he.*, het.name AS event_type_name, het.default_unit,
+       a.first_name || ' ' || a.last_name AS recorded_by_name
+     FROM herd_events he
+     JOIN herd_event_types het ON he.event_type_id = het.id
+     LEFT JOIN accounts a ON he.recorded_by = a.id
+     WHERE he.herd_id = $1 AND he.tenant_id = $2
+     ORDER BY he.event_date DESC, he.created_at DESC`,
+    [herdId, tenantId]
+  );
+  res.json(result.rows);
+}));
+
+router.post('/herds/:herdId/events', asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { herdId } = req.params;
+  const { event_type_id, event_date, quantity, unit, notes } = req.body;
+
+  // recorded_by is the current user
+  const recordedBy = req.user?.id || null;
+
+  const result = await db.query(
+    `INSERT INTO herd_events (tenant_id, herd_id, event_type_id, event_date, quantity, unit, notes, recorded_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [tenantId, herdId, event_type_id, event_date, quantity, unit, notes, recordedBy]
+  );
+
+  // Re-fetch with joins for the response
+  const full = await db.query(
+    `SELECT he.*, het.name AS event_type_name, het.default_unit,
+       a.first_name || ' ' || a.last_name AS recorded_by_name
+     FROM herd_events he
+     JOIN herd_event_types het ON he.event_type_id = het.id
+     LEFT JOIN accounts a ON he.recorded_by = a.id
+     WHERE he.id = $1`,
+    [result.rows[0].id]
+  );
+
+  res.status(201).json(full.rows[0]);
+}));
+
+router.put('/herd-events/:id', asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+  const { event_type_id, event_date, quantity, unit, notes } = req.body;
+
+  const result = await db.query(
+    `UPDATE herd_events SET
+       event_type_id = COALESCE($3, event_type_id),
+       event_date = COALESCE($4, event_date),
+       quantity = $5,
+       unit = $6,
+       notes = $7,
+       updated_at = NOW()
+     WHERE id = $1 AND tenant_id = $2
+     RETURNING *`,
+    [id, tenantId, event_type_id, event_date, quantity, unit, notes]
+  );
+
+  if (result.rows.length === 0) {
+    throw new ApiError(404, 'Herd event not found');
+  }
+
+  // Re-fetch with joins
+  const full = await db.query(
+    `SELECT he.*, het.name AS event_type_name, het.default_unit,
+       a.first_name || ' ' || a.last_name AS recorded_by_name
+     FROM herd_events he
+     JOIN herd_event_types het ON he.event_type_id = het.id
+     LEFT JOIN accounts a ON he.recorded_by = a.id
+     WHERE he.id = $1`,
+    [id]
+  );
+
+  res.json(full.rows[0]);
+}));
+
+router.delete('/herd-events/:id', asyncHandler(async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  await db.query(
+    `DELETE FROM herd_events WHERE id = $1 AND tenant_id = $2`,
+    [id, tenantId]
+  );
+  res.json({ message: 'Herd event deleted' });
+}));
+
 module.exports = router;
