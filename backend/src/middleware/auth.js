@@ -111,6 +111,14 @@ const optionalAuth = async (req, res, next) => {
 
 /**
  * Require specific roles
+ *
+ * Role hierarchy (highest → lowest):
+ *   super_admin   – Platform-level admin (assigned via DB only)
+ *   tenant_admin  – Full control of their own tenant
+ *   admin         – Day-to-day admin within a tenant
+ *   staff         – Front-line staff (POS, herds, etc.)
+ *   accountant    – External accountant; back-office financial views only
+ *   customer      – End-user / shopper
  */
 const requireRole = (...roles) => {
   return (req, res, next) => {
@@ -142,9 +150,9 @@ const requireSuperAdmin = requireRole('super_admin');
 const requireTenantAdmin = requireRole('tenant_admin', 'super_admin');
 
 /**
- * Require admin or staff role
+ * Require admin or staff role (includes accountant for financial endpoints)
  */
-const requireStaff = requireRole('admin', 'staff');
+const requireStaff = requireRole('super_admin', 'tenant_admin', 'admin', 'staff', 'accountant');
 
 /**
  * Require farm membership

@@ -26,7 +26,7 @@ const accountValidation = [
   body('city').optional().trim(),
   body('state').optional().trim(),
   body('zip_code').optional().trim(),
-  body('role').optional().isIn(['admin', 'staff', 'customer']).withMessage('Invalid role'),
+  body('role').optional().isIn(['super_admin', 'tenant_admin', 'admin', 'staff', 'accountant', 'customer']).withMessage('Invalid role'),
   body('delivery_zone_id').optional(),
   body('is_farm_member').optional().isBoolean(),
 ];
@@ -173,12 +173,26 @@ router.post('/', authenticate, requireStaff, accountValidation, validate, asyncH
     role = 'customer',
     delivery_zone_id,
     is_farm_member = false,
+    is_active = true,
+    email_verified = false,
     notes,
   } = req.body;
 
-  // Only admins can create admin/staff accounts
-  if ((role === 'admin' || role === 'staff') && req.user.role !== 'admin') {
-    throw new ApiError(403, 'Only admins can create admin or staff accounts');
+  // Resolve tenant_id from authenticated user
+  const tenant_id = req.user?.tenant_id || req.tenantId || null;
+
+  // Role assignment guards:
+  //   super_admin  – cannot be assigned via API (DB only)
+  //   tenant_admin – requires tenant_admin or super_admin
+  //   admin/staff/accountant – requires admin, tenant_admin, or super_admin
+  if (role === 'super_admin') {
+    throw new ApiError(403, 'super_admin can only be assigned directly in the database');
+  }
+  if (role === 'tenant_admin' && !['tenant_admin', 'super_admin'].includes(req.user.role)) {
+    throw new ApiError(403, 'Only tenant admins can create tenant admin accounts');
+  }
+  if (['admin', 'staff', 'accountant'].includes(role) && !['admin', 'tenant_admin', 'super_admin'].includes(req.user.role)) {
+    throw new ApiError(403, 'Only admins can create admin, staff, or accountant accounts');
   }
 
   // Hash password if provided
@@ -191,8 +205,9 @@ router.post('/', authenticate, requireStaff, accountValidation, validate, asyncH
   const result = await db.query(`
     INSERT INTO accounts (
       email, password_hash, name, phone, address, city, state, zip_code,
-      role, delivery_zone_id, is_farm_member, member_since, notes
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      role, delivery_zone_id, is_farm_member, member_since, is_active,
+      email_verified, tenant_id, notes
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
     RETURNING *
   `, [
     email,
@@ -207,12 +222,15 @@ router.post('/', authenticate, requireStaff, accountValidation, validate, asyncH
     delivery_zone_id || null,
     is_farm_member,
     is_farm_member ? new Date() : null,
+    is_active,
+    email_verified,
+    tenant_id,
     notes,
   ]);
 
   const { password_hash: _, ...account } = result.rows[0];
   
-  logger.info('Account created', { accountId: account.id, createdBy: req.user.id });
+  logger.info('Account created', { accountId: account.id, tenantId: tenant_id, createdBy: req.user.id });
 
   res.status(201).json({
     status: 'success',
@@ -249,14 +267,22 @@ router.put('/:id', authenticate, requireStaff, accountValidation, validate, asyn
 
   const currentAccount = existing.rows[0];
 
-  // Only admins can change roles or modify admin accounts
-  if (req.user.role !== 'admin') {
-    if (role && role !== currentAccount.role) {
-      throw new ApiError(403, 'Only admins can change account roles');
-    }
-    if (currentAccount.role === 'admin') {
-      throw new ApiError(403, 'Only admins can modify admin accounts');
-    }
+  // Role change guards
+  const callerRole = req.user.role;
+  const isCallerAdmin = ['admin', 'tenant_admin', 'super_admin'].includes(callerRole);
+  const isCallerTenantAdmin = ['tenant_admin', 'super_admin'].includes(callerRole);
+
+  if (role === 'super_admin') {
+    throw new ApiError(403, 'super_admin can only be assigned directly in the database');
+  }
+  if (role && role !== currentAccount.role && !isCallerAdmin) {
+    throw new ApiError(403, 'Only admins can change account roles');
+  }
+  if (role === 'tenant_admin' && !isCallerTenantAdmin) {
+    throw new ApiError(403, 'Only tenant admins can assign the tenant_admin role');
+  }
+  if (['tenant_admin', 'super_admin'].includes(currentAccount.role) && !isCallerTenantAdmin) {
+    throw new ApiError(403, 'Only tenant admins can modify tenant admin accounts');
   }
 
   // Handle farm membership changes

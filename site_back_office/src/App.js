@@ -426,8 +426,17 @@ function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
+  // Views accessible to the accountant role
+  const accountantViews = [
+    'dashboard', 'transactions', 'bankFeed', 'bankConnections',
+    'journalEntries', 'chartOfAccounts', 'fixedAssets',
+    'restaurantSales', 'reports', 'reportBuilder',
+  ];
+
+  const isAccountant = user?.role === 'accountant';
+
   // Navigation structure with sections
-  const navStructure = [
+  const fullNavStructure = [
     { id: 'dashboard', label: 'Dashboard', icon: Icons.Dashboard },
     
     // Food Trailer Section
@@ -508,8 +517,26 @@ function App() {
     { id: 'reportBuilder', label: 'Report Builder', icon: Icons.FileText },
   ];
 
+  // Filter navigation for accountant role
+  const navStructure = isAccountant
+    ? fullNavStructure
+        .map(item => {
+          if (item.isSection) {
+            const filtered = item.children?.filter(c => accountantViews.includes(c.id));
+            return filtered?.length ? { ...item, children: filtered } : null;
+          }
+          return accountantViews.includes(item.id) ? item : null;
+        })
+        .filter(Boolean)
+    : fullNavStructure;
+
   // Render current view
   const renderView = () => {
+    // Guard: redirect accountant to dashboard if they somehow reach a restricted view
+    if (isAccountant && !accountantViews.includes(currentView)) {
+      return <DashboardView accounts={accounts} items={items} transactions={transactions} tenant={tenant} />;
+    }
+
     switch (currentView) {
       case 'dashboard':
         return <DashboardView accounts={accounts} items={items} transactions={transactions} tenant={tenant} />;
