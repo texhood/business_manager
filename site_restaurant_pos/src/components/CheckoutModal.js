@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useCart } from '../context/CartContext';
 import { useTerminal } from '../context/TerminalContext';
 
-function CheckoutModal({ onComplete, onClose, isReaderConnected, onConnectReader }) {
+function CheckoutModal({ onComplete, onClose, isReaderConnected, isSubmitting, onConnectReader }) {
   const { items, subtotal, tax, total, orderType, customerName, phoneNumber, tableNumber } = useCart();
   const [paymentMethod, setPaymentMethod] = useState(null);
   const [cashReceived, setCashReceived] = useState('');
@@ -166,10 +166,10 @@ function CheckoutModal({ onComplete, onClose, isReaderConnected, onConnectReader
               <button
                 className="btn btn-success btn-lg"
                 onClick={handleCashPayment}
-                disabled={!isCashValid}
+                disabled={!isCashValid || isSubmitting}
                 style={{ width: '100%', padding: '16px', fontSize: '1.1rem' }}
               >
-                Complete Cash Payment
+                {isSubmitting ? 'Processing...' : 'Complete Cash Payment'}
               </button>
             </div>
           )}

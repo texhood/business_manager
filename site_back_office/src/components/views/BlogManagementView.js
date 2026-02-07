@@ -1,7 +1,7 @@
 /**
  * Blog Management View
  * Create, edit, and manage blog posts
- */
+ */ 
 
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';

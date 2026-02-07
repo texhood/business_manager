@@ -208,8 +208,10 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
-    // Skip rate limiting for auth routes (login, etc.)
-    return req.path.startsWith('/api/v1/auth');
+    // Skip rate limiting for auth, POS, and KDS routes (they have their own limiter)
+    return req.path.startsWith('/api/v1/auth') ||
+           req.path.startsWith('/api/v1/restaurant-pos') ||
+           req.path.startsWith('/api/v1/kds');
   }
 });
 

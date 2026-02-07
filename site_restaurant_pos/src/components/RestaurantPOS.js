@@ -169,14 +169,20 @@ function RestaurantPOS() {
     setSelectedMenuId(menuId || null);
   };
 
+  // Prevent double-submission
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Handle checkout - user selected payment method
   const handleCheckoutComplete = async (paymentMethod, paymentData) => {
+    if (isSubmitting) return;
+
     if (paymentMethod === 'card') {
       // Close checkout modal and open card processing modal
       setShowCheckoutModal(false);
       setShowCardProcessing(true);
     } else if (paymentMethod === 'cash') {
       // Process cash payment and create order immediately
+      setIsSubmitting(true);
       try {
         const orderItems = items.map(item => ({
           menu_item_id: item.id,
@@ -219,6 +225,8 @@ function RestaurantPOS() {
       } catch (error) {
         console.error('Error creating order:', error);
         alert('Failed to create order');
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };
@@ -371,6 +379,7 @@ function RestaurantPOS() {
           onComplete={handleCheckoutComplete}
           onClose={() => setShowCheckoutModal(false)}
           isReaderConnected={isConnected}
+          isSubmitting={isSubmitting}
           onConnectReader={() => {
             setShowCheckoutModal(false);
             setShowReaderModal(true);
