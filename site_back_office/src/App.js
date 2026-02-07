@@ -511,7 +511,7 @@ function App() {
     },
     
     // Other items
-    { id: 'accounts', label: 'Customers', icon: Icons.Users },
+    { id: 'accounts', label: 'Users / Accounts', icon: Icons.Users },
     { id: 'deliveryZones', label: 'Delivery Zones', icon: Icons.MapPin },
     { id: 'reports', label: 'Financial Reports', icon: Icons.BarChart },
     { id: 'reportBuilder', label: 'Report Builder', icon: Icons.FileText },
