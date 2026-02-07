@@ -28,3 +28,4 @@ export { default as BrandingAssetsView } from './BrandingAssetsView';
 export { default as StripeConnectView } from './StripeConnectView';
 export { default as RestaurantSalesView } from './RestaurantSalesView';
 export { default as POSSalesView } from './POSSalesView';
+export { default as FixedAssetsView } from './FixedAssetsView';

@@ -1088,4 +1088,51 @@ export const connectService = {
   },
 };
 
+// ============================================================================
+// FIXED ASSETS
+// ============================================================================
+
+export const fixedAssetsService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/fixed-assets', { params });
+    return response.data;
+  },
+  getById: async (id) => {
+    const response = await api.get(`/fixed-assets/${id}`);
+    return response.data;
+  },
+  getCategories: async () => {
+    const response = await api.get('/fixed-assets/categories');
+    return response.data;
+  },
+  getSummary: async () => {
+    const response = await api.get('/fixed-assets/summary');
+    return response.data;
+  },
+  create: async (data) => {
+    const response = await api.post('/fixed-assets', data);
+    return response.data;
+  },
+  update: async (id, data) => {
+    const response = await api.put(`/fixed-assets/${id}`, data);
+    return response.data;
+  },
+  regenerateSchedule: async (id) => {
+    const response = await api.post(`/fixed-assets/${id}/regenerate-schedule`);
+    return response.data;
+  },
+  postDepreciation: async (id, throughPeriod) => {
+    const response = await api.post(`/fixed-assets/${id}/post-depreciation`, { through_period: throughPeriod });
+    return response.data;
+  },
+  dispose: async (id, data) => {
+    const response = await api.post(`/fixed-assets/${id}/dispose`, data);
+    return response.data;
+  },
+  delete: async (id) => {
+    const response = await api.delete(`/fixed-assets/${id}`);
+    return response.data;
+  },
+};
+
 export default api;

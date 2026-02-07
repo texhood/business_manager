@@ -48,6 +48,7 @@ import {
   StripeConnectView,
   RestaurantSalesView,
   POSSalesView,
+  FixedAssetsView,
 } from './components/views';
 import ModificationsManager from './components/views/ModificationsManager';
 import BlogPreviewView from './components/views/BlogPreviewView';
@@ -468,6 +469,7 @@ function App() {
         { id: 'bankConnections', label: 'Bank Connections', icon: Icons.Bank },
         { id: 'journalEntries', label: 'Journal Entries', icon: Icons.FileText },
         { id: 'chartOfAccounts', label: 'Chart of Accounts', icon: Icons.Book },
+        { id: 'fixedAssets', label: 'Fixed Assets', icon: Icons.Truck },
       ],
     },
     
@@ -557,6 +559,8 @@ function App() {
         return <DataImportView />;
       case 'stripeConnect':
         return <StripeConnectView />;
+      case 'fixedAssets':
+        return <FixedAssetsView />;
       case 'reportBuilder':
         return <ReportBuilderView />;
       case 'restaurantSales':
