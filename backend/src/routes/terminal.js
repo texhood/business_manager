@@ -980,6 +980,106 @@ router.get('/summary', authenticate, requireStaff, asyncHandler(async (req, res)
 }));
 
 // ============================================================================
+// SALES REPORT
+// ============================================================================
+
+/**
+ * GET /terminal/sales-report
+ * Get sales summary and order details for a date range
+ * Query params: start_date, end_date (defaults to today)
+ */
+router.get('/sales-report', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
+  const { start_date, end_date } = req.query;
+
+  const startDate = start_date || new Date().toISOString().slice(0, 10);
+  const endDate = end_date || startDate;
+
+  // Summary stats
+  const summaryResult = await db.query(`
+    SELECT 
+      COUNT(*) FILTER (WHERE status = 'completed') as total_orders,
+      COUNT(*) FILTER (WHERE status = 'voided') as voided_orders,
+      COALESCE(SUM(total) FILTER (WHERE status = 'completed'), 0) as gross_sales,
+      COALESCE(SUM(subtotal) FILTER (WHERE status = 'completed'), 0) as subtotal,
+      COALESCE(SUM(tax_amount) FILTER (WHERE status = 'completed'), 0) as total_tax,
+      COALESCE(AVG(total) FILTER (WHERE status = 'completed'), 0) as avg_ticket,
+      COUNT(*) FILTER (WHERE payment_method = 'cash' AND status = 'completed') as cash_count,
+      COUNT(*) FILTER (WHERE payment_method = 'card' AND status = 'completed') as card_count,
+      COALESCE(SUM(total) FILTER (WHERE payment_method = 'cash' AND status = 'completed'), 0) as cash_total,
+      COALESCE(SUM(total) FILTER (WHERE payment_method = 'card' AND status = 'completed'), 0) as card_total,
+      COALESCE(SUM(change_given) FILTER (WHERE payment_method = 'cash' AND status = 'completed'), 0) as total_change_given,
+      MIN(created_at) FILTER (WHERE status = 'completed') as first_order_time,
+      MAX(created_at) FILTER (WHERE status = 'completed') as last_order_time
+    FROM pos_orders
+    WHERE tenant_id = $1 
+      AND DATE(created_at) >= $2 
+      AND DATE(created_at) <= $3
+  `, [tenantId, startDate, endDate]);
+
+  // Top selling items
+  const topItemsResult = await db.query(`
+    SELECT 
+      oi.name,
+      SUM(oi.quantity) as qty_sold,
+      SUM(oi.total_price) as revenue
+    FROM pos_order_items oi
+    JOIN pos_orders o ON oi.order_id = o.id
+    WHERE o.tenant_id = $1 
+      AND DATE(o.created_at) >= $2 
+      AND DATE(o.created_at) <= $3
+      AND o.status = 'completed'
+    GROUP BY oi.name
+    ORDER BY qty_sold DESC
+    LIMIT 10
+  `, [tenantId, startDate, endDate]);
+
+  // Hourly breakdown
+  const hourlyResult = await db.query(`
+    SELECT 
+      EXTRACT(HOUR FROM created_at) as hour,
+      COUNT(*) as order_count,
+      COALESCE(SUM(total), 0) as hourly_sales
+    FROM pos_orders
+    WHERE tenant_id = $1 
+      AND DATE(created_at) >= $2 
+      AND DATE(created_at) <= $3
+      AND status = 'completed'
+    GROUP BY EXTRACT(HOUR FROM created_at)
+    ORDER BY hour
+  `, [tenantId, startDate, endDate]);
+
+  // Detailed order list
+  const ordersResult = await db.query(`
+    SELECT 
+      o.id, o.order_number, o.status,
+      o.subtotal, o.tax_amount, o.total,
+      o.payment_method, o.payment_intent_id,
+      o.cash_received, o.change_given,
+      o.notes, o.created_at,
+      a.name as cashier_name,
+      (SELECT COUNT(*) FROM pos_order_items WHERE order_id = o.id) as item_count
+    FROM pos_orders o
+    LEFT JOIN accounts a ON o.created_by = a.id
+    WHERE o.tenant_id = $1 
+      AND DATE(o.created_at) >= $2 
+      AND DATE(o.created_at) <= $3
+    ORDER BY o.created_at DESC
+  `, [tenantId, startDate, endDate]);
+
+  res.json({
+    status: 'success',
+    data: {
+      date_range: { start_date: startDate, end_date: endDate },
+      summary: summaryResult.rows[0],
+      top_items: topItemsResult.rows,
+      hourly: hourlyResult.rows,
+      orders: ordersResult.rows
+    }
+  });
+}));
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

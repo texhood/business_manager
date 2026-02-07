@@ -11,6 +11,7 @@ import OrderCompleteModal from './OrderCompleteModal';
 import ReaderModal from './ReaderModal';
 import LayoutSettingsModal from './LayoutSettingsModal';
 import LayoutEditor from './LayoutEditor';
+import SalesReview from './SalesReview';
 
 function POS() {
   const { user, token, logout } = useAuth();
@@ -38,6 +39,7 @@ function POS() {
   const [showLayoutSettings, setShowLayoutSettings] = useState(false);
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const [editingLayout, setEditingLayout] = useState(null);
+  const [showSalesReview, setShowSalesReview] = useState(false);
   
   const [completedOrder, setCompletedOrder] = useState(null);
 
@@ -297,6 +299,23 @@ function POS() {
         <h1>🌱 Hood Family Farms POS</h1>
         
         <div className="pos-header-right">
+          <button
+            className="sales-review-btn"
+            onClick={() => setShowSalesReview(true)}
+            title="Sales Review"
+            style={{
+              background: 'none',
+              border: '1px solid rgba(255,255,255,0.3)',
+              color: '#fff',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '0.85rem'
+            }}
+          >
+            📊 Sales
+          </button>
+
           {/* Layout Selector */}
           <button 
             className="layout-selector"
@@ -408,6 +427,10 @@ function POS() {
 
       {showReaderModal && (
         <ReaderModal onClose={() => setShowReaderModal(false)} />
+      )}
+
+      {showSalesReview && (
+        <SalesReview onClose={() => setShowSalesReview(false)} />
       )}
 
       {showLayoutSettings && (
