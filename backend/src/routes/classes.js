@@ -1,6 +1,7 @@
 /**
  * Classes Routes
  * CRUD operations for business segment/class tracking
+ * Tenant-aware: all operations scoped to req.user.tenant_id
  */
 
 const express = require('express');
@@ -14,17 +15,19 @@ const { authenticate, requireRole } = require('../middleware/auth');
 
 router.get('/', authenticate, async (req, res, next) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { include_inactive } = req.query;
     
-    let query = `SELECT * FROM classes`;
+    let query = `SELECT * FROM classes WHERE tenant_id = $1`;
+    const params = [tenantId];
     
     if (include_inactive !== 'true') {
-      query += ` WHERE is_active = true`;
+      query += ` AND is_active = true`;
     }
     
     query += ` ORDER BY name`;
     
-    const result = await db.query(query);
+    const result = await db.query(query, params);
     
     res.json({
       status: 'success',
@@ -41,9 +44,13 @@ router.get('/', authenticate, async (req, res, next) => {
 
 router.get('/:id', authenticate, async (req, res, next) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     
-    const result = await db.query(`SELECT * FROM classes WHERE id = $1`, [id]);
+    const result = await db.query(
+      `SELECT * FROM classes WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId]
+    );
     
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -67,6 +74,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 
 router.post('/', authenticate, requireRole('admin', 'staff'), async (req, res, next) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { name, description, is_active } = req.body;
     
     if (!name || !name.trim()) {
@@ -77,10 +85,11 @@ router.post('/', authenticate, requireRole('admin', 'staff'), async (req, res, n
     }
     
     const result = await db.query(`
-      INSERT INTO classes (name, description, is_active)
-      VALUES ($1, $2, $3)
+      INSERT INTO classes (tenant_id, name, description, is_active)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
     `, [
+      tenantId,
       name.trim(),
       description || null,
       is_active !== false
@@ -107,6 +116,7 @@ router.post('/', authenticate, requireRole('admin', 'staff'), async (req, res, n
 
 router.put('/:id', authenticate, requireRole('admin', 'staff'), async (req, res, next) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     const { name, description, is_active } = req.body;
     
@@ -120,13 +130,14 @@ router.put('/:id', authenticate, requireRole('admin', 'staff'), async (req, res,
     const result = await db.query(`
       UPDATE classes
       SET name = $1, description = $2, is_active = $3, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $4
+      WHERE id = $4 AND tenant_id = $5
       RETURNING *
     `, [
       name.trim(),
       description || null,
       is_active !== false,
-      id
+      id,
+      tenantId
     ]);
     
     if (result.rows.length === 0) {
@@ -157,9 +168,13 @@ router.put('/:id', authenticate, requireRole('admin', 'staff'), async (req, res,
 
 router.delete('/:id', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     
-    const result = await db.query(`DELETE FROM classes WHERE id = $1 RETURNING id`, [id]);
+    const result = await db.query(
+      `DELETE FROM classes WHERE id = $1 AND tenant_id = $2 RETURNING id`,
+      [id, tenantId]
+    );
     
     if (result.rows.length === 0) {
       return res.status(404).json({

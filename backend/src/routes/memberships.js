@@ -1,6 +1,7 @@
 /**
  * Memberships Routes
  * Farm membership subscription management
+ * Tenant-aware: all operations scoped to req.user.tenant_id
  */
 
 const express = require('express');
@@ -16,6 +17,7 @@ const router = express.Router();
  * List all memberships (staff+)
  */
 router.get('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { status, page = 1, limit = 50 } = req.query;
 
   let queryText = `
@@ -27,10 +29,10 @@ router.get('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
     FROM memberships m
     JOIN accounts a ON m.account_id = a.id
     LEFT JOIN items i ON m.item_id = i.id
-    WHERE 1=1
+    WHERE m.tenant_id = $1
   `;
-  const params = [];
-  let paramCount = 0;
+  const params = [tenantId];
+  let paramCount = 1;
 
   if (status) {
     params.push(status);
@@ -69,6 +71,7 @@ router.get('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
  * Get single membership
  */
 router.get('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { id } = req.params;
 
   const result = await db.query(`
@@ -82,8 +85,8 @@ router.get('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
     FROM memberships m
     JOIN accounts a ON m.account_id = a.id
     LEFT JOIN items i ON m.item_id = i.id
-    WHERE m.id = $1
-  `, [id]);
+    WHERE m.id = $1 AND m.tenant_id = $2
+  `, [id, tenantId]);
 
   if (result.rows.length === 0) {
     throw new ApiError(404, 'Membership not found');
@@ -100,6 +103,7 @@ router.get('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
  * Create new membership (staff+)
  */
 router.post('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const {
     account_id,
     item_id,
@@ -115,23 +119,23 @@ router.post('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
   }
 
   const membership = await db.transaction(async (client) => {
-    // Create membership
+    // Create membership with tenant_id
     const result = await client.query(`
       INSERT INTO memberships (
-        account_id, item_id, start_date, end_date, auto_renew, discount_percent, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        tenant_id, account_id, item_id, start_date, end_date, auto_renew, discount_percent, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
-    `, [account_id, item_id || null, start_date, end_date, auto_renew, discount_percent, notes || null]);
+    `, [tenantId, account_id, item_id || null, start_date, end_date, auto_renew, discount_percent, notes || null]);
 
-    // Update account farm member status
+    // Update account farm member status (tenant-scoped)
     await client.query(`
       UPDATE accounts SET
         is_farm_member = true,
         member_since = COALESCE(member_since, $1),
         member_discount_percent = $2,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $3
-    `, [start_date, discount_percent, account_id]);
+      WHERE id = $3 AND tenant_id = $4
+    `, [start_date, discount_percent, account_id, tenantId]);
 
     return result.rows[0];
   });
@@ -149,6 +153,7 @@ router.post('/', authenticate, requireStaff, asyncHandler(async (req, res) => {
  * Update membership
  */
 router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { id } = req.params;
   const { status, end_date, auto_renew, discount_percent, notes } = req.body;
 
@@ -161,9 +166,9 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
         discount_percent = COALESCE($4, discount_percent),
         notes = COALESCE($5, notes),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
+      WHERE id = $6 AND tenant_id = $7
       RETURNING *
-    `, [status, end_date, auto_renew, discount_percent, notes, id]);
+    `, [status, end_date, auto_renew, discount_percent, notes, id, tenantId]);
 
     if (result.rows.length === 0) {
       throw new ApiError(404, 'Membership not found');
@@ -173,17 +178,17 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
 
     // Update account if membership cancelled or expired
     if (status === 'cancelled' || status === 'expired') {
-      // Check if account has any other active memberships
+      // Check if account has any other active memberships (tenant-scoped)
       const otherActive = await client.query(`
         SELECT id FROM memberships 
-        WHERE account_id = $1 AND status = 'active' AND id != $2
-      `, [membership.account_id, id]);
+        WHERE account_id = $1 AND tenant_id = $2 AND status = 'active' AND id != $3
+      `, [membership.account_id, tenantId, id]);
 
       if (otherActive.rows.length === 0) {
         await client.query(`
           UPDATE accounts SET is_farm_member = false, updated_at = CURRENT_TIMESTAMP
-          WHERE id = $1
-        `, [membership.account_id]);
+          WHERE id = $1 AND tenant_id = $2
+        `, [membership.account_id, tenantId]);
       }
     }
 
@@ -203,6 +208,7 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
  * Renew membership
  */
 router.post('/:id/renew', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { id } = req.params;
   const { new_end_date } = req.body;
 
@@ -215,19 +221,19 @@ router.post('/:id/renew', authenticate, requireStaff, asyncHandler(async (req, r
       status = 'active',
       end_date = $1,
       updated_at = CURRENT_TIMESTAMP
-    WHERE id = $2
+    WHERE id = $2 AND tenant_id = $3
     RETURNING *
-  `, [new_end_date, id]);
+  `, [new_end_date, id, tenantId]);
 
   if (result.rows.length === 0) {
     throw new ApiError(404, 'Membership not found');
   }
 
-  // Ensure account is marked as member
+  // Ensure account is marked as member (tenant-scoped)
   await db.query(`
     UPDATE accounts SET is_farm_member = true, updated_at = CURRENT_TIMESTAMP
-    WHERE id = $1
-  `, [result.rows[0].account_id]);
+    WHERE id = $1 AND tenant_id = $2
+  `, [result.rows[0].account_id, tenantId]);
 
   logger.info('Membership renewed', { membershipId: id, newEndDate: new_end_date, renewedBy: req.user.id });
 
@@ -238,10 +244,11 @@ router.post('/:id/renew', authenticate, requireStaff, asyncHandler(async (req, r
 }));
 
 /**
- * GET /memberships/expiring
+ * GET /memberships/reports/expiring
  * Get memberships expiring soon
  */
 router.get('/reports/expiring', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { days = 30 } = req.query;
 
   const result = await db.query(`
@@ -251,11 +258,12 @@ router.get('/reports/expiring', authenticate, requireStaff, asyncHandler(async (
       a.email as account_email
     FROM memberships m
     JOIN accounts a ON m.account_id = a.id
-    WHERE m.status = 'active'
-      AND m.end_date <= CURRENT_DATE + INTERVAL '1 day' * $1
+    WHERE m.tenant_id = $1
+      AND m.status = 'active'
+      AND m.end_date <= CURRENT_DATE + INTERVAL '1 day' * $2
       AND m.end_date >= CURRENT_DATE
     ORDER BY m.end_date ASC
-  `, [parseInt(days, 10)]);
+  `, [tenantId, parseInt(days, 10)]));
 
   res.json({
     status: 'success',

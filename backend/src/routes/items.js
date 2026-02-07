@@ -561,12 +561,13 @@ router.patch('/:id/inventory', authenticate, requireStaff, asyncHandler(async (r
       RETURNING *
     `, [newQuantity, id]);
 
-    // Log the change
+    // Log the change (tenant-scoped)
     await client.query(`
       INSERT INTO inventory_logs (
-        item_id, quantity_change, quantity_before, quantity_after, reason, reference_type, created_by
-      ) VALUES ($1, $2, $3, $4, $5, 'manual', $6)
+        tenant_id, item_id, quantity_change, quantity_before, quantity_after, reason, reference_type, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'manual', $7)
     `, [
+      req.user.tenant_id,
       id,
       quantityChange,
       currentItem.inventory_quantity || 0,
@@ -638,10 +639,10 @@ router.get('/:id/inventory-history', authenticate, requireStaff, asyncHandler(as
       a.name as changed_by_name
     FROM inventory_logs il
     LEFT JOIN accounts a ON il.created_by = a.id
-    WHERE il.item_id = $1
+    WHERE il.item_id = $1 AND il.tenant_id = $2
     ORDER BY il.created_at DESC
-    LIMIT $2
-  `, [id, parseInt(limit, 10)]);
+    LIMIT $3
+  `, [id, req.user.tenant_id, parseInt(limit, 10)]);
 
   res.json({
     status: 'success',

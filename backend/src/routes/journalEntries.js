@@ -1,6 +1,7 @@
 /**
  * Journal Entries Routes
  * Manual journal entry creation, editing, and management
+ * Tenant-aware: all operations scoped to req.user.tenant_id
  */
 
 const express = require('express');
@@ -17,6 +18,7 @@ router.use(authenticate);
 // ============================================================================
 router.get('/', async (req, res) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { 
       limit = 50, 
       offset = 0, 
@@ -32,9 +34,9 @@ router.get('/', async (req, res) => {
         a.name as created_by_name
       FROM journal_entries je
       LEFT JOIN accounts a ON je.created_by = a.id
-      WHERE 1=1
+      WHERE je.tenant_id = $1
     `;
-    const params = [];
+    const params = [tenantId];
     
     if (status) {
       params.push(status);
@@ -88,6 +90,7 @@ router.get('/', async (req, res) => {
 // ============================================================================
 router.get('/:id', async (req, res) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     
     // Get header
@@ -101,8 +104,8 @@ router.get('/:id', async (req, res) => {
       LEFT JOIN accounts a ON je.created_by = a.id
       LEFT JOIN accounts pb ON je.posted_by = pb.id
       LEFT JOIN accounts vb ON je.voided_by = vb.id
-      WHERE je.id = $1
-    `, [id]);
+      WHERE je.id = $1 AND je.tenant_id = $2
+    `, [id, tenantId]);
     
     if (headerResult.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Journal entry not found' });
@@ -119,9 +122,9 @@ router.get('/:id', async (req, res) => {
       FROM journal_entry_lines jel
       JOIN accounts_chart ac ON jel.account_id = ac.id
       LEFT JOIN classes cl ON jel.class_id = cl.id
-      WHERE jel.journal_entry_id = $1
+      WHERE jel.journal_entry_id = $1 AND jel.tenant_id = $2
       ORDER BY jel.line_number
-    `, [id]);
+    `, [id, tenantId]);
     
     res.json({
       success: true,
@@ -143,6 +146,7 @@ router.post('/', requireRole('admin', 'manager', 'staff'), async (req, res) => {
   const client = await db.pool.connect();
   
   try {
+    const tenantId = req.user.tenant_id;
     const { 
       entry_date, 
       reference, 
@@ -201,14 +205,15 @@ router.post('/', requireRole('admin', 'manager', 'staff'), async (req, res) => {
     const status = post_immediately ? 'posted' : 'draft';
     const headerResult = await client.query(`
       INSERT INTO journal_entries (
-        entry_date, reference, description, notes, status, 
+        tenant_id, entry_date, reference, description, notes, status, 
         source_type, created_by,
         total_debit, total_credit,
         posted_at, posted_by
       )
-      VALUES ($1, $2, $3, $4, $5, 'manual', $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, 'manual', $7, $8, $9, $10, $11)
       RETURNING *
     `, [
+      tenantId,
       entry_date,
       reference || null,
       description,
@@ -229,10 +234,11 @@ router.post('/', requireRole('admin', 'manager', 'staff'), async (req, res) => {
       const line = lines[i];
       await client.query(`
         INSERT INTO journal_entry_lines (
-          journal_entry_id, line_number, account_id, description, debit, credit, class_id
+          tenant_id, journal_entry_id, line_number, account_id, description, debit, credit, class_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       `, [
+        tenantId,
         entryId,
         i + 1,
         line.account_id,
@@ -251,8 +257,8 @@ router.post('/', requireRole('admin', 'manager', 'staff'), async (req, res) => {
         await client.query(`
           UPDATE accounts_chart 
           SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP
-          WHERE id = $2
-        `, [netChange, line.account_id]);
+          WHERE id = $2 AND tenant_id = $3
+        `, [netChange, line.account_id, tenantId]);
       }
     }
     
@@ -285,15 +291,16 @@ router.put('/:id', requireRole('admin', 'manager'), async (req, res) => {
   const client = await db.pool.connect();
   
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     const { entry_date, reference, description, notes, lines } = req.body;
     
     await client.query('BEGIN');
     
-    // Get current entry
+    // Get current entry (tenant-scoped)
     const currentResult = await client.query(
-      'SELECT * FROM journal_entries WHERE id = $1 FOR UPDATE',
-      [id]
+      'SELECT * FROM journal_entries WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [id, tenantId]
     );
     
     if (currentResult.rows.length === 0) {
@@ -324,18 +331,22 @@ router.put('/:id', requireRole('admin', 'manager'), async (req, res) => {
         });
       }
       
-      // Delete existing lines
-      await client.query('DELETE FROM journal_entry_lines WHERE journal_entry_id = $1', [id]);
+      // Delete existing lines (tenant-scoped)
+      await client.query(
+        'DELETE FROM journal_entry_lines WHERE journal_entry_id = $1 AND tenant_id = $2',
+        [id, tenantId]
+      );
       
-      // Insert new lines
+      // Insert new lines with tenant_id
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         await client.query(`
           INSERT INTO journal_entry_lines (
-            journal_entry_id, line_number, account_id, description, debit, credit, class_id
+            tenant_id, journal_entry_id, line_number, account_id, description, debit, credit, class_id
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         `, [
+          tenantId,
           id,
           i + 1,
           line.account_id,
@@ -350,8 +361,8 @@ router.put('/:id', requireRole('admin', 'manager'), async (req, res) => {
       await client.query(`
         UPDATE journal_entries 
         SET total_debit = $1, total_credit = $2, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $3
-      `, [totalDebit, totalCredit, id]);
+        WHERE id = $3 AND tenant_id = $4
+      `, [totalDebit, totalCredit, id, tenantId]);
     }
     
     // Update header
@@ -363,8 +374,8 @@ router.put('/:id', requireRole('admin', 'manager'), async (req, res) => {
         description = COALESCE($3, description),
         notes = COALESCE($4, notes),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $5
-    `, [entry_date, reference, description, notes, id]);
+      WHERE id = $5 AND tenant_id = $6
+    `, [entry_date, reference, description, notes, id, tenantId]);
     
     await client.query('COMMIT');
     
@@ -390,14 +401,15 @@ router.post('/:id/post', requireRole('admin', 'manager'), async (req, res) => {
   const client = await db.pool.connect();
   
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     
     await client.query('BEGIN');
     
-    // Get entry
+    // Get entry (tenant-scoped)
     const entryResult = await client.query(
-      'SELECT * FROM journal_entries WHERE id = $1 FOR UPDATE',
-      [id]
+      'SELECT * FROM journal_entries WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [id, tenantId]
     );
     
     if (entryResult.rows.length === 0) {
@@ -417,10 +429,10 @@ router.post('/:id/post', requireRole('admin', 'manager'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'Entry is not balanced' });
     }
     
-    // Update account balances
+    // Update account balances (tenant-scoped lines)
     const linesResult = await client.query(
-      'SELECT * FROM journal_entry_lines WHERE journal_entry_id = $1',
-      [id]
+      'SELECT * FROM journal_entry_lines WHERE journal_entry_id = $1 AND tenant_id = $2',
+      [id, tenantId]
     );
     
     for (const line of linesResult.rows) {
@@ -428,16 +440,16 @@ router.post('/:id/post', requireRole('admin', 'manager'), async (req, res) => {
       await client.query(`
         UPDATE accounts_chart 
         SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-      `, [netChange, line.account_id]);
+        WHERE id = $2 AND tenant_id = $3
+      `, [netChange, line.account_id, tenantId]);
     }
     
     // Update entry status
     await client.query(`
       UPDATE journal_entries 
       SET status = 'posted', posted_at = CURRENT_TIMESTAMP, posted_by = $1, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $2
-    `, [req.user.id, id]);
+      WHERE id = $2 AND tenant_id = $3
+    `, [req.user.id, id, tenantId]);
     
     await client.query('COMMIT');
     
@@ -463,15 +475,16 @@ router.post('/:id/void', requireRole('admin', 'manager'), async (req, res) => {
   const client = await db.pool.connect();
   
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     const { reason } = req.body;
     
     await client.query('BEGIN');
     
-    // Get entry
+    // Get entry (tenant-scoped)
     const entryResult = await client.query(
-      'SELECT * FROM journal_entries WHERE id = $1 FOR UPDATE',
-      [id]
+      'SELECT * FROM journal_entries WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [id, tenantId]
     );
     
     if (entryResult.rows.length === 0) {
@@ -486,10 +499,10 @@ router.post('/:id/void', requireRole('admin', 'manager'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'Only posted entries can be voided' });
     }
     
-    // Reverse account balances
+    // Reverse account balances (tenant-scoped lines)
     const linesResult = await client.query(
-      'SELECT * FROM journal_entry_lines WHERE journal_entry_id = $1',
-      [id]
+      'SELECT * FROM journal_entry_lines WHERE journal_entry_id = $1 AND tenant_id = $2',
+      [id, tenantId]
     );
     
     for (const line of linesResult.rows) {
@@ -497,16 +510,16 @@ router.post('/:id/void', requireRole('admin', 'manager'), async (req, res) => {
       await client.query(`
         UPDATE accounts_chart 
         SET current_balance = current_balance - $1, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-      `, [netChange, line.account_id]);
+        WHERE id = $2 AND tenant_id = $3
+      `, [netChange, line.account_id, tenantId]);
     }
     
     // Update entry status
     await client.query(`
       UPDATE journal_entries 
       SET status = 'voided', voided_at = CURRENT_TIMESTAMP, voided_by = $1, void_reason = $2, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $3
-    `, [req.user.id, reason || null, id]);
+      WHERE id = $3 AND tenant_id = $4
+    `, [req.user.id, reason || null, id, tenantId]);
     
     await client.query('COMMIT');
     
@@ -530,13 +543,14 @@ router.post('/:id/void', requireRole('admin', 'manager'), async (req, res) => {
 // ============================================================================
 router.delete('/:id', requireRole('admin', 'manager'), async (req, res) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     
     const result = await db.query(`
       DELETE FROM journal_entries 
-      WHERE id = $1 AND status = 'draft'
+      WHERE id = $1 AND tenant_id = $2 AND status = 'draft'
       RETURNING entry_number
-    `, [id]);
+    `, [id, tenantId]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Draft entry not found' });

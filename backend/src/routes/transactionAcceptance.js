@@ -1,6 +1,7 @@
 /**
  * Transaction Acceptance Routes
  * Handles categorization and acceptance of bank transactions
+ * Tenant-aware: all operations scoped to req.user.tenant_id
  * 
  * Flow:
  * 1. Plaid imports transactions with plaid_account_id
@@ -49,11 +50,11 @@ async function getBankGLAccountId(transaction, client = db) {
 // ============================================================================
 // HELPER: Generate journal entry for accepted transaction
 // ============================================================================
-async function createJournalEntry(transaction, glAccountId, bankGLAccountId, classId, description, client = db) {
+async function createJournalEntry(transaction, glAccountId, bankGLAccountId, classId, description, tenantId, client = db) {
   // Get the selected GL account details
   const glAccountResult = await client.query(
-    'SELECT * FROM accounts_chart WHERE id = $1',
-    [glAccountId]
+    'SELECT * FROM accounts_chart WHERE id = $1 AND tenant_id = $2',
+    [glAccountId, tenantId]
   );
   
   if (glAccountResult.rows.length === 0) {
@@ -73,15 +74,17 @@ async function createJournalEntry(transaction, glAccountId, bankGLAccountId, cla
     SELECT COALESCE(MAX(CAST(SUBSTRING(entry_number FROM 4) AS INTEGER)), 0) + 1 as next_num
     FROM journal_entries 
     WHERE entry_number LIKE 'JE-%'
-  `);
+      AND tenant_id = $1
+  `, [tenantId]);
   const entryNumber = `JE-${String(entryNumResult.rows[0].next_num).padStart(6, '0')}`;
   
-  // Create journal entry header
+  // Create journal entry header with tenant_id
   const entryResult = await client.query(`
-    INSERT INTO journal_entries (entry_number, entry_date, description, source, source_id, status, created_by)
-    VALUES ($1, $2, $3, 'transaction', $4, 'posted', $5)
+    INSERT INTO journal_entries (tenant_id, entry_number, entry_date, description, source, source_id, status, created_by)
+    VALUES ($1, $2, $3, $4, 'transaction', $5, 'posted', $6)
     RETURNING id
   `, [
+    tenantId,
     entryNumber,
     transaction.date,
     txnDescription,
@@ -91,39 +94,39 @@ async function createJournalEntry(transaction, glAccountId, bankGLAccountId, cla
   
   const entryId = entryResult.rows[0].id;
   
-  // Create journal entry lines based on transaction direction
+  // Create journal entry lines with tenant_id based on transaction direction
   if (isDeposit) {
     // Deposit/Income: Debit Bank, Credit Revenue/Income account
     await client.query(`
-      INSERT INTO journal_entry_lines (journal_entry_id, line_number, account_id, debit, credit, description, class_id)
+      INSERT INTO journal_entry_lines (tenant_id, journal_entry_id, line_number, account_id, debit, credit, description, class_id)
       VALUES 
-        ($1, 1, $2, $3, 0, $4, $5),
-        ($1, 2, $6, 0, $3, $4, $5)
-    `, [entryId, bankGLAccountId, amount, txnDescription, classId, glAccountId]);
+        ($1, $2, 1, $3, $4, 0, $5, $6),
+        ($1, $2, 2, $7, 0, $4, $5, $6)
+    `, [tenantId, entryId, bankGLAccountId, amount, txnDescription, classId, glAccountId]);
     
     // Update balances: Bank increases (debit), Revenue increases (credit)
     await client.query(`
-      UPDATE accounts_chart SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
-    `, [amount, bankGLAccountId]);
+      UPDATE accounts_chart SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3
+    `, [amount, bankGLAccountId, tenantId]);
     await client.query(`
-      UPDATE accounts_chart SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
-    `, [amount, glAccountId]);
+      UPDATE accounts_chart SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3
+    `, [amount, glAccountId, tenantId]);
   } else {
     // Withdrawal/Expense: Debit Expense account, Credit Bank
     await client.query(`
-      INSERT INTO journal_entry_lines (journal_entry_id, line_number, account_id, debit, credit, description, class_id)
+      INSERT INTO journal_entry_lines (tenant_id, journal_entry_id, line_number, account_id, debit, credit, description, class_id)
       VALUES 
-        ($1, 1, $2, $3, 0, $4, $5),
-        ($1, 2, $6, 0, $3, $4, $5)
-    `, [entryId, glAccountId, amount, txnDescription, classId, bankGLAccountId]);
+        ($1, $2, 1, $3, $4, 0, $5, $6),
+        ($1, $2, 2, $7, 0, $4, $5, $6)
+    `, [tenantId, entryId, glAccountId, amount, txnDescription, classId, bankGLAccountId]);
     
     // Update balances: Expense increases (debit), Bank decreases (credit)
     await client.query(`
-      UPDATE accounts_chart SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
-    `, [amount, glAccountId]);
+      UPDATE accounts_chart SET current_balance = current_balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3
+    `, [amount, glAccountId, tenantId]);
     await client.query(`
-      UPDATE accounts_chart SET current_balance = current_balance - $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
-    `, [amount, bankGLAccountId]);
+      UPDATE accounts_chart SET current_balance = current_balance - $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3
+    `, [amount, bankGLAccountId, tenantId]);
   }
   
   return { entryId, entryNumber };
@@ -134,6 +137,7 @@ async function createJournalEntry(transaction, glAccountId, bankGLAccountId, cla
 // ============================================================================
 router.get('/pending', async (req, res) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { limit = 100, offset = 0 } = req.query;
     
     const result = await db.query(`
@@ -154,13 +158,14 @@ router.get('/pending', async (req, res) => {
       LEFT JOIN plaid_items pi ON pa.plaid_item_id = pi.id
       LEFT JOIN accounts_chart ac_bank ON pa.linked_account_id = ac_bank.id
       WHERE t.acceptance_status = 'pending'
+        AND t.tenant_id = $1
       ORDER BY t.date DESC, t.id DESC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
+      LIMIT $2 OFFSET $3
+    `, [tenantId, limit, offset]);
     
     const countResult = await db.query(`
-      SELECT COUNT(*) as total FROM transactions WHERE acceptance_status = 'pending'
-    `);
+      SELECT COUNT(*) as total FROM transactions WHERE acceptance_status = 'pending' AND tenant_id = $1
+    `, [tenantId]);
     
     res.json({
       success: true,
@@ -182,6 +187,7 @@ router.get('/pending', async (req, res) => {
 // ============================================================================
 router.get('/accepted', async (req, res) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { limit = 100, offset = 0, start_date, end_date } = req.query;
     
     let query = `
@@ -205,8 +211,9 @@ router.get('/accepted', async (req, res) => {
       LEFT JOIN accounts_chart ac_gl ON t.accepted_gl_account_id = ac_gl.id
       LEFT JOIN accounts_chart ac_bank ON pa.linked_account_id = ac_bank.id
       WHERE t.acceptance_status = 'accepted'
+        AND t.tenant_id = $1
     `;
-    const params = [];
+    const params = [tenantId];
     
     if (start_date) {
       params.push(start_date);
@@ -238,6 +245,7 @@ router.get('/accepted', async (req, res) => {
 // ============================================================================
 router.get('/excluded', async (req, res) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { limit = 100, offset = 0 } = req.query;
     
     const result = await db.query(`
@@ -250,9 +258,10 @@ router.get('/excluded', async (req, res) => {
       LEFT JOIN plaid_accounts pa ON t.plaid_account_id = pa.id
       LEFT JOIN plaid_items pi ON pa.plaid_item_id = pi.id
       WHERE t.acceptance_status = 'excluded'
+        AND t.tenant_id = $1
       ORDER BY t.date DESC, t.id DESC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
+      LIMIT $2 OFFSET $3
+    `, [tenantId, limit, offset]);
     
     res.json({
       success: true,
@@ -269,6 +278,8 @@ router.get('/excluded', async (req, res) => {
 // ============================================================================
 router.get('/summary', async (req, res) => {
   try {
+    const tenantId = req.user.tenant_id;
+    
     const result = await db.query(`
       SELECT 
         acceptance_status,
@@ -276,8 +287,9 @@ router.get('/summary', async (req, res) => {
         COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total_income,
         COALESCE(SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END), 0) as total_expense
       FROM transactions
+      WHERE tenant_id = $1
       GROUP BY acceptance_status
-    `);
+    `, [tenantId]);
     
     const summary = {
       pending: { count: 0, total_income: 0, total_expense: 0 },
@@ -312,6 +324,7 @@ router.post('/:id/accept', requireRole('admin', 'manager', 'staff'), async (req,
   const client = await db.pool.connect();
   
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     const { account_id, class_id, vendor_id, description } = req.body;
     
@@ -322,10 +335,10 @@ router.post('/:id/accept', requireRole('admin', 'manager', 'staff'), async (req,
     
     await client.query('BEGIN');
     
-    // Get the transaction
+    // Get the transaction (tenant-scoped)
     const txnResult = await client.query(
-      'SELECT * FROM transactions WHERE id = $1 FOR UPDATE',
-      [id]
+      'SELECT * FROM transactions WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [id, tenantId]
     );
     
     if (txnResult.rows.length === 0) {
@@ -359,16 +372,17 @@ router.post('/:id/accept', requireRole('admin', 'manager', 'staff'), async (req,
           accepted_at = CURRENT_TIMESTAMP,
           accepted_by = $5,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
-    `, [account_id, class_id || null, vendor_id || null, finalDescription, req.user.id, id]);
+      WHERE id = $6 AND tenant_id = $7
+    `, [account_id, class_id || null, vendor_id || null, finalDescription, req.user.id, id, tenantId]);
     
-    // Create journal entry
+    // Create journal entry (now with tenantId parameter)
     const { entryId, entryNumber } = await createJournalEntry(
       transaction, 
       account_id,        // User-selected GL account (expense/revenue)
       bankGLAccountId,   // Derived bank GL account
       class_id || null,
       finalDescription,
+      tenantId,
       client
     );
     
@@ -399,6 +413,7 @@ router.post('/:id/accept', requireRole('admin', 'manager', 'staff'), async (req,
 // ============================================================================
 router.post('/:id/exclude', requireRole('admin', 'manager'), async (req, res) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     const { reason } = req.body;
     
@@ -407,9 +422,9 @@ router.post('/:id/exclude', requireRole('admin', 'manager'), async (req, res) =>
       SET acceptance_status = 'excluded',
           exclusion_reason = $1,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $2 AND acceptance_status = 'pending'
+      WHERE id = $2 AND tenant_id = $3 AND acceptance_status = 'pending'
       RETURNING *
-    `, [reason || null, id]);
+    `, [reason || null, id, tenantId]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Transaction not found or not pending' });
@@ -433,6 +448,7 @@ router.post('/:id/exclude', requireRole('admin', 'manager'), async (req, res) =>
 // ============================================================================
 router.post('/:id/restore', requireRole('admin', 'manager'), async (req, res) => {
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     
     const result = await db.query(`
@@ -440,9 +456,9 @@ router.post('/:id/restore', requireRole('admin', 'manager'), async (req, res) =>
       SET acceptance_status = 'pending',
           exclusion_reason = NULL,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1 AND acceptance_status = 'excluded'
+      WHERE id = $1 AND tenant_id = $2 AND acceptance_status = 'excluded'
       RETURNING *
-    `, [id]);
+    `, [id, tenantId]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Transaction not found or not excluded' });
@@ -468,14 +484,15 @@ router.post('/:id/unaccept', requireRole('admin', 'manager'), async (req, res) =
   const client = await db.pool.connect();
   
   try {
+    const tenantId = req.user.tenant_id;
     const { id } = req.params;
     
     await client.query('BEGIN');
     
-    // Get transaction
+    // Get transaction (tenant-scoped)
     const txnResult = await client.query(
-      'SELECT * FROM transactions WHERE id = $1 FOR UPDATE',
-      [id]
+      'SELECT * FROM transactions WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+      [id, tenantId]
     );
     
     if (txnResult.rows.length === 0) {
@@ -490,19 +507,19 @@ router.post('/:id/unaccept', requireRole('admin', 'manager'), async (req, res) =
       return res.status(400).json({ success: false, message: 'Transaction is not accepted' });
     }
     
-    // Find and void the journal entry
+    // Find and void the journal entry (tenant-scoped)
     const jeResult = await client.query(`
       SELECT id FROM journal_entries 
-      WHERE source = 'transaction' AND source_id = $1 AND status = 'posted'
-    `, [id]);
+      WHERE source = 'transaction' AND source_id = $1 AND status = 'posted' AND tenant_id = $2
+    `, [id, tenantId]);
     
     if (jeResult.rows.length > 0) {
       const jeId = jeResult.rows[0].id;
       
-      // Reverse account balances from journal entry lines
+      // Reverse account balances from journal entry lines (tenant-scoped)
       const linesResult = await client.query(`
-        SELECT account_id, debit, credit FROM journal_entry_lines WHERE journal_entry_id = $1
-      `, [jeId]);
+        SELECT account_id, debit, credit FROM journal_entry_lines WHERE journal_entry_id = $1 AND tenant_id = $2
+      `, [jeId, tenantId]);
       
       for (const line of linesResult.rows) {
         const netChange = parseFloat(line.debit) - parseFloat(line.credit);
@@ -510,8 +527,8 @@ router.post('/:id/unaccept', requireRole('admin', 'manager'), async (req, res) =
           UPDATE accounts_chart 
           SET current_balance = current_balance - $1,
               updated_at = CURRENT_TIMESTAMP
-          WHERE id = $2
-        `, [netChange, line.account_id]);
+          WHERE id = $2 AND tenant_id = $3
+        `, [netChange, line.account_id, tenantId]);
       }
       
       // Void the journal entry
@@ -520,8 +537,8 @@ router.post('/:id/unaccept', requireRole('admin', 'manager'), async (req, res) =
         SET status = 'voided', 
             voided_at = CURRENT_TIMESTAMP,
             void_reason = 'Transaction unaccepted'
-        WHERE id = $1
-      `, [jeId]);
+        WHERE id = $1 AND tenant_id = $2
+      `, [jeId, tenantId]);
     }
     
     // Reset transaction status
@@ -534,8 +551,8 @@ router.post('/:id/unaccept', requireRole('admin', 'manager'), async (req, res) =
           accepted_at = NULL,
           accepted_by = NULL,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-    `, [id]);
+      WHERE id = $1 AND tenant_id = $2
+    `, [id, tenantId]);
     
     await client.query('COMMIT');
     
@@ -561,6 +578,7 @@ router.post('/bulk-accept', requireRole('admin', 'manager'), async (req, res) =>
   const client = await db.pool.connect();
   
   try {
+    const tenantId = req.user.tenant_id;
     const { transaction_ids, account_id, class_id, vendor_id } = req.body;
     
     if (!Array.isArray(transaction_ids) || transaction_ids.length === 0) {
@@ -578,8 +596,8 @@ router.post('/bulk-accept', requireRole('admin', 'manager'), async (req, res) =>
     for (const txnId of transaction_ids) {
       try {
         const txnResult = await client.query(
-          'SELECT * FROM transactions WHERE id = $1 AND acceptance_status = $2 FOR UPDATE',
-          [txnId, 'pending']
+          'SELECT * FROM transactions WHERE id = $1 AND tenant_id = $2 AND acceptance_status = $3 FOR UPDATE',
+          [txnId, tenantId, 'pending']
         );
         
         if (txnResult.rows.length === 0) {
@@ -602,8 +620,8 @@ router.post('/bulk-accept', requireRole('admin', 'manager'), async (req, res) =>
               accepted_at = CURRENT_TIMESTAMP,
               accepted_by = $4,
               updated_at = CURRENT_TIMESTAMP
-          WHERE id = $5
-        `, [account_id, class_id || null, vendor_id || null, req.user.id, txnId]);
+          WHERE id = $5 AND tenant_id = $6
+        `, [account_id, class_id || null, vendor_id || null, req.user.id, txnId, tenantId]);
         
         await createJournalEntry(
           transaction, 
@@ -611,6 +629,7 @@ router.post('/bulk-accept', requireRole('admin', 'manager'), async (req, res) =>
           bankGLAccountId, 
           class_id || null, 
           transaction.description,
+          tenantId,
           client
         );
         

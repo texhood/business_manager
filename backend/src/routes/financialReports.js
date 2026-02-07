@@ -1,6 +1,7 @@
 /**
  * Financial Reports Routes
  * Income Statement, Balance Sheet, Sales Reports
+ * Tenant-aware: all operations scoped to req.user.tenant_id
  */
 
 const express = require('express');
@@ -20,6 +21,7 @@ const router = express.Router();
  * Generate Income Statement (P&L) for date range
  */
 router.get('/income-statement', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { 
     start_date, 
     end_date, 
@@ -40,18 +42,18 @@ router.get('/income-statement', authenticate, requireStaff, asyncHandler(async (
     if (accountIdArray.length === 0) accountIdArray = null;
   }
 
-  // If config_id provided, load saved configuration
+  // If config_id provided, load saved configuration (tenant-scoped)
   if (config_id) {
     const configResult = await db.query(
-      'SELECT account_ids FROM report_configurations WHERE id = $1',
-      [config_id]
+      'SELECT account_ids FROM report_configurations WHERE id = $1 AND tenant_id = $2',
+      [config_id, tenantId]
     );
     if (configResult.rows.length > 0 && configResult.rows[0].account_ids) {
       accountIdArray = configResult.rows[0].account_ids;
     }
   }
 
-  // Generate income statement - use subquery to properly filter by date
+  // Generate income statement - tenant-scoped via je.tenant_id and ac.tenant_id
   const result = await db.query(`
     SELECT 
       ac.id AS account_id,
@@ -73,16 +75,18 @@ router.get('/income-statement', authenticate, requireStaff, asyncHandler(async (
       FROM journal_entry_lines jel
       INNER JOIN journal_entries je ON jel.journal_entry_id = je.id
       WHERE je.status = 'posted'
+        AND je.tenant_id = $3
         AND je.entry_date >= $1 
         AND je.entry_date <= $2
       GROUP BY jel.account_id
     ) totals ON ac.id = totals.account_id
     WHERE ac.account_type IN ('revenue', 'expense')
+      AND ac.tenant_id = $3
       AND ac.is_active = true
-      AND ($3::integer[] IS NULL OR ac.id = ANY($3))
+      AND ($4::integer[] IS NULL OR ac.id = ANY($4))
     ${include_zero === 'false' ? 'AND (COALESCE(totals.debits, 0) != 0 OR COALESCE(totals.credits, 0) != 0)' : ''}
     ORDER BY ac.account_type DESC, ac.account_code
-  `, [start_date, end_date, accountIdArray]);
+  `, [start_date, end_date, tenantId, accountIdArray]);
 
   // Group by type and calculate totals
   const revenue = result.rows.filter(r => r.account_type === 'revenue');
@@ -121,6 +125,7 @@ router.get('/income-statement', authenticate, requireStaff, asyncHandler(async (
  * Generate Balance Sheet as of a specific date
  */
 router.get('/balance-sheet', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { 
     as_of_date, 
     account_ids,
@@ -140,18 +145,18 @@ router.get('/balance-sheet', authenticate, requireStaff, asyncHandler(async (req
     if (accountIdArray.length === 0) accountIdArray = null;
   }
 
-  // If config_id provided, load saved configuration
+  // If config_id provided, load saved configuration (tenant-scoped)
   if (config_id) {
     const configResult = await db.query(
-      'SELECT account_ids FROM report_configurations WHERE id = $1',
-      [config_id]
+      'SELECT account_ids FROM report_configurations WHERE id = $1 AND tenant_id = $2',
+      [config_id, tenantId]
     );
     if (configResult.rows.length > 0 && configResult.rows[0].account_ids) {
       accountIdArray = configResult.rows[0].account_ids;
     }
   }
 
-  // Generate balance sheet - use subquery to properly filter by date
+  // Generate balance sheet - tenant-scoped
   const result = await db.query(`
     SELECT 
       ac.id AS account_id,
@@ -172,12 +177,14 @@ router.get('/balance-sheet', authenticate, requireStaff, asyncHandler(async (req
       FROM journal_entry_lines jel
       INNER JOIN journal_entries je ON jel.journal_entry_id = je.id
       WHERE je.status = 'posted'
+        AND je.tenant_id = $2
         AND je.entry_date <= $1
       GROUP BY jel.account_id
     ) totals ON ac.id = totals.account_id
     WHERE ac.account_type IN ('asset', 'liability', 'equity')
+      AND ac.tenant_id = $2
       AND ac.is_active = true
-      AND ($2::integer[] IS NULL OR ac.id = ANY($2))
+      AND ($3::integer[] IS NULL OR ac.id = ANY($3))
     ${include_zero === 'false' ? 'AND (COALESCE(totals.debits, 0) != 0 OR COALESCE(totals.credits, 0) != 0)' : ''}
     ORDER BY 
       CASE ac.account_type 
@@ -186,7 +193,7 @@ router.get('/balance-sheet', authenticate, requireStaff, asyncHandler(async (req
         WHEN 'equity' THEN 3 
       END,
       ac.account_code
-  `, [as_of_date, accountIdArray]);
+  `, [as_of_date, tenantId, accountIdArray]);
 
   // Group by type and calculate totals
   const assets = result.rows.filter(r => r.account_type === 'asset');
@@ -198,7 +205,6 @@ router.get('/balance-sheet', authenticate, requireStaff, asyncHandler(async (req
   const totalEquity = equity.reduce((sum, r) => sum + parseFloat(r.balance || 0), 0);
 
   // Calculate retained earnings (net income to date) if not explicitly tracked
-  // This ensures the balance sheet balances
   const retainedEarnings = totalAssets - totalLiabilities - totalEquity;
 
   res.json({
@@ -235,6 +241,7 @@ router.get('/balance-sheet', authenticate, requireStaff, asyncHandler(async (req
  * Revenue breakdown by customer/vendor
  */
 router.get('/sales-by-customer', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { 
     start_date, 
     end_date, 
@@ -255,14 +262,15 @@ router.get('/sales-by-customer', authenticate, requireStaff, asyncHandler(async 
     JOIN journal_entry_lines jel ON je.id = jel.journal_entry_id
     JOIN accounts_chart ac ON jel.account_id = ac.id
     WHERE je.status = 'posted'
+      AND je.tenant_id = $3
       AND je.entry_date >= $1
       AND je.entry_date <= $2
       AND ac.account_type = 'revenue'
       AND jel.credit > 0
     GROUP BY SPLIT_PART(je.description, ' - ', 1)
     ORDER BY SUM(jel.credit) DESC
-    LIMIT $3
-  `, [start_date, end_date, parseInt(limit)]);
+    LIMIT $4
+  `, [start_date, end_date, tenantId, parseInt(limit)]);
 
   const totalSales = result.rows.reduce((sum, r) => sum + parseFloat(r.total_amount || 0), 0);
 
@@ -292,6 +300,7 @@ router.get('/sales-by-customer', authenticate, requireStaff, asyncHandler(async 
  * Revenue breakdown by account category
  */
 router.get('/sales-by-class', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { start_date, end_date } = req.query;
 
   // Validate dates
@@ -309,13 +318,14 @@ router.get('/sales-by-class', authenticate, requireStaff, asyncHandler(async (re
     JOIN journal_entry_lines jel ON je.id = jel.journal_entry_id
     JOIN accounts_chart ac ON jel.account_id = ac.id
     WHERE je.status = 'posted'
+      AND je.tenant_id = $3
       AND je.entry_date >= $1
       AND je.entry_date <= $2
       AND ac.account_type = 'revenue'
       AND jel.credit > 0
     GROUP BY ac.id, ac.name, ac.account_code
     ORDER BY SUM(jel.credit) DESC
-  `, [start_date, end_date]);
+  `, [start_date, end_date, tenantId]);
 
   const totalSales = result.rows.reduce((sum, r) => sum + parseFloat(r.total_amount || 0), 0);
 
@@ -345,14 +355,15 @@ router.get('/sales-by-class', authenticate, requireStaff, asyncHandler(async (re
  * List all saved report configurations
  */
 router.get('/configurations', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { report_type } = req.query;
 
-  let query = 'SELECT * FROM report_configurations';
-  const params = [];
+  let query = 'SELECT * FROM report_configurations WHERE tenant_id = $1';
+  const params = [tenantId];
 
   if (report_type) {
-    query += ' WHERE report_type = $1';
     params.push(report_type);
+    query += ` AND report_type = $${params.length}`;
   }
 
   query += ' ORDER BY is_default DESC, name';
@@ -370,6 +381,7 @@ router.get('/configurations', authenticate, requireStaff, asyncHandler(async (re
  * Save a new report configuration
  */
 router.post('/configurations', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { report_type, name, description, account_ids, settings } = req.body;
 
   if (!report_type || !name) {
@@ -377,10 +389,10 @@ router.post('/configurations', authenticate, requireStaff, asyncHandler(async (r
   }
 
   const result = await db.query(`
-    INSERT INTO report_configurations (report_type, name, description, account_ids, settings, created_by)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO report_configurations (tenant_id, report_type, name, description, account_ids, settings, created_by)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
-  `, [report_type, name, description, account_ids, settings || {}, req.user.id]);
+  `, [tenantId, report_type, name, description, account_ids, settings || {}, req.user.id]);
 
   res.status(201).json({
     status: 'success',
@@ -393,6 +405,7 @@ router.post('/configurations', authenticate, requireStaff, asyncHandler(async (r
  * Update a report configuration
  */
 router.put('/configurations/:id', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { id } = req.params;
   const { name, description, account_ids, settings, is_default } = req.body;
 
@@ -404,9 +417,9 @@ router.put('/configurations/:id', authenticate, requireStaff, asyncHandler(async
         settings = COALESCE($4, settings),
         is_default = COALESCE($5, is_default),
         updated_at = CURRENT_TIMESTAMP
-    WHERE id = $6
+    WHERE id = $6 AND tenant_id = $7
     RETURNING *
-  `, [name, description, account_ids, settings, is_default, id]);
+  `, [name, description, account_ids, settings, is_default, id, tenantId]);
 
   if (result.rows.length === 0) {
     throw new ApiError(404, 'Configuration not found');
@@ -423,9 +436,13 @@ router.put('/configurations/:id', authenticate, requireStaff, asyncHandler(async
  * Delete a report configuration
  */
 router.delete('/configurations/:id', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { id } = req.params;
 
-  const result = await db.query('DELETE FROM report_configurations WHERE id = $1 RETURNING id', [id]);
+  const result = await db.query(
+    'DELETE FROM report_configurations WHERE id = $1 AND tenant_id = $2 RETURNING id',
+    [id, tenantId]
+  );
 
   if (result.rows.length === 0) {
     throw new ApiError(404, 'Configuration not found');
@@ -446,6 +463,7 @@ router.delete('/configurations/:id', authenticate, requireStaff, asyncHandler(as
  * Get available accounts for report configuration
  */
 router.get('/accounts', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { type } = req.query; // 'income_statement' or 'balance_sheet'
 
   let typeFilter;
@@ -461,8 +479,9 @@ router.get('/accounts', authenticate, requireStaff, asyncHandler(async (req, res
     SELECT id, account_code, name, account_type, account_subtype
     FROM accounts_chart
     WHERE account_type IN ${typeFilter}
+      AND tenant_id = $1
     ORDER BY account_type, account_code
-  `);
+  `, [tenantId]);
 
   res.json({
     status: 'success',
@@ -479,6 +498,7 @@ router.get('/accounts', authenticate, requireStaff, asyncHandler(async (req, res
  * Get all journal entry lines for a specific account within date range
  */
 router.get('/account-transactions/:accountId', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { accountId } = req.params;
   const { start_date, end_date } = req.query;
 
@@ -488,21 +508,21 @@ router.get('/account-transactions/:accountId', authenticate, requireStaff, async
 
   // Build date filter
   let dateFilter = '';
-  const params = [accountId];
+  const params = [accountId, tenantId];
   
   if (start_date && end_date) {
-    dateFilter = 'AND je.entry_date >= $2 AND je.entry_date <= $3';
+    dateFilter = 'AND je.entry_date >= $3 AND je.entry_date <= $4';
     params.push(start_date, end_date);
   } else if (end_date) {
     // For balance sheet (as of date)
-    dateFilter = 'AND je.entry_date <= $2';
+    dateFilter = 'AND je.entry_date <= $3';
     params.push(end_date);
   }
 
-  // Get account info
+  // Get account info (tenant-scoped)
   const accountResult = await db.query(
-    'SELECT id, account_code, name, account_type, normal_balance FROM accounts_chart WHERE id = $1',
-    [accountId]
+    'SELECT id, account_code, name, account_type, normal_balance FROM accounts_chart WHERE id = $1 AND tenant_id = $2',
+    [accountId, tenantId]
   );
 
   if (accountResult.rows.length === 0) {
@@ -511,7 +531,7 @@ router.get('/account-transactions/:accountId', authenticate, requireStaff, async
 
   const account = accountResult.rows[0];
 
-  // Get all journal entry lines for this account
+  // Get all journal entry lines for this account (tenant-scoped)
   const result = await db.query(`
     SELECT 
       je.id AS entry_id,
@@ -531,6 +551,7 @@ router.get('/account-transactions/:accountId', authenticate, requireStaff, async
     FROM journal_entry_lines jel
     JOIN journal_entries je ON jel.journal_entry_id = je.id
     WHERE jel.account_id = $1
+      AND je.tenant_id = $2
       AND je.status = 'posted'
       ${dateFilter}
     ORDER BY je.entry_date DESC, je.entry_number DESC
@@ -580,6 +601,7 @@ router.get('/account-transactions/:accountId', authenticate, requireStaff, async
  * Export Income Statement as CSV
  */
 router.get('/income-statement/csv', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { start_date, end_date } = req.query;
 
   if (!start_date || !end_date) {
@@ -605,15 +627,17 @@ router.get('/income-statement/csv', authenticate, requireStaff, asyncHandler(asy
       FROM journal_entry_lines jel
       INNER JOIN journal_entries je ON jel.journal_entry_id = je.id
       WHERE je.status = 'posted'
+        AND je.tenant_id = $3
         AND je.entry_date >= $1 
         AND je.entry_date <= $2
       GROUP BY jel.account_id
     ) totals ON ac.id = totals.account_id
     WHERE ac.account_type IN ('revenue', 'expense')
+      AND ac.tenant_id = $3
       AND ac.is_active = true
       AND (COALESCE(totals.debits, 0) != 0 OR COALESCE(totals.credits, 0) != 0)
     ORDER BY ac.account_type DESC, ac.account_code
-  `, [start_date, end_date]);
+  `, [start_date, end_date, tenantId]);
 
   // Build CSV
   let csv = 'Income Statement\n';
@@ -655,6 +679,7 @@ router.get('/income-statement/csv', authenticate, requireStaff, asyncHandler(asy
  * Export Balance Sheet as CSV
  */
 router.get('/balance-sheet/csv', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { as_of_date } = req.query;
 
   if (!as_of_date) {
@@ -679,16 +704,18 @@ router.get('/balance-sheet/csv', authenticate, requireStaff, asyncHandler(async 
       FROM journal_entry_lines jel
       INNER JOIN journal_entries je ON jel.journal_entry_id = je.id
       WHERE je.status = 'posted'
+        AND je.tenant_id = $2
         AND je.entry_date <= $1
       GROUP BY jel.account_id
     ) totals ON ac.id = totals.account_id
     WHERE ac.account_type IN ('asset', 'liability', 'equity')
+      AND ac.tenant_id = $2
       AND ac.is_active = true
       AND (COALESCE(totals.debits, 0) != 0 OR COALESCE(totals.credits, 0) != 0)
     ORDER BY 
       CASE ac.account_type WHEN 'asset' THEN 1 WHEN 'liability' THEN 2 WHEN 'equity' THEN 3 END,
       ac.account_code
-  `, [as_of_date]);
+  `, [as_of_date, tenantId]);
 
   // Build CSV
   let csv = 'Balance Sheet\n';
@@ -744,6 +771,7 @@ router.get('/balance-sheet/csv', authenticate, requireStaff, asyncHandler(async 
  * Export Sales by Customer as CSV
  */
 router.get('/sales-by-customer/csv', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { start_date, end_date } = req.query;
 
   if (!start_date || !end_date) {
@@ -759,13 +787,14 @@ router.get('/sales-by-customer/csv', authenticate, requireStaff, asyncHandler(as
     JOIN journal_entry_lines jel ON je.id = jel.journal_entry_id
     JOIN accounts_chart ac ON jel.account_id = ac.id
     WHERE je.status = 'posted'
+      AND je.tenant_id = $3
       AND je.entry_date >= $1
       AND je.entry_date <= $2
       AND ac.account_type = 'revenue'
       AND jel.credit > 0
     GROUP BY SPLIT_PART(je.description, ' - ', 1)
     ORDER BY SUM(jel.credit) DESC
-  `, [start_date, end_date]);
+  `, [start_date, end_date, tenantId]);
 
   const totalSales = result.rows.reduce((sum, r) => sum + parseFloat(r.total_amount || 0), 0);
 
@@ -792,6 +821,7 @@ router.get('/sales-by-customer/csv', authenticate, requireStaff, asyncHandler(as
  * Export Sales by Class as CSV
  */
 router.get('/sales-by-class/csv', authenticate, requireStaff, asyncHandler(async (req, res) => {
+  const tenantId = req.user.tenant_id;
   const { start_date, end_date } = req.query;
 
   if (!start_date || !end_date) {
@@ -808,13 +838,14 @@ router.get('/sales-by-class/csv', authenticate, requireStaff, asyncHandler(async
     JOIN journal_entry_lines jel ON je.id = jel.journal_entry_id
     JOIN accounts_chart ac ON jel.account_id = ac.id
     WHERE je.status = 'posted'
+      AND je.tenant_id = $3
       AND je.entry_date >= $1
       AND je.entry_date <= $2
       AND ac.account_type = 'revenue'
       AND jel.credit > 0
     GROUP BY ac.id, ac.name, ac.account_code
     ORDER BY SUM(jel.credit) DESC
-  `, [start_date, end_date]);
+  `, [start_date, end_date, tenantId]);
 
   const totalSales = result.rows.reduce((sum, r) => sum + parseFloat(r.total_amount || 0), 0);
 
