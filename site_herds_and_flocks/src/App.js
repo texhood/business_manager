@@ -40,6 +40,7 @@ import FeeTypesView from './components/views/FeeTypesView';
 import OwnersView from './components/views/OwnersView';
 import RainfallView from './components/views/RainfallView';
 import HelpView from './components/views/HelpView';
+import ChangePasswordModal from './components/common/ChangePasswordModal';
 
 // ============================================================================
 // TEMPORARY PLACEHOLDER VIEWS (until proper views are created)
@@ -150,6 +151,7 @@ function App() {
   const [stats, setStats] = useState({});
   const [dataLoading, setDataLoading] = useState(false);
   const [expandedSections, setExpandedSections] = useState(['livestock', 'pastures', 'sales', 'settings']);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   // Load tenant branding: sets CSS vars, document title, favicon
   useTenantBranding('Herds & Flocks');
@@ -407,6 +409,10 @@ function App() {
               <div className="user-role">{user.role}</div>
             </div>
           </div>
+          <button className="logout-btn" onClick={() => setShowChangePassword(true)} style={{ marginBottom: 4 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Change Password
+          </button>
           <button className="logout-btn" onClick={handleLogout}>
             <Icons.LogOut />
             Sign Out
@@ -418,6 +424,10 @@ function App() {
       <main className="main-content">
         {renderView()}
       </main>
+
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
     </div>
   );
 }

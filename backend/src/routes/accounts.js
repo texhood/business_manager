@@ -337,6 +337,46 @@ router.put('/:id', authenticate, requireStaff, accountValidation, validate, asyn
 }));
 
 /**
+ * PUT /accounts/:id/reset-password
+ * Admin resets a user's password (admin+ only)
+ */
+router.put('/:id/reset-password', authenticate, requireAdmin, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+
+  if (!newPassword || newPassword.length < 8) {
+    throw new ApiError(400, 'New password must be at least 8 characters');
+  }
+
+  // Prevent non-tenant-admins from resetting admin+ passwords
+  const target = await db.query('SELECT id, role, name FROM accounts WHERE id = $1', [id]);
+  if (target.rows.length === 0) {
+    throw new ApiError(404, 'Account not found');
+  }
+
+  const targetRole = target.rows[0].role;
+  const callerRole = req.user.role;
+  if (['tenant_admin', 'super_admin'].includes(targetRole) && !['tenant_admin', 'super_admin'].includes(callerRole)) {
+    throw new ApiError(403, 'Only tenant admins can reset passwords for admin-level accounts');
+  }
+
+  const rounds = parseInt(process.env.BCRYPT_ROUNDS, 10) || 12;
+  const passwordHash = await bcrypt.hash(newPassword, rounds);
+
+  await db.query(
+    'UPDATE accounts SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+    [passwordHash, id]
+  );
+
+  logger.info('Password reset by admin', { targetAccountId: id, resetBy: req.user.id });
+
+  res.json({
+    status: 'success',
+    message: `Password reset successfully for ${target.rows[0].name}`,
+  });
+}));
+
+/**
  * PATCH /accounts/:id/membership
  * Toggle farm membership
  */

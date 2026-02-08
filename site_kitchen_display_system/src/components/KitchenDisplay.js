@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../services/api';
 import OrderCard from './OrderCard';
 import DoneOrdersPanel from './DoneOrdersPanel';
+import ChangePasswordModal from './ChangePasswordModal';
 
 const REFRESH_INTERVAL = 5000; // 5 seconds
 
@@ -16,6 +17,7 @@ const KitchenDisplay = ({ onShowHelp }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showDonePanel, setShowDonePanel] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const prevOrderCountRef = useRef(0);
   const audioRef = useRef(null);
 
@@ -223,6 +225,12 @@ const KitchenDisplay = ({ onShowHelp }) => {
             <span>{user?.name || 'Kitchen'}</span>
           </div>
 
+          <button
+            onClick={() => setShowChangePassword(true)}
+            title="Change Password"
+            style={{ background: 'none', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}
+          >🔒</button>
+
           <button className="kds-logout-btn" onClick={logout}>
             Logout
           </button>
@@ -268,6 +276,10 @@ const KitchenDisplay = ({ onShowHelp }) => {
           />
         )}
       </div>
+
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
     </div>
   );
 };

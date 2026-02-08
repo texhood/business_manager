@@ -12,6 +12,7 @@ import ReaderModal from './ReaderModal';
 import LayoutSettingsModal from './LayoutSettingsModal';
 import LayoutEditor from './LayoutEditor';
 import SalesReview from './SalesReview';
+import ChangePasswordModal from './ChangePasswordModal';
 import { useNavigate } from 'react-router-dom';
 
 function POS() {
@@ -42,6 +43,7 @@ function POS() {
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const [editingLayout, setEditingLayout] = useState(null);
   const [showSalesReview, setShowSalesReview] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   
   const [completedOrder, setCompletedOrder] = useState(null);
 
@@ -347,6 +349,12 @@ function POS() {
           >📖 Help</button>
 
           <span className="user-info">{user?.name}</span>
+
+          <button
+            onClick={() => setShowChangePassword(true)}
+            title="Change Password"
+            style={{ background: 'none', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
+          >🔒 Password</button>
           
           <button className="btn-logout" onClick={logout}>
             Logout
@@ -439,6 +447,10 @@ function POS() {
 
       {showSalesReview && (
         <SalesReview onClose={() => setShowSalesReview(false)} />
+      )}
+
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
       )}
 
       {showLayoutSettings && (

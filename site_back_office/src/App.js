@@ -20,6 +20,7 @@ import { authService, accountsService, itemsService, transactionsService, delive
 // Components
 import { Icons } from './components/common/Icons';
 import LoginPage from './components/auth/LoginPage';
+import ChangePasswordModal from './components/common/ChangePasswordModal';
 
 // Views
 import {
@@ -175,6 +176,7 @@ function App() {
   const [dataLoading, setDataLoading] = useState(false);
   const [expandedSections, setExpandedSections] = useState(['foodTrailer']); // Default expanded
   const [tenant, setTenant] = useState(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const API_URL = process.env.REACT_APP_API_URL || '/api/v1';
 
@@ -661,6 +663,10 @@ function App() {
               <div className="user-role">{user.role}</div>
             </div>
           </div>
+          <button className="logout-btn" onClick={() => setShowChangePassword(true)} style={{ marginBottom: 4 }}>
+            <Icons.Settings />
+            Change Password
+          </button>
           <button className="logout-btn" onClick={handleLogout}>
             <Icons.LogOut />
             Sign Out
@@ -672,6 +678,10 @@ function App() {
       <main className="main-content">
         {renderView()}
       </main>
+
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
     </div>
   );
 }

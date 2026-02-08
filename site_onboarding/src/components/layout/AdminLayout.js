@@ -3,13 +3,15 @@
  * Main layout wrapper with sidebar navigation
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Icons } from '../common/Icons';
 import { getInitials } from '../../utils/formatters';
+import ChangePasswordModal from '../common/ChangePasswordModal';
 
 const AdminLayout = ({ children, user, onLogout }) => {
   const location = useLocation();
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const getPageTitle = () => {
     const path = location.pathname;
@@ -88,13 +90,25 @@ const AdminLayout = ({ children, user, onLogout }) => {
               <div className="user-name">{user?.name || user?.email}</div>
               <div className="user-role">Super Admin</div>
             </div>
+          </div>
+          <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+            <button 
+              onClick={() => setShowChangePassword(true)}
+              className="btn btn-secondary btn-sm"
+              title="Change Password"
+              style={{ padding: '6px 10px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '12px' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Password
+            </button>
             <button 
               onClick={onLogout}
               className="btn btn-secondary btn-sm"
               title="Log out"
-              style={{ padding: '6px' }}
+              style={{ padding: '6px 10px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '12px' }}
             >
-              <Icons.LogOut size={16} />
+              <Icons.LogOut size={14} />
+              Sign Out
             </button>
           </div>
         </div>
@@ -109,6 +123,10 @@ const AdminLayout = ({ children, user, onLogout }) => {
           {children}
         </div>
       </main>
+
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
     </div>
   );
 };
