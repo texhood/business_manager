@@ -13,6 +13,7 @@ import { useTenantBranding } from './hooks/useTenantBranding';
 import { authService } from './services/api';
 import LoginPage from './components/LoginPage';
 import PortalDashboard from './components/PortalDashboard';
+import HelpView from './components/HelpView';
 
 function App() {
   const tenant = useTenantBranding('Portal');
@@ -63,7 +64,7 @@ function App() {
     return <LoginPage tenant={tenant} onLogin={handleLogin} />;
   }
 
-  return <PortalDashboard user={user} onLogout={handleLogout} />;
+  return <PortalDashboard user={user} onLogout={handleLogout} HelpView={HelpView} />;
 }
 
 export default App;

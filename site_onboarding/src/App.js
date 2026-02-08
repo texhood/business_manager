@@ -12,6 +12,7 @@ import TenantsView from './components/views/TenantsView';
 import TenantDetailView from './components/views/TenantDetailView';
 import OnboardingWizard from './components/views/OnboardingWizard';
 import SystemSettingsView from './components/views/SystemSettingsView';
+import HelpView from './components/views/HelpView';
 import { authService } from './services/api';
 
 function App() {
@@ -73,6 +74,7 @@ function App() {
           <Route path="/tenants/:id" element={<TenantDetailView />} />
           <Route path="/onboarding" element={<OnboardingWizard />} />
           <Route path="/settings" element={<SystemSettingsView />} />
+          <Route path="/help" element={<HelpView appSlug="onboarding" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AdminLayout>

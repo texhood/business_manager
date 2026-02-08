@@ -12,9 +12,11 @@ import ReaderModal from './ReaderModal';
 import LayoutSettingsModal from './LayoutSettingsModal';
 import LayoutEditor from './LayoutEditor';
 import SalesReview from './SalesReview';
+import { useNavigate } from 'react-router-dom';
 
 function POS() {
   const { user, token, logout } = useAuth();
+  const navigate = useNavigate();
   const { items, subtotal, tax, total, clearCart } = useCart();
   const { isConnected, reader, connectionStatus } = useTerminal();
   
@@ -338,6 +340,12 @@ function POS() {
             <span>{getReaderStatusText()}</span>
           </button>
           
+          <button
+            onClick={() => navigate('/help')}
+            title="Help"
+            style={{ background: 'none', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
+          >📖 Help</button>
+
           <span className="user-info">{user?.name}</span>
           
           <button className="btn-logout" onClick={logout}>

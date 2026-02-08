@@ -12,11 +12,13 @@ import CheckoutModal from './CheckoutModal';
 import CardPaymentProcessingModal from './CardPaymentProcessingModal';
 import ReaderModal from './ReaderModal';
 import SalesReview from './SalesReview';
+import { useNavigate } from 'react-router-dom';
 
 const ORDER_POLL_INTERVAL = 5000; // 5 seconds to match KDS
 
 function RestaurantPOS() {
   const { user, token, logout } = useAuth();
+  const navigate = useNavigate();
   const { items, orderType, customerName, phoneNumber, tableNumber, kitchenNotes, clearCart } = useCart();
   const { isConnected, reader, connectionStatus } = useTerminal();
   
@@ -343,6 +345,12 @@ function RestaurantPOS() {
             {soundEnabled ? '🔔' : '🔕'}
           </button>
           
+          <button
+            onClick={() => navigate('/help')}
+            title="Help"
+            style={{ background: 'none', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
+          >📖 Help</button>
+
           <span className="user-info">{user?.name}</span>
           
           <button className="btn-logout" onClick={logout}>

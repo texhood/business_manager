@@ -57,7 +57,8 @@ import {
   Store,
   Utensils,
   Truck,
-  BookOpen
+  BookOpen,
+  HelpCircle
 } from 'lucide-react';
 
 export const Icons = {
@@ -138,7 +139,10 @@ export const Icons = {
   
   // Special
   Zap,
-  Rocket
+  Rocket,
+  
+  // Help
+  HelpCircle
 };
 
 export default Icons;

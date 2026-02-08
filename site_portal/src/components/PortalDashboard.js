@@ -17,10 +17,11 @@ const CATEGORY_LABELS = {
 
 const CATEGORY_ORDER = ['core', 'sales', 'operations', 'analytics'];
 
-const PortalDashboard = ({ user, onLogout }) => {
+const PortalDashboard = ({ user, onLogout, HelpView }) => {
   const [launcherData, setLauncherData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     loadLauncher();
@@ -104,6 +105,11 @@ const PortalDashboard = ({ user, onLogout }) => {
         <div className="portal-header-right">
           <span className="user-info">{launcherData.user?.name || launcherData.user?.email}</span>
           <span className="user-role">{launcherData.user?.role?.replace('_', ' ')}</span>
+          {HelpView && (
+            <button onClick={() => setShowHelp(!showHelp)} style={{ background: showHelp ? 'var(--brand-color, #2d5016)' : 'transparent', color: '#333', border: '1px solid #d1d5db', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.82rem', ...(showHelp ? {color:'#fff'} : {}) }}>
+              {showHelp ? '✕ Close Help' : '📖 Help'}
+            </button>
+          )}
           <button className="btn-logout" onClick={handleLogout}>
             <LogOut size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
             Sign Out
@@ -112,6 +118,11 @@ const PortalDashboard = ({ user, onLogout }) => {
       </header>
 
       {/* Main Content */}
+      {showHelp && HelpView ? (
+        <main className="portal-main" style={{ padding: 0 }}>
+          <HelpView appSlug="portal" />
+        </main>
+      ) : (
       <main className="portal-main">
         <div className="portal-welcome">
           <h2>
@@ -158,6 +169,7 @@ const PortalDashboard = ({ user, onLogout }) => {
           </div>
         )}
       </main>
+      )}
     </div>
   );
 };

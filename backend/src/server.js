@@ -58,6 +58,7 @@ const subscriptionsRouter = require('./routes/subscriptions');
 const tenantSettingsRouter = require('./routes/tenantSettings');
 const portalRouter = require('./routes/portal');
 const fixedAssetsRouter = require('./routes/fixedAssets');
+const helpRouter = require('./routes/help');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -309,6 +310,7 @@ app.use(`${API_PREFIX}/subscriptions`, subscriptionsRouter);
 app.use(`${API_PREFIX}/tenant-settings`, tenantSettingsRouter);
 app.use(`${API_PREFIX}/portal`, portalRouter);
 app.use(`${API_PREFIX}/fixed-assets`, fixedAssetsRouter);
+app.use(`${API_PREFIX}/help`, helpRouter);
 
 // Also mount tenant-assets at root for cleaner URLs (public access)
 app.use('/tenant-assets', tenantAssetsRouter);

@@ -49,6 +49,7 @@ import {
   RestaurantSalesView,
   POSSalesView,
   FixedAssetsView,
+  HelpView,
 } from './components/views';
 import ModificationsManager from './components/views/ModificationsManager';
 import BlogPreviewView from './components/views/BlogPreviewView';
@@ -430,7 +431,7 @@ function App() {
   const accountantViews = [
     'dashboard', 'transactions', 'bankFeed', 'bankConnections',
     'journalEntries', 'chartOfAccounts', 'fixedAssets',
-    'restaurantSales', 'reports', 'reportBuilder',
+    'restaurantSales', 'reports', 'reportBuilder', 'help',
   ];
 
   const isAccountant = user?.role === 'accountant';
@@ -515,6 +516,7 @@ function App() {
     { id: 'deliveryZones', label: 'Delivery Zones', icon: Icons.MapPin },
     { id: 'reports', label: 'Financial Reports', icon: Icons.BarChart },
     { id: 'reportBuilder', label: 'Report Builder', icon: Icons.FileText },
+    { id: 'help', label: 'Help', icon: Icons.HelpCircle },
   ];
 
   // Filter navigation for accountant role
@@ -592,6 +594,8 @@ function App() {
         return <ReportBuilderView />;
       case 'restaurantSales':
         return <POSSalesView />;
+      case 'help':
+        return <HelpView appSlug="office" />;
       default:
         return <DashboardView accounts={accounts} items={items} transactions={transactions} />;
     }

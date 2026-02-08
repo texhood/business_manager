@@ -9,14 +9,16 @@
  *   - Added useTenantBranding('Kitchen Display') call in App component
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useTenantBranding } from './hooks/useTenantBranding';
 import Login from './components/Login';
 import KitchenDisplay from './components/KitchenDisplay';
+import HelpView from './components/HelpView';
 
 function App() {
   const { isAuthenticated, loading } = useAuth();
+  const [showHelp, setShowHelp] = useState(false);
 
   // Load tenant branding: sets CSS vars, document title, favicon
   useTenantBranding('Kitchen Display');
@@ -36,7 +38,18 @@ function App() {
     return <Login />;
   }
 
-  return <KitchenDisplay />;
+  if (showHelp) {
+    return (
+      <div style={{ height: '100vh', overflow: 'auto' }}>
+        <div style={{ padding: '8px 16px', background: '#1f2937', display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={() => setShowHelp(false)} style={{ background: '#374151', color: '#fff', border: 'none', padding: '6px 16px', borderRadius: '6px', cursor: 'pointer' }}>✕ Back to Kitchen</button>
+        </div>
+        <HelpView appSlug="kitchen" />
+      </div>
+    );
+  }
+
+  return <KitchenDisplay onShowHelp={() => setShowHelp(true)} />;
 }
 
 export default App;

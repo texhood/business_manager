@@ -6,7 +6,7 @@ import DoneOrdersPanel from './DoneOrdersPanel';
 
 const REFRESH_INTERVAL = 5000; // 5 seconds
 
-const KitchenDisplay = () => {
+const KitchenDisplay = ({ onShowHelp }) => {
   const { user, logout } = useAuth();
   const [orders, setOrders] = useState([]);
   const [doneOrders, setDoneOrders] = useState([]);
@@ -214,6 +214,10 @@ const KitchenDisplay = () => {
           >
             {soundEnabled ? '🔔' : '🔕'}
           </button>
+
+          {onShowHelp && (
+            <button onClick={onShowHelp} title="Help" style={{ background: 'none', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}>📖 Help</button>
+          )}
 
           <div className="kds-user">
             <span>{user?.name || 'Kitchen'}</span>

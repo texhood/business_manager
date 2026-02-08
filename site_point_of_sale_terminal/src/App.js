@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext';
 import { useTenantBranding } from './hooks/useTenantBranding';
 import Login from './components/Login';
 import POS from './components/POS';
+import HelpView from './components/HelpView';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -40,6 +41,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/help" element={<ProtectedRoute><HelpView appSlug="pos" /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>

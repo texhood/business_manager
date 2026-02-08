@@ -18,6 +18,7 @@ const AdminLayout = ({ children, user, onLogout }) => {
     if (path.startsWith('/tenants/')) return 'Tenant Details';
     if (path === '/onboarding') return 'New Tenant Onboarding';
     if (path === '/settings') return 'System Settings';
+    if (path === '/help') return 'Help';
     return 'System Admin';
   };
 
@@ -29,6 +30,7 @@ const AdminLayout = ({ children, user, onLogout }) => {
 
   const systemItems = [
     { path: '/settings', icon: Icons.Settings, label: 'Settings' },
+    { path: '/help', icon: Icons.HelpCircle, label: 'Help' },
   ];
 
   return (

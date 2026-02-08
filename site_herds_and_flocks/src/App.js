@@ -39,6 +39,7 @@ import AnimalCategoriesView from './components/views/AnimalCategoriesView';
 import FeeTypesView from './components/views/FeeTypesView';
 import OwnersView from './components/views/OwnersView';
 import RainfallView from './components/views/RainfallView';
+import HelpView from './components/views/HelpView';
 
 // ============================================================================
 // TEMPORARY PLACEHOLDER VIEWS (until proper views are created)
@@ -269,6 +270,9 @@ function App() {
       ],
     },
     
+    // Help (standalone)
+    { id: 'help', label: 'Help', icon: Icons.HelpCircle },
+
     // Settings Section
     {
       id: 'settings',
@@ -373,6 +377,8 @@ function App() {
         return <FeeTypesView />;
       case 'rainfall':
         return <RainfallView />;
+      case 'help':
+        return <HelpView appSlug="herds" />;
       default:
         return <DashboardView stats={stats} loading={dataLoading} />;
     }
