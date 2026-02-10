@@ -13,6 +13,7 @@ const db = require('../../config/database');
 const { authenticate, generateToken, generateRefreshToken } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
+const { logAccessEvent } = require('../utils/accessAuditLog');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -410,6 +411,16 @@ router.put('/password', authenticate, asyncHandler(async (req, res) => {
   );
 
   logger.info('Password changed', { userId: req.user.id });
+
+  // Audit log
+  logAccessEvent({
+    action: 'password_changed',
+    target: { id: req.user.id, email: user.email, name: user.name },
+    performedBy: { id: req.user.id, email: user.email, name: user.name },
+    tenantId: req.user.tenant_id,
+    details: {},
+    req,
+  });
 
   res.json({
     status: 'success',

@@ -13,6 +13,7 @@ const db = require('../../config/database');
 const { authenticate } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
+const { logAccessEvent } = require('../utils/accessAuditLog');
 
 const router = express.Router();
 
@@ -171,6 +172,16 @@ router.post('/verify-setup', asyncHandler(async (req, res) => {
 
   logger.info('2FA enabled', { userId: req.user.id });
 
+  // Audit log
+  logAccessEvent({
+    action: '2fa_enabled',
+    target: { id: req.user.id, email: req.user.email, name: req.user.name },
+    performedBy: { id: req.user.id, email: req.user.email, name: req.user.name },
+    tenantId: req.user.tenant_id,
+    details: {},
+    req,
+  });
+
   res.json({
     status: 'success',
     message: 'Two-factor authentication has been enabled.',
@@ -218,6 +229,16 @@ router.post('/disable', asyncHandler(async (req, res) => {
   );
 
   logger.info('2FA disabled', { userId: req.user.id });
+
+  // Audit log
+  logAccessEvent({
+    action: '2fa_disabled',
+    target: { id: req.user.id, email: req.user.email, name: req.user.name },
+    performedBy: { id: req.user.id, email: req.user.email, name: req.user.name },
+    tenantId: req.user.tenant_id,
+    details: {},
+    req,
+  });
 
   res.json({
     status: 'success',

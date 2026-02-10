@@ -11,6 +11,7 @@ const db = require('../../config/database');
 const { authenticate, requireStaff, requireAdmin } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
+const { logAccessEvent } = require('../utils/accessAuditLog');
 
 const router = express.Router();
 
@@ -232,6 +233,16 @@ router.post('/', authenticate, requireStaff, accountValidation, validate, asyncH
   
   logger.info('Account created', { accountId: account.id, tenantId: tenant_id, createdBy: req.user.id });
 
+  // Audit log
+  logAccessEvent({
+    action: 'account_created',
+    target: { id: account.id, email: account.email, name: account.name },
+    performedBy: { id: req.user.id, email: req.user.email, name: req.user.name },
+    tenantId: tenant_id,
+    details: { role },
+    req,
+  });
+
   res.status(201).json({
     status: 'success',
     data: account,
@@ -330,6 +341,29 @@ router.put('/:id', authenticate, requireStaff, accountValidation, validate, asyn
   
   logger.info('Account updated', { accountId: id, updatedBy: req.user.id });
 
+  // Audit log: detect and record specific access-related changes
+  const updatedAccount = result.rows[0];
+  if (role && role !== currentAccount.role) {
+    logAccessEvent({
+      action: 'role_changed',
+      target: { id, email: updatedAccount.email, name: updatedAccount.name },
+      performedBy: { id: req.user.id, email: req.user.email, name: req.user.name },
+      tenantId: req.user.tenant_id,
+      details: { oldRole: currentAccount.role, newRole: role },
+      req,
+    });
+  }
+  if (is_active !== undefined && is_active !== currentAccount.is_active) {
+    logAccessEvent({
+      action: is_active ? 'account_reactivated' : 'account_deactivated',
+      target: { id, email: updatedAccount.email, name: updatedAccount.name },
+      performedBy: { id: req.user.id, email: req.user.email, name: req.user.name },
+      tenantId: req.user.tenant_id,
+      details: {},
+      req,
+    });
+  }
+
   res.json({
     status: 'success',
     data: account,
@@ -349,7 +383,7 @@ router.put('/:id/reset-password', authenticate, requireAdmin, asyncHandler(async
   }
 
   // Prevent non-tenant-admins from resetting admin+ passwords
-  const target = await db.query('SELECT id, role, name FROM accounts WHERE id = $1', [id]);
+  const target = await db.query('SELECT id, role, name, email FROM accounts WHERE id = $1', [id]);
   if (target.rows.length === 0) {
     throw new ApiError(404, 'Account not found');
   }
@@ -369,6 +403,16 @@ router.put('/:id/reset-password', authenticate, requireAdmin, asyncHandler(async
   );
 
   logger.info('Password reset by admin', { targetAccountId: id, resetBy: req.user.id });
+
+  // Audit log
+  logAccessEvent({
+    action: 'password_reset_by_admin',
+    target: { id, email: target.rows[0].email || null, name: target.rows[0].name },
+    performedBy: { id: req.user.id, email: req.user.email, name: req.user.name },
+    tenantId: req.user.tenant_id,
+    details: {},
+    req,
+  });
 
   res.json({
     status: 'success',
@@ -426,6 +470,16 @@ router.delete('/:id', authenticate, requireAdmin, asyncHandler(async (req, res) 
   }
 
   logger.info('Account deleted', { accountId: id, deletedBy: req.user.id });
+
+  // Audit log
+  logAccessEvent({
+    action: 'account_deleted',
+    target: { id },
+    performedBy: { id: req.user.id, email: req.user.email, name: req.user.name },
+    tenantId: req.user.tenant_id,
+    details: {},
+    req,
+  });
 
   res.json({
     status: 'success',
