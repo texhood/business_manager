@@ -10,7 +10,7 @@ const db = require('../../config/database');
 const { authenticate, optionalAuth, requireStaff } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
-const { syncMenuItemToStripe, archiveStripeProduct } = require('../utils/stripeSync');
+const { syncMenuItemToStripe, archiveStripeProduct, getTenantStripeAccount } = require('../utils/stripeSync');
 
 const router = express.Router();
 
@@ -630,9 +630,10 @@ router.post('/items', authenticate, requireStaff, asyncHandler(async (req, res) 
   const menuItem = result.rows[0];
 
   // Sync to Stripe for POS use (non-blocking)
-  if (price) {
+  if (price && process.env.STRIPE_SECRET_KEY) {
     try {
-      const stripeIds = await syncMenuItemToStripe(menuItem);
+      const stripeAccountId = await getTenantStripeAccount(db, req.user.tenant_id);
+      const stripeIds = await syncMenuItemToStripe(menuItem, { stripeAccountId });
       // Update the record with Stripe IDs
       await db.query(`
         UPDATE menu_items SET
@@ -707,9 +708,10 @@ router.put('/items/:itemId', authenticate, requireStaff, asyncHandler(async (req
   const menuItem = result.rows[0];
 
   // Sync to Stripe if item has a price (handles both new syncs and price updates)
-  if (menuItem.price) {
+  if (menuItem.price && process.env.STRIPE_SECRET_KEY) {
     try {
-      const stripeIds = await syncMenuItemToStripe(menuItem);
+      const stripeAccountId = await getTenantStripeAccount(db, req.user.tenant_id);
+      const stripeIds = await syncMenuItemToStripe(menuItem, { stripeAccountId });
       // Update the record with Stripe IDs if changed
       if (stripeIds.stripe_product_id !== menuItem.stripe_product_id || 
           stripeIds.stripe_price_id !== menuItem.stripe_price_id) {
@@ -750,9 +752,10 @@ router.delete('/items/:itemId', authenticate, requireStaff, asyncHandler(async (
   const result = await db.query('DELETE FROM menu_items WHERE id = $1 RETURNING id', [itemId]);
 
   // Archive the Stripe product if it exists
-  if (existing.rows[0].stripe_product_id) {
+  if (existing.rows[0].stripe_product_id && process.env.STRIPE_SECRET_KEY) {
     try {
-      await archiveStripeProduct(existing.rows[0].stripe_product_id);
+      const stripeAccountId = await getTenantStripeAccount(db, req.user.tenant_id);
+      await archiveStripeProduct(existing.rows[0].stripe_product_id, { stripeAccountId });
     } catch (stripeError) {
       logger.error('Failed to archive Stripe product', { menuItemId: itemId, error: stripeError.message });
       // Don't fail - item is deleted, Stripe cleanup is best-effort

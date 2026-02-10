@@ -11,7 +11,7 @@ const { authenticate, optionalAuth, requireStaff } = require('../middleware/auth
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
 
-const { syncItemToStripe, archiveStripeProduct, reactivateStripeProduct } = require('../utils/stripeSync');
+const { syncItemToStripe, archiveStripeProduct, reactivateStripeProduct, getTenantStripeAccount } = require('../utils/stripeSync');
 
 const router = express.Router();
 
@@ -315,8 +315,10 @@ router.post('/', authenticate, requireStaff, itemValidation, validate, asyncHand
       // Get category name for Stripe metadata
       const categoryResult = await db.query('SELECT name FROM categories WHERE id = $1', [item.category_id]);
       const itemWithCategory = { ...item, category_name: categoryResult.rows[0]?.name };
-      
-      stripeIds = await syncItemToStripe(itemWithCategory);
+
+      // Resolve tenant's connected Stripe account
+      const stripeAccountId = await getTenantStripeAccount(db, req.user.tenant_id);
+      stripeIds = await syncItemToStripe(itemWithCategory, { stripeAccountId });
       
       // Update item with Stripe IDs
       await db.query(`
@@ -442,12 +444,16 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
   // Sync to Stripe if item is active
   if (process.env.STRIPE_SECRET_KEY) {
     try {
+      // Resolve tenant's connected Stripe account
+      const stripeAccountId = await getTenantStripeAccount(db, req.user.tenant_id);
+      const stripeOpts = { stripeAccountId };
+
       // Get category name for Stripe metadata
       const categoryResult = await db.query('SELECT name FROM categories WHERE id = $1', [item.category_id]);
       const itemWithCategory = { ...item, category_name: categoryResult.rows[0]?.name };
       
       if (item.status === 'active') {
-        const stripeIds = await syncItemToStripe(itemWithCategory);
+        const stripeIds = await syncItemToStripe(itemWithCategory, stripeOpts);
         
         // Update item with Stripe IDs if they changed
         if (stripeIds.stripe_product_id !== item.stripe_product_id ||
@@ -467,7 +473,7 @@ router.put('/:id', authenticate, requireStaff, asyncHandler(async (req, res) => 
         }
       } else if (item.stripe_product_id) {
         // Item is no longer active - archive in Stripe
-        await archiveStripeProduct(item.stripe_product_id);
+        await archiveStripeProduct(item.stripe_product_id, stripeOpts);
       }
     } catch (stripeError) {
       logger.error('Failed to sync item to Stripe', { itemId: id, error: stripeError.message });
@@ -659,8 +665,9 @@ router.post('/sync-stripe', authenticate, requireStaff, asyncHandler(async (req,
     throw new ApiError(400, 'Stripe is not configured');
   }
 
-  const { bulkSyncItemsToStripe } = require('../utils/stripeSync');
-  const result = await bulkSyncItemsToStripe(db);
+  const { bulkSyncItemsToStripe, getTenantStripeAccount } = require('../utils/stripeSync');
+  const stripeAccountId = await getTenantStripeAccount(db, req.user.tenant_id);
+  const result = await bulkSyncItemsToStripe(db, { stripeAccountId, tenantId: req.user.tenant_id });
 
   res.json({
     status: 'success',
