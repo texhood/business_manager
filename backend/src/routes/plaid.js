@@ -153,16 +153,17 @@ router.post('/create-link-token', authenticate, requireStaff, async (req, res) =
     }
 
     const response = await plaidClient.linkTokenCreate(request);
+    const { link_token, expiration, request_id } = response.data;
+    console.log(`[Plaid] Link token created: request_id=${request_id}, tenant=${tenantId}, user=${req.user.id}`);
     
-    res.json({
-      link_token: response.data.link_token,
-      expiration: response.data.expiration,
-    });
+    res.json({ link_token, expiration, request_id });
   } catch (error) {
-    console.error('Error creating link token:', error.response?.data || error.message);
+    const reqId = error.response?.data?.request_id || 'unknown';
+    console.error(`[Plaid] Error creating link token: request_id=${reqId}, tenant=${tenantId}`, error.response?.data || error.message);
     res.status(500).json({
       error: 'Failed to create link token',
       details: error.response?.data?.error_message || error.message,
+      request_id: reqId,
     });
   }
 });
@@ -229,18 +230,17 @@ router.post('/create-update-link-token', authenticate, requireStaff, async (req,
     }
 
     const response = await plaidClient.linkTokenCreate(request);
+    const { link_token, expiration, request_id } = response.data;
+    console.log(`[Plaid] Update link token created: request_id=${request_id}, item_id=${item_id}, tenant=${tenantId}`);
 
-    res.json({
-      link_token: response.data.link_token,
-      expiration: response.data.expiration,
-      item_id: item_id,
-      institution: item.institution_name,
-    });
+    res.json({ link_token, expiration, request_id, item_id, institution: item.institution_name });
   } catch (error) {
-    console.error('Error creating update link token:', error.response?.data || error.message);
+    const reqId = error.response?.data?.request_id || 'unknown';
+    console.error(`[Plaid] Error creating update link token: request_id=${reqId}, item_id=${item_id}, tenant=${tenantId}`, error.response?.data || error.message);
     res.status(500).json({
       error: 'Failed to create update link token',
       details: error.response?.data?.error_message || error.message,
+      request_id: reqId,
     });
   }
 });
@@ -329,7 +329,8 @@ router.post('/exchange-token', authenticate, requireStaff, async (req, res) => {
       public_token,
     });
 
-    const { access_token, item_id } = exchangeResponse.data;
+    const { access_token, item_id, request_id } = exchangeResponse.data;
+    console.log(`[Plaid] Token exchanged: item_id=${item_id}, request_id=${request_id}, tenant=${tenantId}`);
 
     // Get institution info
     const itemResponse = await plaidClient.itemGet({ access_token });
@@ -346,6 +347,18 @@ router.post('/exchange-token', authenticate, requireStaff, async (req, res) => {
       } catch (e) {
         console.warn('Could not fetch institution name:', e.message);
       }
+    }
+
+    // ── Duplicate Item detection ──
+    // Check if this institution is already connected for the tenant
+    const duplicateCheck = await db.query(
+      `SELECT item_id, institution_name, status FROM plaid_items
+       WHERE institution_id = $1 AND tenant_id = $2 AND item_id != $3`,
+      [institutionId, tenantId, item_id]
+    );
+    const isDuplicate = duplicateCheck.rows.length > 0;
+    if (isDuplicate) {
+      console.warn(`[Plaid] Duplicate item detected: institution=${institutionName} (${institutionId}), existing_item=${duplicateCheck.rows[0].item_id}, new_item=${item_id}, tenant=${tenantId}`);
     }
 
     // Store the Plaid Item with tenant_id (encrypt access token)
@@ -408,12 +421,16 @@ router.post('/exchange-token', authenticate, requireStaff, async (req, res) => {
         subtype: a.subtype,
         mask: a.mask,
       })),
+      duplicate: isDuplicate,
+      duplicate_item_id: isDuplicate ? duplicateCheck.rows[0].item_id : null,
     });
   } catch (error) {
-    console.error('Error exchanging token:', error.response?.data || error.message);
+    const reqId = error.response?.data?.request_id || 'unknown';
+    console.error(`[Plaid] Error exchanging token: request_id=${reqId}`, error.response?.data || error.message);
     res.status(500).json({
       error: 'Failed to exchange token',
       details: error.response?.data?.error_message || error.message,
+      request_id: reqId,
     });
   }
 });
@@ -464,16 +481,19 @@ router.post('/sync-transactions', authenticate, requireStaff, async (req, res) =
       try {
         await syncItemTransactions(item, results, tenantId);
         results.synced++;
+        console.log(`[Plaid] Sync complete: item_id=${item.item_id}, institution=${item.institution_name}, added=${results.added}, modified=${results.modified}, removed=${results.removed}, tenant=${tenantId}`);
       } catch (error) {
-        console.error(`Error syncing item ${item.item_id}:`, error.message);
+        const reqId = error.response?.data?.request_id || 'unknown';
+        const errorCode = error.response?.data?.error_code || 'UNKNOWN';
+        console.error(`[Plaid] Sync error: item_id=${item.item_id}, error_code=${errorCode}, request_id=${reqId}, tenant=${tenantId}`, error.message);
         results.errors.push({
           item_id: item.item_id,
           institution: item.institution_name,
           error: error.message,
+          request_id: reqId,
         });
 
         // Detect ITEM_LOGIN_REQUIRED from API error response
-        const errorCode = error.response?.data?.error_code || 'UNKNOWN';
         const itemStatus = errorCode === 'ITEM_LOGIN_REQUIRED' ? 'login_required' : 'error';
         await db.query(
           `UPDATE plaid_items SET status = $1, error_code = $2, error_message = $3, updated_at = NOW()
@@ -987,6 +1007,26 @@ router.post('/encrypt-tokens', authenticate, async (req, res) => {
 });
 
 // ============================================================================
+// LINK EVENT LOGGING - Frontend Plaid Link conversion tracking
+// ============================================================================
+
+/**
+ * POST /api/v1/plaid/log-link-event
+ * Logs frontend Plaid Link events for conversion tracking and troubleshooting.
+ * Captures link_session_id, event_name, and metadata from the onEvent callback.
+ * Body: { event_name, link_session_id, metadata }
+ */
+router.post('/log-link-event', authenticate, requireStaff, async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { event_name, link_session_id, metadata } = req.body;
+
+  // Structured log for easy searching in Railway logs
+  console.log(`[Plaid][Link] event=${event_name}, link_session_id=${link_session_id || 'n/a'}, tenant=${tenantId}, user=${req.user?.id}${metadata?.institution_name ? `, institution=${metadata.institution_name}` : ''}${metadata?.error_code ? `, error_code=${metadata.error_code}, error_message=${metadata.error_message}` : ''}${metadata?.exit_status ? `, exit_status=${metadata.exit_status}` : ''}${metadata?.view_name ? `, view=${metadata.view_name}` : ''}`);
+
+  res.json({ received: true });
+});
+
+// ============================================================================
 // WEBHOOKS - Receive updates from Plaid
 // ============================================================================
 
@@ -997,9 +1037,9 @@ router.post('/encrypt-tokens', authenticate, async (req, res) => {
  * Tenant context is resolved from the plaid_items row via item_id.
  */
 router.post('/webhook', async (req, res) => {
-  const { webhook_type, webhook_code, item_id } = req.body;
+  const { webhook_type, webhook_code, item_id, error } = req.body;
 
-  console.log(`Plaid Webhook: ${webhook_type} - ${webhook_code} for item ${item_id}`);
+  console.log(`[Plaid] Webhook received: type=${webhook_type}, code=${webhook_code}, item_id=${item_id}${error ? `, error_code=${error.error_code}` : ''}`);
 
   try {
     switch (webhook_type) {

@@ -109,6 +109,18 @@ export const plaidService = {
     const response = await api.delete(`/plaid/items/${itemId}`);
     return response.data;
   },
+
+  /**
+   * Log a Plaid Link frontend event for conversion tracking / troubleshooting.
+   * Fire-and-forget — errors are swallowed so they don't interrupt the Link flow.
+   */
+  logLinkEvent(eventName, metadata) {
+    api.post('/plaid/log-link-event', {
+      event_name: eventName,
+      link_session_id: metadata?.link_session_id || null,
+      metadata,
+    }).catch(() => { /* silent */ });
+  },
 };
 
 export default plaidService;

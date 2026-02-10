@@ -138,6 +138,7 @@ Bank → Plaid → Sync → Pending Transactions → Categorize → Journal Entr
 | PUT | `/api/v1/plaid/accounts/:id/link` | Link to GL account |
 | DELETE | `/api/v1/plaid/items/:item_id` | Remove bank connection (offboarding) |
 | POST | `/api/v1/plaid/encrypt-tokens` | Encrypt plaintext tokens (admin, one-time) |
+| POST | `/api/v1/plaid/log-link-event` | Log frontend Link events for conversion tracking |
 | POST | `/api/v1/plaid/webhook` | Receive Plaid webhooks |
 
 ## Item Status Values
@@ -174,6 +175,9 @@ Before going live:
 - [x] **User offboarding** — DELETE /items/:item_id calls itemRemove()
 - [ ] Set up webhook endpoint with HTTPS
 - [ ] Register webhook URL in Plaid Dashboard
+- [x] **Duplicate item detection** — warns user when connecting an already-linked institution
+- [x] **Link event logging** — frontend onEvent → backend structured logs for conversion tracking
+- [x] **Structured logging** — all backend routes log [Plaid] prefixed entries with request_id, item_id, tenant
 - [x] **OAuth redirect flow** — shared redirect URI for multi-tenant OAuth banks
 - [ ] Set `PLAID_REDIRECT_URI=https://office.busmgr.com/oauth-redirect` in Railway
 - [ ] Register `https://office.busmgr.com/oauth-redirect` in Plaid Dashboard → API → Allowed redirect URIs

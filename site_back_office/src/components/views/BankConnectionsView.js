@@ -101,6 +101,9 @@ function OAuthReturnHandler({ receivedRedirectUri, onSuccess, onDone }) {
     receivedRedirectUri,
     onSuccess: onPlaidSuccess,
     onExit: onPlaidExit,
+    onEvent: (eventName, metadata) => {
+      plaidService.logLinkEvent(eventName, metadata);
+    },
   });
 
   // Auto-open Plaid Link when ready
@@ -154,13 +157,18 @@ function PlaidLinkButton({ onSuccess, onExit }) {
   const { open, ready } = usePlaidLink({
     token: linkToken,
     onSuccess: (publicToken, metadata) => {
+      plaidService.logLinkEvent('SUCCESS', metadata);
       clearPlaidOAuthCookies();
       onSuccess(publicToken, metadata);
     },
     onExit: (err, metadata) => {
+      plaidService.logLinkEvent('EXIT', { ...metadata, error_code: err?.error_code, error_message: err?.error_message });
       if (err) console.error('Plaid Link error:', err);
       clearPlaidOAuthCookies();
       onExit?.(err, metadata);
+    },
+    onEvent: (eventName, metadata) => {
+      plaidService.logLinkEvent(eventName, metadata);
     },
   });
 
@@ -232,6 +240,7 @@ function UpdateLinkButton({ itemId, institutionName, onSuccess, onExit }) {
     token: linkToken,
     onSuccess: async (publicToken, metadata) => {
       try {
+        plaidService.logLinkEvent('UPDATE_SUCCESS', metadata);
         clearPlaidOAuthCookies();
         await plaidService.updateComplete(itemId);
         onSuccess?.(itemId, institutionName);
@@ -240,9 +249,13 @@ function UpdateLinkButton({ itemId, institutionName, onSuccess, onExit }) {
       }
     },
     onExit: (err, metadata) => {
+      plaidService.logLinkEvent('UPDATE_EXIT', { ...metadata, error_code: err?.error_code, error_message: err?.error_message });
       if (err) console.error('Plaid Link update error:', err);
       clearPlaidOAuthCookies();
       onExit?.(err, metadata);
+    },
+    onEvent: (eventName, metadata) => {
+      plaidService.logLinkEvent(eventName, metadata);
     },
   });
 
@@ -364,7 +377,16 @@ export default function BankConnectionsView() {
     try {
       setMessage({ type: 'info', text: 'Connecting bank account...' });
       const result = await plaidService.exchangeToken(publicToken);
-      setMessage({ type: 'success', text: `Successfully connected ${result.institution}!` });
+
+      if (result.duplicate) {
+        setMessage({
+          type: 'warning',
+          text: `Connected ${result.institution}, but this bank was already linked. You may want to remove the duplicate connection to avoid double-counted transactions.`,
+        });
+      } else {
+        setMessage({ type: 'success', text: `Successfully connected ${result.institution}!` });
+      }
+
       await loadData();
       await handleSync();
     } catch (err) {
@@ -454,8 +476,8 @@ export default function BankConnectionsView() {
           padding: '12px 16px',
           borderRadius: '6px',
           marginBottom: '20px',
-          backgroundColor: message.type === 'error' ? '#fef2f2' : message.type === 'success' ? '#f0fdf4' : '#eff6ff',
-          color: message.type === 'error' ? '#dc2626' : message.type === 'success' ? '#16a34a' : '#2563eb',
+          backgroundColor: message.type === 'error' ? '#fef2f2' : message.type === 'success' ? '#f0fdf4' : message.type === 'warning' ? '#fffbeb' : '#eff6ff',
+          color: message.type === 'error' ? '#dc2626' : message.type === 'success' ? '#16a34a' : message.type === 'warning' ? '#d97706' : '#2563eb',
         }}>
           {message.text}
         </div>
