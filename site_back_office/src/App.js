@@ -14,6 +14,9 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
+// OAuth redirect handler (rendered before auth)
+import OAuthRedirect from './components/OAuthRedirect';
+
 // Services
 import { authService, accountsService, itemsService, transactionsService, deliveryZonesService, accountingService } from './services/api';
 
@@ -333,6 +336,17 @@ function App() {
         setUser(storedUser);
         loadData();
       }
+
+      // ========================================
+      // Step 7: Detect Plaid OAuth return
+      // If we arrived here via the OAuth redirect page, auto-navigate to Bank Connections
+      // ========================================
+      const urlParams2 = new URLSearchParams(window.location.search);
+      if (urlParams2.get('plaid_oauth') === '1') {
+        setCurrentView('bankConnections');
+        // Clean up the URL
+        window.history.replaceState({}, '', window.location.pathname);
+      }
       
       setLoading(false);
     };
@@ -414,6 +428,14 @@ function App() {
     setPreviewPostId(null);
     setCurrentView('blogPosts');
   };
+
+  // ========================================================================
+  // Plaid OAuth redirect handler — render BEFORE any auth/tenant checks
+  // This page is served on office.busmgr.com/oauth-redirect (no tenant prefix)
+  // ========================================================================
+  if (window.location.pathname === '/oauth-redirect') {
+    return <OAuthRedirect />;
+  }
 
   // Loading screen
   if (loading) {

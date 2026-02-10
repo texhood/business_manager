@@ -3,10 +3,127 @@
  * Manages Plaid bank connections and transaction syncing
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
 import { plaidService } from '../../services/plaidApi';
 import { accountingService } from '../../services/api';
+
+// ============================================================================
+// COOKIE HELPERS - Used for Plaid OAuth cross-subdomain flow
+// ============================================================================
+
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+function setCookie(name, value, domain, maxAge = 3600) {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${name}=${encodeURIComponent(value)}; domain=${domain}; path=/; max-age=${maxAge}; SameSite=Lax${secure}`;
+}
+
+function deleteCookie(name, domain) {
+  document.cookie = `${name}=; domain=${domain}; path=/; max-age=0`;
+}
+
+/**
+ * Get the parent domain for cross-subdomain cookies.
+ * crhood.office.busmgr.com → .busmgr.com
+ * crhood.office.hoodfamilyfarms.com → .hoodfamilyfarms.com
+ */
+function getParentDomain() {
+  const parts = window.location.hostname.split('.');
+  if (parts.length < 3) return ''; // localhost or simple domain
+  return '.' + parts.slice(-2).join('.');
+}
+
+/**
+ * Set cookies before opening Plaid Link so the OAuth redirect page
+ * can determine which tenant initiated the flow.
+ */
+function setPlaidOAuthCookies() {
+  const hostname = window.location.hostname;
+  const parts = hostname.split('.');
+  const parentDomain = getParentDomain();
+  if (!parentDomain) return;
+
+  // The tenant slug is the first part of the hostname
+  const tenantSlug = parts[0];
+  setCookie('plaid_oauth_tenant', tenantSlug, parentDomain, 3600);
+}
+
+/**
+ * Clear the OAuth cookies after the flow completes (or on cleanup).
+ */
+function clearPlaidOAuthCookies() {
+  const parentDomain = getParentDomain();
+  if (!parentDomain) return;
+  deleteCookie('plaid_oauth_tenant', parentDomain);
+  deleteCookie('plaid_oauth_redirect_uri', parentDomain);
+}
+
+// ============================================================================
+// OAUTH RETURN HANDLER - Re-opens Plaid Link after bank OAuth redirect
+// ============================================================================
+
+function OAuthReturnHandler({ receivedRedirectUri, onSuccess, onDone }) {
+  const [linkToken, setLinkToken] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchToken = async () => {
+      try {
+        const data = await plaidService.createLinkToken();
+        setLinkToken(data.link_token);
+      } catch (err) {
+        console.error('Error creating link token for OAuth return:', err);
+        setError('Failed to resume bank connection. Please try again.');
+        onDone?.();
+      }
+    };
+    fetchToken();
+  }, [onDone]);
+
+  const onPlaidSuccess = useCallback((publicToken, metadata) => {
+    clearPlaidOAuthCookies();
+    onSuccess(publicToken, metadata);
+    onDone?.();
+  }, [onSuccess, onDone]);
+
+  const onPlaidExit = useCallback((err, metadata) => {
+    if (err) console.error('Plaid Link OAuth return error:', err);
+    clearPlaidOAuthCookies();
+    onDone?.();
+  }, [onDone]);
+
+  const { open, ready } = usePlaidLink({
+    token: linkToken,
+    receivedRedirectUri,
+    onSuccess: onPlaidSuccess,
+    onExit: onPlaidExit,
+  });
+
+  // Auto-open Plaid Link when ready
+  useEffect(() => {
+    if (linkToken && ready) {
+      open();
+    }
+  }, [linkToken, ready, open]);
+
+  if (error) {
+    return (
+      <div style={{ padding: '20px', textAlign: 'center', color: '#dc2626' }}>
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '40px', textAlign: 'center' }}>
+      <p style={{ color: '#6b7280', fontSize: '16px' }}>Completing bank connection...</p>
+    </div>
+  );
+}
 
 // ============================================================================
 // PLAID LINK BUTTON COMPONENT
@@ -37,13 +154,20 @@ function PlaidLinkButton({ onSuccess, onExit }) {
   const { open, ready } = usePlaidLink({
     token: linkToken,
     onSuccess: (publicToken, metadata) => {
+      clearPlaidOAuthCookies();
       onSuccess(publicToken, metadata);
     },
     onExit: (err, metadata) => {
       if (err) console.error('Plaid Link error:', err);
+      clearPlaidOAuthCookies();
       onExit?.(err, metadata);
     },
   });
+
+  const handleOpen = () => {
+    setPlaidOAuthCookies();
+    open();
+  };
 
   if (error) {
     return (
@@ -61,7 +185,7 @@ function PlaidLinkButton({ onSuccess, onExit }) {
 
   return (
     <button
-      onClick={() => open()}
+      onClick={handleOpen}
       disabled={!ready || loading}
       style={{
         backgroundColor: ready && !loading ? '#2563eb' : '#9ca3af',
@@ -108,6 +232,7 @@ function UpdateLinkButton({ itemId, institutionName, onSuccess, onExit }) {
     token: linkToken,
     onSuccess: async (publicToken, metadata) => {
       try {
+        clearPlaidOAuthCookies();
         await plaidService.updateComplete(itemId);
         onSuccess?.(itemId, institutionName);
       } catch (err) {
@@ -116,6 +241,7 @@ function UpdateLinkButton({ itemId, institutionName, onSuccess, onExit }) {
     },
     onExit: (err, metadata) => {
       if (err) console.error('Plaid Link update error:', err);
+      clearPlaidOAuthCookies();
       onExit?.(err, metadata);
     },
   });
@@ -123,6 +249,7 @@ function UpdateLinkButton({ itemId, institutionName, onSuccess, onExit }) {
   // Auto-open when link token is ready
   useEffect(() => {
     if (linkToken && ready) {
+      setPlaidOAuthCookies();
       open();
     }
   }, [linkToken, ready, open]);
@@ -200,8 +327,17 @@ export default function BankConnectionsView() {
   const [message, setMessage] = useState(null);
   const [editingAccount, setEditingAccount] = useState(null);
   const [selectedGlAccount, setSelectedGlAccount] = useState('');
+  const [oauthReturnUri, setOauthReturnUri] = useState(null);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    // Check for Plaid OAuth return cookie
+    const redirectUri = getCookie('plaid_oauth_redirect_uri');
+    if (redirectUri) {
+      console.log('Plaid OAuth return detected, receivedRedirectUri:', redirectUri);
+      setOauthReturnUri(redirectUri);
+    }
+    loadData();
+  }, []);
 
   const loadData = async () => {
     try {
@@ -323,6 +459,15 @@ export default function BankConnectionsView() {
         }}>
           {message.text}
         </div>
+      )}
+
+      {/* Plaid OAuth return handler - auto-opens Plaid Link to complete the flow */}
+      {oauthReturnUri && (
+        <OAuthReturnHandler
+          receivedRedirectUri={oauthReturnUri}
+          onSuccess={handleLinkSuccess}
+          onDone={() => setOauthReturnUri(null)}
+        />
       )}
 
       {loading ? (

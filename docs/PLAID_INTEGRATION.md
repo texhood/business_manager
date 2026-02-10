@@ -174,8 +174,58 @@ Before going live:
 - [x] **User offboarding** — DELETE /items/:item_id calls itemRemove()
 - [ ] Set up webhook endpoint with HTTPS
 - [ ] Register webhook URL in Plaid Dashboard
-- [ ] Add PLAID_REDIRECT_URI for OAuth banks
+- [x] **OAuth redirect flow** — shared redirect URI for multi-tenant OAuth banks
+- [ ] Set `PLAID_REDIRECT_URI=https://office.busmgr.com/oauth-redirect` in Railway
+- [ ] Register `https://office.busmgr.com/oauth-redirect` in Plaid Dashboard → API → Allowed redirect URIs
+- [ ] Verify `office.busmgr.com` (bare, no tenant prefix) is added as a domain in Vercel back_office project
 - [ ] Test with real bank accounts in Development first
+
+## OAuth Redirect Flow (Multi-Tenant)
+
+OAuth banks (Chase, Wells Fargo, etc.) redirect users to their bank's website for authentication. Plaid requires a registered redirect URI to return users after OAuth. Since Plaid doesn't support wildcard URIs, we use a single shared redirect URI that bridges the multi-tenant subdomains.
+
+### Redirect URI
+
+`https://office.busmgr.com/oauth-redirect`
+
+### Flow
+
+```
+Tenant Page                    Shared Redirect              Tenant Page
+(crhood.office.busmgr.com)     (office.busmgr.com)          (crhood.office.busmgr.com)
+─────────────────────────      ──────────────────           ─────────────────────────
+ 1. Set tenant cookie on
+    .busmgr.com domain
+ 2. Open Plaid Link
+ 3. User → Bank OAuth
+ 4. Bank → Plaid
+                               5. Plaid redirects here
+                                  with ?oauth_state_id
+                               6. Read tenant cookie
+                               7. Store receivedRedirectUri
+                                  in cookie
+                               8. Redirect to tenant URL
+                                  with ?plaid_oauth=1
+                                                            9.  App auto-navigates to
+                                                                Bank Connections
+                                                            10. Read redirect URI cookie
+                                                            11. Create new link token
+                                                            12. Open Plaid Link with
+                                                                receivedRedirectUri
+                                                            13. Flow completes normally
+```
+
+### Key Components
+
+- `OAuthRedirect.js` — Standalone component rendered at `/oauth-redirect` before auth checks
+- `OAuthReturnHandler` — Sub-component in BankConnectionsView that resumes Plaid Link
+- Cookies on `.busmgr.com` — `plaid_oauth_tenant` (tenant slug) and `plaid_oauth_redirect_uri` (full return URL)
+
+### Environment Setup
+
+1. Set `PLAID_REDIRECT_URI=https://office.busmgr.com/oauth-redirect` in Railway env vars
+2. Register `https://office.busmgr.com/oauth-redirect` in Plaid Dashboard → API → Allowed redirect URIs
+3. Ensure `office.busmgr.com` is configured as a domain in the Vercel back_office project
 
 ## Troubleshooting
 
@@ -192,7 +242,9 @@ Before going live:
 - Check browser console for errors
 - Verify transactions exist in Plaid Dashboard sandbox
 
-### OAuth banks not working (Chase, Wells Fargo)
-- Add PLAID_REDIRECT_URI to .env
-- Register redirect URI in Plaid Dashboard
+### OAuth banks not completing (Chase, Wells Fargo)
+- Verify `PLAID_REDIRECT_URI` is set in Railway env vars
+- Verify the redirect URI is registered in Plaid Dashboard
+- Verify `office.busmgr.com` (bare) is added to Vercel back_office domains
+- Check browser console for cookie-related errors
 - Requires Production access for most OAuth banks
