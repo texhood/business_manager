@@ -18,7 +18,7 @@ const pool = new Pool({
 });
 
 async function seed() {
-  console.log('🌱 Hood Family Farms - Database Seeding\n');
+  console.log('🌱 Business Manager - Database Seeding\n');
 
   const client = await pool.connect();
 

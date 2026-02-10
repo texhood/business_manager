@@ -28,7 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_blog_posts_published_at ON blog_posts(published_a
 CREATE INDEX IF NOT EXISTS idx_blog_posts_author ON blog_posts(author_id);
 
 -- Comments for documentation
-COMMENT ON TABLE blog_posts IS 'Blog posts for the Hood Family Farms website';
+COMMENT ON TABLE blog_posts IS 'Blog posts for the Business Manager website';
 COMMENT ON COLUMN blog_posts.slug IS 'URL-friendly identifier for the post';
 COMMENT ON COLUMN blog_posts.content IS 'Full blog post content, can contain HTML or Markdown';
 COMMENT ON COLUMN blog_posts.status IS 'draft = not visible, published = visible on site, archived = hidden but preserved';

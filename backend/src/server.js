@@ -1,5 +1,5 @@
 /**
- * Hood Family Farms API Server
+ * CR Hood Solutions API Server
  * Main entry point for the Express application
  */
 

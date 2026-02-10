@@ -1,5 +1,5 @@
 -- ============================================================================
--- HOOD FAMILY FARMS - REPORT BUILDER FIX
+-- CR Hood Solutions - REPORT BUILDER FIX
 -- Migration: 042_animals_field_definitions.sql
 -- Description: Add missing record and field definitions for the animals table
 -- ============================================================================

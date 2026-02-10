@@ -1,5 +1,5 @@
 -- ============================================================================
--- HOOD FAMILY FARMS BUSINESS_MANAGER - DATABASE SCHEMA
+-- CR HOOD Solutions BUSINESS_MANAGER - DATABASE SCHEMA
 -- PostgreSQL Database Schema for Phase 1 & 2
 -- ============================================================================
 

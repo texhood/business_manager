@@ -1,5 +1,5 @@
 -- ============================================================================
--- HOOD FAMILY FARMS - REPORT BUILDER
+-- CR Hood Solutions- REPORT BUILDER
 -- Migration: 040_report_builder.sql
 -- Description: CattleMax-style dynamic report builder with record/field metadata
 -- ============================================================================

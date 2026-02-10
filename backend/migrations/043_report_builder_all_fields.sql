@@ -1,5 +1,5 @@
 -- ============================================================================
--- HOOD FAMILY FARMS - REPORT BUILDER COMPLETE FIELD DEFINITIONS
+-- CR Hood Solutions - REPORT BUILDER COMPLETE FIELD DEFINITIONS
 -- Migration: 043_report_builder_all_fields.sql
 -- Description: Populate field definitions for ALL record types
 -- ============================================================================

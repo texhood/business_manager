@@ -41,7 +41,7 @@ async function markMigrationExecuted(name) {
 }
 
 async function runMigrations() {
-  console.log('🌱 Hood Family Farms - Database Migration\n');
+  console.log('🌱 Business Manager - Database Migration\n');
 
   try {
     // Create migrations tracking table

@@ -25,7 +25,7 @@ router.use(authenticate);
 // ============================================================================
 
 const RECOVERY_CODE_COUNT = 8;
-const APP_NAME = 'Hood Family Farms';
+const APP_NAME = 'Business Manager';
 
 // ============================================================================
 // HELPERS

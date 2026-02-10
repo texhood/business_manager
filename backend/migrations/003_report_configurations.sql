@@ -1,5 +1,5 @@
 -- ============================================================================
--- HOOD FAMILY FARMS - REPORT CONFIGURATIONS
+-- CR Hood Solutions - REPORT CONFIGURATIONS
 -- Migration: 003_report_configurations.sql
 -- ============================================================================
 

@@ -1,5 +1,5 @@
 -- ============================================================================
--- HOOD FAMILY FARMS BUSINESS MANAGER
+-- CR Hood Solutions BUSINESS MANAGER
 -- Migration: 057_access_audit_log_and_review_report.sql
 -- Description: Access change audit log table and Access Review report
 --              definitions for Plaid compliance attestation support

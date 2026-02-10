@@ -1,5 +1,5 @@
 // ============================================================================
-// HOOD FAMILY FARMS - REPORT BUILDER API
+// CR Hood Solutions - REPORT BUILDER API
 // Route: /api/report-builder
 // Description: Dynamic query builder for custom reports
 // ============================================================================
