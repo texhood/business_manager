@@ -129,12 +129,37 @@ Bank → Plaid → Sync → Pending Transactions → Categorize → Journal Entr
 |--------|----------|-------------|
 | POST | `/api/v1/plaid/create-link-token` | Initialize Plaid Link |
 | POST | `/api/v1/plaid/exchange-token` | Complete Link, store tokens |
+| POST | `/api/v1/plaid/create-update-link-token` | Init Link in update mode (re-auth) |
+| POST | `/api/v1/plaid/update-complete` | Mark re-auth complete, trigger sync |
 | POST | `/api/v1/plaid/sync-transactions` | Pull new transactions |
+| POST | `/api/v1/plaid/refresh-accounts` | Refresh account data from Plaid |
 | GET | `/api/v1/plaid/accounts` | List linked accounts |
 | GET | `/api/v1/plaid/items` | List bank connections |
 | PUT | `/api/v1/plaid/accounts/:id/link` | Link to GL account |
-| DELETE | `/api/v1/plaid/items/:item_id` | Remove bank connection |
+| DELETE | `/api/v1/plaid/items/:item_id` | Remove bank connection (offboarding) |
+| POST | `/api/v1/plaid/encrypt-tokens` | Encrypt plaintext tokens (admin, one-time) |
 | POST | `/api/v1/plaid/webhook` | Receive Plaid webhooks |
+
+## Item Status Values
+
+| Status | Meaning | User Action |
+|--------|---------|-------------|
+| `active` | Connection healthy | None |
+| `login_required` | Bank credentials changed (ITEM_LOGIN_REQUIRED) | Re-authenticate |
+| `pending_reauth` | Access consent expiring (PENDING_EXPIRATION) | Re-authenticate |
+| `pending_disconnect` | Plaid will disconnect soon (PENDING_DISCONNECT) | Re-authenticate |
+| `revoked` | User revoked access at bank | Reconnect |
+| `error` | Other Plaid error | Check error_message |
+
+## Access Token Encryption
+
+Access tokens are encrypted at rest using AES-256-GCM.
+
+- Set `PLAID_TOKEN_ENCRYPTION_KEY` environment variable (generate with `openssl rand -hex 32`)
+- New tokens are encrypted automatically on exchange
+- Legacy plaintext tokens still work (backward compatible)
+- Run `POST /api/v1/plaid/encrypt-tokens` once to encrypt existing tokens
+- Encrypted tokens are stored as `enc:iv:authTag:ciphertext`
 
 ## Production Checklist
 
@@ -143,7 +168,10 @@ Before going live:
 - [ ] Apply for Production access at https://dashboard.plaid.com
 - [ ] Change `PLAID_ENV` to `production`
 - [ ] Use Production API secret
-- [ ] **Encrypt access_tokens** in database (critical!)
+- [x] **Encrypt access_tokens** in database — AES-256-GCM via PLAID_TOKEN_ENCRYPTION_KEY
+- [x] **Build update mode** — re-authentication UI for broken connections
+- [x] **Detect ITEM_LOGIN_REQUIRED, PENDING_EXPIRATION, PENDING_DISCONNECT** webhooks
+- [x] **User offboarding** — DELETE /items/:item_id calls itemRemove()
 - [ ] Set up webhook endpoint with HTTPS
 - [ ] Register webhook URL in Plaid Dashboard
 - [ ] Add PLAID_REDIRECT_URI for OAuth banks

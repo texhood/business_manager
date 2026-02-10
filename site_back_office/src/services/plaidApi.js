@@ -30,6 +30,26 @@ export const plaidService = {
   },
 
   /**
+   * Create a link token for update mode (re-authentication)
+   */
+  async createUpdateLinkToken(itemId) {
+    const response = await api.post('/plaid/create-update-link-token', {
+      item_id: itemId,
+    });
+    return response.data;
+  },
+
+  /**
+   * Notify backend that update mode completed successfully
+   */
+  async updateComplete(itemId) {
+    const response = await api.post('/plaid/update-complete', {
+      item_id: itemId,
+    });
+    return response.data;
+  },
+
+  /**
    * Sync transactions from all linked banks
    */
   async syncTransactions(itemId = null) {

@@ -83,6 +83,111 @@ function PlaidLinkButton({ onSuccess, onExit }) {
 }
 
 // ============================================================================
+// UPDATE MODE LINK BUTTON - Re-authenticate a broken connection
+// ============================================================================
+
+function UpdateLinkButton({ itemId, institutionName, onSuccess, onExit }) {
+  const [linkToken, setLinkToken] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleClick = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await plaidService.createUpdateLinkToken(itemId);
+      setLinkToken(data.link_token);
+    } catch (err) {
+      console.error('Error fetching update link token:', err);
+      setError('Failed to start re-authentication');
+      setLoading(false);
+    }
+  };
+
+  const { open, ready } = usePlaidLink({
+    token: linkToken,
+    onSuccess: async (publicToken, metadata) => {
+      try {
+        await plaidService.updateComplete(itemId);
+        onSuccess?.(itemId, institutionName);
+      } catch (err) {
+        console.error('Error completing update:', err);
+      }
+    },
+    onExit: (err, metadata) => {
+      if (err) console.error('Plaid Link update error:', err);
+      onExit?.(err, metadata);
+    },
+  });
+
+  // Auto-open when link token is ready
+  useEffect(() => {
+    if (linkToken && ready) {
+      open();
+    }
+  }, [linkToken, ready, open]);
+
+  if (error) {
+    return <span style={{ color: '#dc2626', fontSize: '13px' }}>{error}</span>;
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      style={{
+        backgroundColor: '#f59e0b',
+        color: 'white',
+        padding: '8px 16px',
+        borderRadius: '4px',
+        border: 'none',
+        cursor: loading ? 'not-allowed' : 'pointer',
+        fontWeight: '500',
+        fontSize: '14px',
+      }}
+    >
+      {loading ? 'Starting...' : 'Re-authenticate'}
+    </button>
+  );
+}
+
+// ============================================================================
+// STATUS HELPERS
+// ============================================================================
+
+const NEEDS_REAUTH_STATUSES = ['login_required', 'pending_reauth', 'pending_disconnect'];
+
+function getStatusBadge(status, errorMessage) {
+  const styles = {
+    active: { bg: '#f0fdf4', color: '#16a34a', label: 'Active' },
+    login_required: { bg: '#fef2f2', color: '#dc2626', label: 'Login Required' },
+    pending_reauth: { bg: '#fffbeb', color: '#d97706', label: 'Expiring Soon' },
+    pending_disconnect: { bg: '#fef2f2', color: '#dc2626', label: 'Disconnecting Soon' },
+    revoked: { bg: '#f3f4f6', color: '#6b7280', label: 'Revoked' },
+    error: { bg: '#fef2f2', color: '#dc2626', label: 'Error' },
+  };
+
+  const s = styles[status] || styles.error;
+
+  return (
+    <span
+      title={errorMessage || ''}
+      style={{
+        display: 'inline-block',
+        padding: '2px 10px',
+        borderRadius: '12px',
+        fontSize: '12px',
+        fontWeight: '600',
+        backgroundColor: s.bg,
+        color: s.color,
+      }}
+    >
+      {s.label}
+    </span>
+  );
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -129,6 +234,11 @@ export default function BankConnectionsView() {
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to connect bank account' });
     }
+  };
+
+  const handleUpdateSuccess = async (itemId, institutionName) => {
+    setMessage({ type: 'success', text: `Re-authenticated ${institutionName} successfully!` });
+    await loadData();
   };
 
   const handleSync = async (itemId = null) => {
@@ -226,20 +336,66 @@ export default function BankConnectionsView() {
       ) : (
         <div>
           <h2 style={{ fontSize: '18px', marginBottom: '16px' }}>Connected Banks</h2>
-          {items.map((item) => (
-            <div key={item.id} style={{ backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e5e7eb', padding: '20px', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <h3 style={{ margin: '0 0 4px' }}>{item.institution_name}</h3>
-                  <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>{item.account_count} account(s)</p>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => handleSync(item.item_id)} disabled={syncing} className="btn btn-secondary">Sync</button>
-                  <button onClick={() => handleRemove(item.item_id, item.institution_name)} style={{ color: '#dc2626', border: '1px solid #fecaca', background: '#fef2f2', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}>Disconnect</button>
-                </div>
+          {/* Alert banner if any items need attention */}
+          {items.some(i => NEEDS_REAUTH_STATUSES.includes(i.status)) && (
+            <div style={{
+              padding: '14px 18px',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              backgroundColor: '#fffbeb',
+              border: '1px solid #fbbf24',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+            }}>
+              <span style={{ fontSize: '20px' }}>⚠️</span>
+              <div>
+                <strong style={{ color: '#92400e' }}>Action needed</strong>
+                <p style={{ margin: '2px 0 0', color: '#92400e', fontSize: '14px' }}>
+                  One or more bank connections need re-authentication. Click "Re-authenticate" below to restore the connection.
+                </p>
               </div>
             </div>
-          ))}
+          )}
+
+          {items.map((item) => {
+            const needsReauth = NEEDS_REAUTH_STATUSES.includes(item.status);
+            return (
+              <div key={item.id} style={{
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                border: needsReauth ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                padding: '20px',
+                marginBottom: '16px',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                      <h3 style={{ margin: 0 }}>{item.institution_name}</h3>
+                      {getStatusBadge(item.status, item.error_message)}
+                    </div>
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>{item.account_count} account(s)</p>
+                    {item.error_message && item.status !== 'active' && (
+                      <p style={{ margin: '6px 0 0', color: '#dc2626', fontSize: '13px' }}>{item.error_message}</p>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {needsReauth && (
+                      <UpdateLinkButton
+                        itemId={item.item_id}
+                        institutionName={item.institution_name}
+                        onSuccess={handleUpdateSuccess}
+                      />
+                    )}
+                    <button onClick={() => handleSync(item.item_id)} disabled={syncing || needsReauth} className="btn btn-secondary"
+                      style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid #d1d5db', background: 'white', cursor: syncing || needsReauth ? 'not-allowed' : 'pointer', opacity: needsReauth ? 0.5 : 1 }}
+                    >Sync</button>
+                    <button onClick={() => handleRemove(item.item_id, item.institution_name)} style={{ color: '#dc2626', border: '1px solid #fecaca', background: '#fef2f2', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}>Disconnect</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
 
           <h2 style={{ fontSize: '18px', marginTop: '32px', marginBottom: '16px' }}>Accounts</h2>
           <div style={{ backgroundColor: 'white', borderRadius: '8px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>

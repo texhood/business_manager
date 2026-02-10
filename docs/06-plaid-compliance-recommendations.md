@@ -201,17 +201,59 @@ All policy documents require formal review and approval by the Platform Owner be
 
 ---
 
+### 11. Update Mode for Broken Bank Connections
+
+**Plaid Requirement:** Implement update mode to fix connected Items that need end-user interaction. Detect ITEM_LOGIN_REQUIRED, PENDING_EXPIRATION, and PENDING_DISCONNECT webhooks and activate an entry point for update mode.
+
+**Enhancement:** Added `POST /api/v1/plaid/create-update-link-token` endpoint that creates a Plaid Link token in update mode for re-authenticating existing Items. Added `POST /api/v1/plaid/update-complete` endpoint that resets item status and triggers a fresh transaction sync. Enhanced webhook handler to detect and differentiate ITEM_LOGIN_REQUIRED (sets status `login_required`), PENDING_EXPIRATION (sets `pending_reauth`), PENDING_DISCONNECT (sets `pending_disconnect`), and USER_PERMISSION_REVOKED (sets `revoked`). Sync error handler also detects ITEM_LOGIN_REQUIRED from API error responses. Frontend shows amber alert banner when any connections need attention, status badges on each bank card, and a "Re-authenticate" button that launches Plaid Link in update mode.
+
+**Status:** ✅ Built — pending deployment.
+
+**Priority:** Critical (Plaid production requirement)
+
+**Effort:** Complete
+
+---
+
+### 12. Access Token Encryption at Rest
+
+**Plaid Requirement:** Store all access tokens securely, associated with the user whose data they represent.
+
+**Enhancement:** Added AES-256-GCM encryption for Plaid access tokens using `PLAID_TOKEN_ENCRYPTION_KEY` environment variable. Tokens are encrypted before database storage (prefixed with `enc:`) and decrypted transparently when needed for API calls. Backward-compatible with legacy plaintext tokens. Includes a one-time migration endpoint `POST /api/v1/plaid/encrypt-tokens` (admin-only) to encrypt existing plaintext tokens in place.
+
+**Status:** ✅ Built — pending deployment and environment variable configuration.
+
+**Priority:** Critical (Plaid production requirement)
+
+**Effort:** Complete
+
+---
+
+### 13. User Offboarding / Item Removal
+
+**Plaid Requirement:** Honor user privacy and manage costs by building offboarding flows for users who have unlinked their accounts or closed their account with you.
+
+**Enhancement:** Already implemented via `DELETE /api/v1/plaid/items/:item_id`. Calls `plaidClient.itemRemove()` to revoke access at Plaid, cleans up plaid_accounts and plaid_items records, and preserves transaction history by nullifying the plaid_account_id foreign key.
+
+**Status:** ✅ Already implemented — no changes needed.
+
+**Priority:** N/A
+
+---
+
 ## Deployment Checklist
 
 To activate the completed enhancements:
 
 1. Run migration `057_access_audit_log_and_review_report.sql` on the Railway PostgreSQL database
-2. Commit all changes with descriptive message
-3. Push to main branch (triggers Railway backend deploy and Vercel frontend deploys)
-4. Verify the GitHub Actions workflow appears in the repository's Actions tab
-5. Verify the Access Change Log and User Accounts reports appear in the Report Builder under the Security category
-6. Test an account action (e.g., role change) and confirm an entry appears in the account_access_log table
-7. Review and formally approve all five policy documents
+2. Add `PLAID_TOKEN_ENCRYPTION_KEY` environment variable to Railway (generate a strong random string, e.g. `openssl rand -hex 32`)
+3. Commit all changes with descriptive message
+4. Push to main branch (triggers Railway backend deploy and Vercel frontend deploys)
+5. After deployment, call `POST /api/v1/plaid/encrypt-tokens` to encrypt any existing plaintext access tokens
+6. Verify the GitHub Actions workflow appears in the repository's Actions tab
+7. Verify the Access Change Log and User Accounts reports appear in the Report Builder under the Security category
+8. Test an account action (e.g., role change) and confirm an entry appears in the account_access_log table
+9. Review and formally approve all five policy documents
 
 ---
 

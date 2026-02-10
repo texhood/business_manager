@@ -10,9 +10,84 @@
 
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { Configuration, PlaidApi, PlaidEnvironments, Products } = require('plaid');
 const db = require('../../config/database');
 const { authenticate, requireStaff } = require('../middleware/auth');
+
+// ============================================================================
+// ACCESS TOKEN ENCRYPTION
+// Plaid requires secure storage of access tokens in production.
+// Uses AES-256-GCM with a key derived from PLAID_TOKEN_ENCRYPTION_KEY env var.
+// ============================================================================
+
+const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
+const IV_LENGTH = 16;
+const AUTH_TAG_LENGTH = 16;
+
+function getEncryptionKey() {
+  const key = process.env.PLAID_TOKEN_ENCRYPTION_KEY;
+  if (!key) {
+    console.warn('WARNING: PLAID_TOKEN_ENCRYPTION_KEY not set. Access tokens stored unencrypted.');
+    return null;
+  }
+  // Derive a 32-byte key from the secret using SHA-256
+  return crypto.createHash('sha256').update(key).digest();
+}
+
+/**
+ * Encrypt a Plaid access token for storage
+ * Returns "enc:iv:authTag:ciphertext" or plaintext if no key configured
+ */
+function encryptAccessToken(plaintext) {
+  const key = getEncryptionKey();
+  if (!key) return plaintext;
+
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv);
+  let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag().toString('hex');
+
+  return `enc:${iv.toString('hex')}:${authTag}:${encrypted}`;
+}
+
+/**
+ * Decrypt a Plaid access token from storage
+ * Handles both encrypted ("enc:...") and legacy plaintext tokens
+ */
+function decryptAccessToken(stored) {
+  if (!stored || !stored.startsWith('enc:')) {
+    return stored; // Legacy plaintext token or null
+  }
+
+  const key = getEncryptionKey();
+  if (!key) {
+    throw new Error('Cannot decrypt access token: PLAID_TOKEN_ENCRYPTION_KEY not set');
+  }
+
+  const parts = stored.split(':');
+  if (parts.length !== 4) {
+    throw new Error('Invalid encrypted token format');
+  }
+
+  const [, ivHex, authTagHex, ciphertext] = parts;
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(ciphertext, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+
+  return decrypted;
+}
+
+/**
+ * Helper: get decrypted access token for a plaid_items row
+ */
+function getAccessToken(item) {
+  return decryptAccessToken(item.access_token);
+}
 
 // ============================================================================
 // PLAID CLIENT SETUP
@@ -93,6 +168,141 @@ router.post('/create-link-token', authenticate, requireStaff, async (req, res) =
 });
 
 // ============================================================================
+// UPDATE MODE - Re-authenticate a broken bank connection
+// ============================================================================
+
+/**
+ * POST /api/v1/plaid/create-update-link-token
+ * Creates a link token in update mode for re-authenticating an existing Item.
+ * Used when status is 'pending_reauth', 'login_required', or 'pending_disconnect'.
+ * Body: { item_id: string }
+ */
+router.post('/create-update-link-token', authenticate, requireStaff, async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { item_id } = req.body;
+
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Tenant context required' });
+  }
+
+  if (!item_id) {
+    return res.status(400).json({ error: 'item_id is required' });
+  }
+
+  try {
+    // Look up the item - must belong to this tenant
+    const itemResult = await db.query(
+      'SELECT * FROM plaid_items WHERE item_id = $1 AND tenant_id = $2',
+      [item_id, tenantId]
+    );
+
+    if (itemResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Bank connection not found' });
+    }
+
+    const item = itemResult.rows[0];
+    const accessToken = getAccessToken(item);
+
+    // Get tenant business name
+    let clientName = 'Business Manager';
+    const tenantResult = await db.query(
+      'SELECT business_name, name FROM tenants WHERE id = $1',
+      [tenantId]
+    );
+    if (tenantResult.rows.length > 0) {
+      clientName = tenantResult.rows[0].business_name || tenantResult.rows[0].name || clientName;
+    }
+
+    // Create link token in update mode (pass access_token instead of products)
+    const request = {
+      user: {
+        client_user_id: `${tenantId}-${req.user.id}`,
+      },
+      client_name: clientName,
+      access_token: accessToken,
+      country_codes: ['US'],
+      language: 'en',
+    };
+
+    if (process.env.PLAID_REDIRECT_URI) {
+      request.redirect_uri = process.env.PLAID_REDIRECT_URI;
+    }
+
+    const response = await plaidClient.linkTokenCreate(request);
+
+    res.json({
+      link_token: response.data.link_token,
+      expiration: response.data.expiration,
+      item_id: item_id,
+      institution: item.institution_name,
+    });
+  } catch (error) {
+    console.error('Error creating update link token:', error.response?.data || error.message);
+    res.status(500).json({
+      error: 'Failed to create update link token',
+      details: error.response?.data?.error_message || error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/v1/plaid/update-complete
+ * Called after user completes update mode in Plaid Link.
+ * Resets the item status back to active since credentials are now refreshed.
+ * Body: { item_id: string }
+ */
+router.post('/update-complete', authenticate, requireStaff, async (req, res) => {
+  const tenantId = getTenantId(req);
+  const { item_id } = req.body;
+
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Tenant context required' });
+  }
+
+  if (!item_id) {
+    return res.status(400).json({ error: 'item_id is required' });
+  }
+
+  try {
+    const result = await db.query(
+      `UPDATE plaid_items 
+       SET status = 'active', error_code = NULL, error_message = NULL, updated_at = NOW()
+       WHERE item_id = $1 AND tenant_id = $2
+       RETURNING id, institution_name`,
+      [item_id, tenantId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Bank connection not found' });
+    }
+
+    // Trigger a fresh transaction sync now that the connection is restored
+    const itemResult = await db.query(
+      'SELECT * FROM plaid_items WHERE item_id = $1 AND tenant_id = $2',
+      [item_id, tenantId]
+    );
+    if (itemResult.rows.length > 0) {
+      const item = itemResult.rows[0];
+      const syncResults = { added: 0, modified: 0, removed: 0 };
+      try {
+        await syncItemTransactions(item, syncResults, tenantId);
+      } catch (syncErr) {
+        console.warn('Post-update sync failed:', syncErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      institution: result.rows[0].institution_name,
+      message: 'Bank connection restored',
+    });
+  } catch (error) {
+    console.error('Error completing update:', error);
+    res.status(500).json({ error: 'Failed to complete update' });
+  }
+});
+
+// ============================================================================
 // TOKEN EXCHANGE - Complete the Link flow
 // ============================================================================
 
@@ -138,7 +348,8 @@ router.post('/exchange-token', authenticate, requireStaff, async (req, res) => {
       }
     }
 
-    // Store the Plaid Item with tenant_id
+    // Store the Plaid Item with tenant_id (encrypt access token)
+    const encryptedToken = encryptAccessToken(access_token);
     const itemResult = await db.query(
       `INSERT INTO plaid_items (access_token, item_id, institution_id, institution_name, tenant_id)
        VALUES ($1, $2, $3, $4, $5)
@@ -150,7 +361,7 @@ router.post('/exchange-token', authenticate, requireStaff, async (req, res) => {
          error_message = NULL,
          updated_at = NOW()
        RETURNING id`,
-      [access_token, item_id, institutionId, institutionName, tenantId]
+      [encryptedToken, item_id, institutionId, institutionName, tenantId]
     );
     const plaidItemId = itemResult.rows[0].id;
 
@@ -261,11 +472,13 @@ router.post('/sync-transactions', authenticate, requireStaff, async (req, res) =
           error: error.message,
         });
 
-        // Update item status on error
+        // Detect ITEM_LOGIN_REQUIRED from API error response
+        const errorCode = error.response?.data?.error_code || 'UNKNOWN';
+        const itemStatus = errorCode === 'ITEM_LOGIN_REQUIRED' ? 'login_required' : 'error';
         await db.query(
-          `UPDATE plaid_items SET status = 'error', error_code = $1, error_message = $2, updated_at = NOW()
-           WHERE id = $3 AND tenant_id = $4`,
-          [error.response?.data?.error_code || 'UNKNOWN', error.message, item.id, tenantId]
+          `UPDATE plaid_items SET status = $1, error_code = $2, error_message = $3, updated_at = NOW()
+           WHERE id = $4 AND tenant_id = $5`,
+          [itemStatus, errorCode, error.message, item.id, tenantId]
         );
       }
     }
@@ -302,7 +515,7 @@ async function syncItemTransactions(item, results, tenantId) {
 
   while (hasMore) {
     const request = {
-      access_token: item.access_token,
+      access_token: getAccessToken(item),
     };
     if (cursor) {
       request.cursor = cursor;
@@ -428,7 +641,7 @@ router.post('/refresh-accounts', authenticate, requireStaff, async (req, res) =>
         console.log(`Fetching accounts for item ${item.item_id} (${item.institution_name})...`);
         
         const accountsResponse = await plaidClient.accountsGet({ 
-          access_token: item.access_token 
+          access_token: getAccessToken(item) 
         });
         const accounts = accountsResponse.data.accounts;
         
@@ -675,7 +888,7 @@ router.delete('/items/:item_id', authenticate, requireStaff, async (req, res) =>
 
     // Remove from Plaid API
     try {
-      await plaidClient.itemRemove({ access_token: item.access_token });
+      await plaidClient.itemRemove({ access_token: getAccessToken(item) });
     } catch (e) {
       console.warn('Could not remove item from Plaid API:', e.message);
       // Continue anyway - we still want to clean up our database
@@ -718,6 +931,62 @@ router.delete('/items/:item_id', authenticate, requireStaff, async (req, res) =>
 });
 
 // ============================================================================
+// ENCRYPT EXISTING TOKENS - One-time migration utility
+// ============================================================================
+
+/**
+ * POST /api/v1/plaid/encrypt-tokens
+ * Encrypts any plaintext access tokens in the database.
+ * Idempotent - skips already-encrypted tokens (prefixed with "enc:").
+ * Requires super_admin or tenant_admin role.
+ */
+router.post('/encrypt-tokens', authenticate, async (req, res) => {
+  const tenantId = getTenantId(req);
+  const role = req.user?.role;
+
+  if (!['super_admin', 'tenant_admin'].includes(role)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  if (!process.env.PLAID_TOKEN_ENCRYPTION_KEY) {
+    return res.status(400).json({ error: 'PLAID_TOKEN_ENCRYPTION_KEY environment variable not set' });
+  }
+
+  try {
+    // Get all items with plaintext tokens (not starting with "enc:")
+    let query = `SELECT id, access_token FROM plaid_items WHERE access_token IS NOT NULL AND access_token NOT LIKE 'enc:%'`;
+    const params = [];
+
+    // Scope to tenant unless super_admin
+    if (role !== 'super_admin' && tenantId) {
+      query += ' AND tenant_id = $1';
+      params.push(tenantId);
+    }
+
+    const result = await db.query(query, params);
+    let encrypted = 0;
+
+    for (const row of result.rows) {
+      const encryptedToken = encryptAccessToken(row.access_token);
+      await db.query(
+        'UPDATE plaid_items SET access_token = $1, updated_at = NOW() WHERE id = $2',
+        [encryptedToken, row.id]
+      );
+      encrypted++;
+    }
+
+    res.json({
+      success: true,
+      message: `Encrypted ${encrypted} access token(s)`,
+      total_found: result.rows.length,
+    });
+  } catch (error) {
+    console.error('Error encrypting tokens:', error);
+    res.status(500).json({ error: 'Failed to encrypt tokens' });
+  }
+});
+
+// ============================================================================
 // WEBHOOKS - Receive updates from Plaid
 // ============================================================================
 
@@ -755,17 +1024,45 @@ router.post('/webhook', async (req, res) => {
       case 'ITEM':
         if (webhook_code === 'ERROR') {
           const { error } = req.body;
-          await db.query(
-            `UPDATE plaid_items SET status = 'error', error_code = $1, error_message = $2, updated_at = NOW()
-             WHERE item_id = $3`,
-            [error?.error_code, error?.error_message, item_id]
-          );
+          // ITEM_LOGIN_REQUIRED means the user needs to re-authenticate
+          if (error?.error_code === 'ITEM_LOGIN_REQUIRED') {
+            await db.query(
+              `UPDATE plaid_items SET status = 'login_required', error_code = $1, error_message = $2, updated_at = NOW()
+               WHERE item_id = $3`,
+              [error.error_code, error.error_message || 'Bank login credentials have changed', item_id]
+            );
+            console.log(`Item ${item_id} requires re-authentication (ITEM_LOGIN_REQUIRED)`);
+          } else {
+            await db.query(
+              `UPDATE plaid_items SET status = 'error', error_code = $1, error_message = $2, updated_at = NOW()
+               WHERE item_id = $3`,
+              [error?.error_code, error?.error_message, item_id]
+            );
+          }
         } else if (webhook_code === 'PENDING_EXPIRATION') {
+          // Item's access consent is about to expire (usually 90 days for European banks)
           await db.query(
-            `UPDATE plaid_items SET status = 'pending_reauth', updated_at = NOW()
+            `UPDATE plaid_items SET status = 'pending_reauth', error_message = 'Bank connection will expire soon - please re-authenticate', updated_at = NOW()
              WHERE item_id = $1`,
             [item_id]
           );
+          console.log(`Item ${item_id} pending expiration - user should re-authenticate`);
+        } else if (webhook_code === 'PENDING_DISCONNECT') {
+          // Plaid will disconnect this item soon - user must re-authenticate
+          await db.query(
+            `UPDATE plaid_items SET status = 'pending_disconnect', error_message = 'Bank connection will be disconnected soon - please re-authenticate', updated_at = NOW()
+             WHERE item_id = $1`,
+            [item_id]
+          );
+          console.log(`Item ${item_id} pending disconnect - user must re-authenticate`);
+        } else if (webhook_code === 'USER_PERMISSION_REVOKED') {
+          // User revoked access at the bank - mark as disconnected
+          await db.query(
+            `UPDATE plaid_items SET status = 'revoked', error_message = 'Access was revoked at the bank', updated_at = NOW()
+             WHERE item_id = $1`,
+            [item_id]
+          );
+          console.log(`Item ${item_id} permission revoked by user at bank`);
         }
         break;
     }
