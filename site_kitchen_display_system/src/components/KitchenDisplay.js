@@ -4,6 +4,7 @@ import { apiFetch } from '../services/api';
 import OrderCard from './OrderCard';
 import DoneOrdersPanel from './DoneOrdersPanel';
 import ChangePasswordModal from './ChangePasswordModal';
+import TwoFactorSettings from './TwoFactorSettings';
 
 const REFRESH_INTERVAL = 5000; // 5 seconds
 
@@ -18,6 +19,7 @@ const KitchenDisplay = ({ onShowHelp }) => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showDonePanel, setShowDonePanel] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showSecurity, setShowSecurity] = useState(false);
   const prevOrderCountRef = useRef(0);
   const audioRef = useRef(null);
 
@@ -226,6 +228,12 @@ const KitchenDisplay = ({ onShowHelp }) => {
           </div>
 
           <button
+            onClick={() => setShowSecurity(true)}
+            title="Security Settings"
+            style={{ background: 'none', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}
+          >🛡️</button>
+
+          <button
             onClick={() => setShowChangePassword(true)}
             title="Change Password"
             style={{ background: 'none', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}
@@ -279,6 +287,10 @@ const KitchenDisplay = ({ onShowHelp }) => {
 
       {showChangePassword && (
         <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
+
+      {showSecurity && (
+        <TwoFactorSettings onClose={() => setShowSecurity(false)} />
       )}
     </div>
   );

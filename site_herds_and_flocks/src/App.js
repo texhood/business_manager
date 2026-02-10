@@ -41,6 +41,7 @@ import OwnersView from './components/views/OwnersView';
 import RainfallView from './components/views/RainfallView';
 import HelpView from './components/views/HelpView';
 import ChangePasswordModal from './components/common/ChangePasswordModal';
+import TwoFactorSettings from './components/auth/TwoFactorSettings';
 
 // ============================================================================
 // TEMPORARY PLACEHOLDER VIEWS (until proper views are created)
@@ -282,6 +283,7 @@ function App() {
       icon: Icons.List,
       isSection: true,
       children: [
+        { id: 'security', label: 'Security (2FA)', icon: Icons.Shield },
         { id: 'breeds', label: 'Breeds', icon: Icons.Tag },
         { id: 'animalCategories', label: 'Animal Categories', icon: Icons.Grid },
         { id: 'owners', label: 'Owners', icon: Icons.Users },
@@ -379,6 +381,8 @@ function App() {
         return <FeeTypesView />;
       case 'rainfall':
         return <RainfallView />;
+      case 'security':
+        return <TwoFactorSettings />;
       case 'help':
         return <HelpView appSlug="herds" />;
       default:

@@ -49,6 +49,22 @@ api.interceptors.response.use(
 export const authService = {
   login: async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
+    const data = response.data.data;
+
+    // If 2FA is required, return the pending state instead of completing login
+    if (data.requires2FA) {
+      return { requires2FA: true, twoFactorToken: data.twoFactorToken };
+    }
+
+    const { token, refreshToken, user } = data;
+    localStorage.setItem('portal_token', token);
+    localStorage.setItem('portal_refresh_token', refreshToken);
+    localStorage.setItem('portal_user', JSON.stringify(user));
+    return user;
+  },
+
+  verify2FA: async (twoFactorToken, code) => {
+    const response = await api.post('/auth/verify-2fa', { twoFactorToken, code });
     const { token, refreshToken, user } = response.data.data;
     localStorage.setItem('portal_token', token);
     localStorage.setItem('portal_refresh_token', refreshToken);
@@ -109,6 +125,37 @@ export const portalService = {
 
   checkAccess: async (appSlug) => {
     const response = await api.get(`/portal/check-access/${appSlug}`);
+    return response.data.data;
+  },
+};
+
+// ============================================================================
+// TWO-FACTOR AUTHENTICATION
+// ============================================================================
+
+export const twoFactorService = {
+  getStatus: async () => {
+    const response = await api.get('/2fa/status');
+    return response.data.data;
+  },
+
+  setup: async () => {
+    const response = await api.post('/2fa/setup');
+    return response.data.data;
+  },
+
+  verifySetup: async (code) => {
+    const response = await api.post('/2fa/verify-setup', { code });
+    return response.data;
+  },
+
+  disable: async (password) => {
+    const response = await api.post('/2fa/disable', { password });
+    return response.data;
+  },
+
+  regenerateRecovery: async (password) => {
+    const response = await api.post('/2fa/regenerate-recovery', { password });
     return response.data.data;
   },
 };

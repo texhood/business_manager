@@ -84,5 +84,53 @@ export const api = {
   delete: (endpoint) => apiFetch(endpoint, { method: 'DELETE' }),
 };
 
+// ============================================================================
+// TWO-FACTOR AUTHENTICATION
+// ============================================================================
+
+export const twoFactorService = {
+  getStatus: async () => {
+    const response = await apiFetch('/2fa/status');
+    const data = await response.json();
+    return data.data;
+  },
+
+  setup: async () => {
+    const response = await apiFetch('/2fa/setup', { method: 'POST' });
+    const data = await response.json();
+    return data.data;
+  },
+
+  verifySetup: async (code) => {
+    const response = await apiFetch('/2fa/verify-setup', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw { response: { data } };
+    return data;
+  },
+
+  disable: async (password) => {
+    const response = await apiFetch('/2fa/disable', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw { response: { data } };
+    return data;
+  },
+
+  regenerateRecovery: async (password) => {
+    const response = await apiFetch('/2fa/regenerate-recovery', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw { response: { data } };
+    return data.data;
+  },
+};
+
 export { getTenantFromSubdomain, API_URL };
 export default api;

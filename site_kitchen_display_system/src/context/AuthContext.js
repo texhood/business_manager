@@ -8,6 +8,10 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('kds_token'));
   const [loading, setLoading] = useState(true);
 
+  // 2FA pending state
+  const [twoFactorPending, setTwoFactorPending] = useState(false);
+  const [twoFactorToken, setTwoFactorToken] = useState(null);
+
   // Check for existing session on mount, or try SSO cookie
   useEffect(() => {
     const checkAuth = async () => {
@@ -68,6 +72,13 @@ export const AuthProvider = ({ children }) => {
       throw new Error(data.message || 'Login failed');
     }
 
+    // Handle 2FA required
+    if (data.data.requires2FA) {
+      setTwoFactorPending(true);
+      setTwoFactorToken(data.data.twoFactorToken);
+      return { requires2FA: true };
+    }
+
     const { token: newToken, user: userData } = data.data;
 
     localStorage.setItem('kds_token', newToken);
@@ -79,11 +90,45 @@ export const AuthProvider = ({ children }) => {
     return userData;
   };
 
+  const verify2FA = async (code) => {
+    const response = await fetch(`${API_URL}/auth/verify-2fa`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: getHeaders(),
+      body: JSON.stringify({ twoFactorToken, code })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Invalid verification code');
+    }
+
+    const { token: newToken, user: userData } = data.data;
+
+    localStorage.setItem('kds_token', newToken);
+    localStorage.setItem('kds_user', JSON.stringify(userData));
+
+    setToken(newToken);
+    setUser(userData);
+    setTwoFactorPending(false);
+    setTwoFactorToken(null);
+
+    return userData;
+  };
+
+  const cancelTwoFactor = () => {
+    setTwoFactorPending(false);
+    setTwoFactorToken(null);
+  };
+
   const logout = () => {
     localStorage.removeItem('kds_token');
     localStorage.removeItem('kds_user');
     setToken(null);
     setUser(null);
+    setTwoFactorPending(false);
+    setTwoFactorToken(null);
   };
 
   const value = {
@@ -91,6 +136,9 @@ export const AuthProvider = ({ children }) => {
     token,
     loading,
     login,
+    verify2FA,
+    cancelTwoFactor,
+    twoFactorPending,
     logout,
     isAuthenticated: !!user
   };

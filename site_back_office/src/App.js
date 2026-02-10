@@ -21,6 +21,7 @@ import { authService, accountsService, itemsService, transactionsService, delive
 import { Icons } from './components/common/Icons';
 import LoginPage from './components/auth/LoginPage';
 import ChangePasswordModal from './components/common/ChangePasswordModal';
+import TwoFactorSettings from './components/auth/TwoFactorSettings';
 
 // Views
 import {
@@ -508,6 +509,7 @@ function App() {
       icon: Icons.Settings,
       isSection: true,
       children: [
+        { id: 'security', label: 'Security (2FA)', icon: Icons.Shield },
         { id: 'stripeConnect', label: 'Stripe Connect', icon: Icons.CreditCard },
         { id: 'dataImport', label: 'Data Import', icon: Icons.Upload },
       ],
@@ -596,6 +598,8 @@ function App() {
         return <ReportBuilderView />;
       case 'restaurantSales':
         return <POSSalesView />;
+      case 'security':
+        return <TwoFactorSettings />;
       case 'help':
         return <HelpView appSlug="office" />;
       default:

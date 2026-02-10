@@ -55,6 +55,21 @@ api.interceptors.response.use(
 export const authService = {
   login: async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
+    const data = response.data.data;
+
+    if (data.requires2FA) {
+      return { requires2FA: true, twoFactorToken: data.twoFactorToken };
+    }
+
+    const { token, refreshToken, user } = data;
+    localStorage.setItem('hf_token', token);
+    localStorage.setItem('hf_refreshToken', refreshToken);
+    localStorage.setItem('hf_user', JSON.stringify(user));
+    return user;
+  },
+
+  verify2FA: async (twoFactorToken, code) => {
+    const response = await api.post('/auth/verify-2fa', { twoFactorToken, code });
     const { token, refreshToken, user } = response.data.data;
     localStorage.setItem('hf_token', token);
     localStorage.setItem('hf_refreshToken', refreshToken);
@@ -575,6 +590,37 @@ export const herdEventsService = {
   delete: async (id) => {
     const response = await api.delete(`/herds-flocks/herd-events/${id}`);
     return response.data;
+  },
+};
+
+// ============================================================================
+// TWO-FACTOR AUTHENTICATION
+// ============================================================================
+
+export const twoFactorService = {
+  getStatus: async () => {
+    const response = await api.get('/2fa/status');
+    return response.data.data;
+  },
+
+  setup: async () => {
+    const response = await api.post('/2fa/setup');
+    return response.data.data;
+  },
+
+  verifySetup: async (code) => {
+    const response = await api.post('/2fa/verify-setup', { code });
+    return response.data;
+  },
+
+  disable: async (password) => {
+    const response = await api.post('/2fa/disable', { password });
+    return response.data;
+  },
+
+  regenerateRecovery: async (password) => {
+    const response = await api.post('/2fa/regenerate-recovery', { password });
+    return response.data.data;
   },
 };
 

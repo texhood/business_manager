@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { LogOut, ArrowUpRight } from 'lucide-react';
+import { LogOut, ArrowUpRight, Shield } from 'lucide-react';
 import { portalService, authService } from '../services/api';
 import AppCard from './AppCard';
+import TwoFactorSettings from './TwoFactorSettings';
 
 const CATEGORY_LABELS = {
   core: 'Core',
@@ -22,6 +23,7 @@ const PortalDashboard = ({ user, onLogout, HelpView }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showHelp, setShowHelp] = useState(false);
+  const [showSecurity, setShowSecurity] = useState(false);
 
   useEffect(() => {
     loadLauncher();
@@ -105,8 +107,20 @@ const PortalDashboard = ({ user, onLogout, HelpView }) => {
         <div className="portal-header-right">
           <span className="user-info">{launcherData.user?.name || launcherData.user?.email}</span>
           <span className="user-role">{launcherData.user?.role?.replace('_', ' ')}</span>
+          <button
+            onClick={() => { setShowSecurity(!showSecurity); setShowHelp(false); }}
+            style={{
+              background: showSecurity ? 'var(--brand-color, #2d5016)' : 'transparent',
+              color: showSecurity ? '#fff' : '#333',
+              border: '1px solid #d1d5db', padding: '4px 12px', borderRadius: '6px',
+              cursor: 'pointer', fontSize: '0.82rem',
+            }}
+          >
+            <Shield size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+            {showSecurity ? '✕ Close' : 'Security'}
+          </button>
           {HelpView && (
-            <button onClick={() => setShowHelp(!showHelp)} style={{ background: showHelp ? 'var(--brand-color, #2d5016)' : 'transparent', color: '#333', border: '1px solid #d1d5db', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.82rem', ...(showHelp ? {color:'#fff'} : {}) }}>
+            <button onClick={() => { setShowHelp(!showHelp); setShowSecurity(false); }} style={{ background: showHelp ? 'var(--brand-color, #2d5016)' : 'transparent', color: '#333', border: '1px solid #d1d5db', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.82rem', ...(showHelp ? {color:'#fff'} : {}) }}>
               {showHelp ? '✕ Close Help' : '📖 Help'}
             </button>
           )}
@@ -118,7 +132,11 @@ const PortalDashboard = ({ user, onLogout, HelpView }) => {
       </header>
 
       {/* Main Content */}
-      {showHelp && HelpView ? (
+      {showSecurity ? (
+        <main className="portal-main">
+          <TwoFactorSettings />
+        </main>
+      ) : showHelp && HelpView ? (
         <main className="portal-main" style={{ padding: 0 }}>
           <HelpView appSlug="portal" />
         </main>

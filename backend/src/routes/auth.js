@@ -6,11 +6,15 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { authenticator } = require('otplib');
 
 const db = require('../../config/database');
 const { authenticate, generateToken, generateRefreshToken } = require('../middleware/auth');
 const { ApiError, asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 const router = express.Router();
 
@@ -19,12 +23,12 @@ const router = express.Router();
 // ============================================================================
 
 const loginValidation = [
-  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+  body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email required'),
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
 const registerValidation = [
-  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+  body('email').isEmail().normalizeEmail({ gmail_remove_dots: false }).withMessage('Valid email required'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   body('name').trim().notEmpty().withMessage('Name is required'),
 ];
@@ -70,7 +74,27 @@ router.post('/login', loginValidation, validate, asyncHandler(async (req, res) =
     throw new ApiError(401, 'Invalid email or password');
   }
 
-  // Update last login
+  // Check if 2FA is enabled
+  if (user.totp_enabled) {
+    // Generate a short-lived token that only grants 2FA verification access
+    const twoFactorToken = jwt.sign(
+      { id: user.id, purpose: '2fa_pending' },
+      JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+
+    logger.info('2FA challenge issued', { userId: user.id, email: user.email });
+
+    return res.json({
+      status: 'success',
+      data: {
+        requires2FA: true,
+        twoFactorToken,
+      },
+    });
+  }
+
+  // No 2FA — complete login normally
   await db.query(
     'UPDATE accounts SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
     [user.id]
@@ -93,6 +117,105 @@ router.post('/login', loginValidation, validate, asyncHandler(async (req, res) =
     domain: isProduction ? '.busmgr.com' : undefined,
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (matches JWT expiry)
+  });
+
+  res.json({
+    status: 'success',
+    data: {
+      user: userData,
+      token,
+      refreshToken,
+    },
+  });
+}));
+
+/**
+ * POST /auth/verify-2fa
+ * Complete login after TOTP verification
+ * Body: { twoFactorToken, code } — code can be a TOTP code or a recovery code
+ */
+router.post('/verify-2fa', asyncHandler(async (req, res) => {
+  const { twoFactorToken, code } = req.body;
+
+  if (!twoFactorToken || !code) {
+    throw new ApiError(400, 'Two-factor token and verification code are required');
+  }
+
+  // Verify the pending 2FA token
+  let decoded;
+  try {
+    decoded = jwt.verify(twoFactorToken, JWT_SECRET);
+  } catch (err) {
+    throw new ApiError(401, 'Two-factor session has expired. Please log in again.');
+  }
+
+  if (decoded.purpose !== '2fa_pending') {
+    throw new ApiError(401, 'Invalid two-factor token');
+  }
+
+  // Get the user
+  const result = await db.query(
+    'SELECT * FROM accounts WHERE id = $1 AND is_active = true',
+    [decoded.id]
+  );
+
+  if (result.rows.length === 0) {
+    throw new ApiError(401, 'User not found');
+  }
+
+  const user = result.rows[0];
+
+  // Try TOTP code first
+  const normalizedCode = code.replace(/\s/g, '');
+  let isValid = authenticator.verify({ token: normalizedCode, secret: user.totp_secret });
+
+  // If TOTP didn't match, try recovery codes
+  if (!isValid && user.totp_recovery_codes) {
+    const hashedCodes = JSON.parse(user.totp_recovery_codes);
+    const normalizedInput = normalizedCode.toUpperCase();
+
+    for (let i = 0; i < hashedCodes.length; i++) {
+      const match = await bcrypt.compare(normalizedInput, hashedCodes[i]);
+      if (match) {
+        // Remove used recovery code
+        hashedCodes.splice(i, 1);
+        await db.query(
+          'UPDATE accounts SET totp_recovery_codes = $1 WHERE id = $2',
+          [JSON.stringify(hashedCodes), user.id]
+        );
+        isValid = true;
+        logger.warn('Recovery code used', { userId: user.id, remainingCodes: hashedCodes.length });
+        break;
+      }
+    }
+  }
+
+  if (!isValid) {
+    throw new ApiError(401, 'Invalid verification code');
+  }
+
+  // 2FA passed — complete login
+  await db.query(
+    'UPDATE accounts SET last_login = CURRENT_TIMESTAMP WHERE id = $1',
+    [user.id]
+  );
+
+  const token = generateToken(user);
+  const refreshToken = generateRefreshToken(user);
+
+  logger.info('User logged in (2FA verified)', { userId: user.id, email: user.email });
+
+  const { password_hash: _, totp_secret: __, totp_recovery_codes: ___, ...userData } = user;
+
+  // Set SSO cookie
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.cookie('busmgr_sso', token, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    domain: isProduction ? '.busmgr.com' : undefined,
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
   res.json({

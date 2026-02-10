@@ -1,6 +1,6 @@
 /**
  * Login Component - Kitchen Display System
- * Standardized login matching herds & flocks style
+ * Standardized login with TOTP two-factor authentication
  */
 
 import React, { useState } from 'react';
@@ -38,12 +38,15 @@ const AlertCircleIcon = () => (
 );
 
 const Login = () => {
-  const { login } = useAuth();
+  const { login, verify2FA, twoFactorPending, cancelTwoFactor } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // 2FA state
+  const [totpCode, setTotpCode] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -59,6 +62,93 @@ const Login = () => {
     }
   };
 
+  const handleVerify2FA = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      await verify2FA(totpCode);
+    } catch (err) {
+      setError(err.message || 'Invalid verification code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToLogin = () => {
+    cancelTwoFactor();
+    setTotpCode('');
+    setError('');
+    setPassword('');
+  };
+
+  // ── 2FA Verification Screen ──
+  if (twoFactorPending) {
+    return (
+      <div className="login-page">
+        <div className="login-container">
+          <div className="login-logo">
+            <h1>🔐 Verification Required</h1>
+            <p>Enter the 6-digit code from your authenticator app</p>
+          </div>
+
+          {error && (
+            <div className="login-error">
+              <AlertCircleIcon />
+              {error}
+            </div>
+          )}
+
+          <form className="login-form" onSubmit={handleVerify2FA}>
+            <div className="form-group">
+              <label>Verification Code</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/[^0-9A-Za-z-]/g, ''))}
+                placeholder="123456"
+                maxLength={10}
+                required
+                autoFocus
+                style={{ letterSpacing: '0.3em', textAlign: 'center', fontSize: '1.25rem' }}
+              />
+            </div>
+
+            <p style={{ fontSize: '0.8rem', color: '#888', textAlign: 'center', margin: '0 0 12px' }}>
+              You can also use a recovery code
+            </p>
+
+            <button type="submit" className="login-btn" disabled={loading}>
+              {loading ? (
+                <>
+                  <LoaderIcon />
+                  Verifying...
+                </>
+              ) : (
+                'Verify'
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBackToLogin}
+              style={{
+                background: 'none', border: 'none', color: 'var(--brand-color, #2563eb)',
+                cursor: 'pointer', fontSize: '0.85rem', textAlign: 'center', width: '100%', marginTop: '12px',
+              }}
+            >
+              ← Back to login
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Standard Login Screen ──
   return (
     <div className="login-page">
       <div className="login-container">
